@@ -10,7 +10,7 @@ import Dashboard from "./pages/Dashboard/Dashboard";
 
 // 자재
 import MaterialInout from "./pages/Material/MaterialInout";
-import MaterialStatus from "./pages/Material/MaterialStatus";
+import MaterialHistory from "./pages/Material/MaterialHistory";
 
 // 생산
 import WorkOrder from "./pages/Production/WorkOrder";
@@ -45,8 +45,9 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
 
           {/* 자재 */}
+
           <Route path="/material/inout" element={<MaterialInout />} />
-          <Route path="/material/status" element={<MaterialStatus />} />
+          <Route path="/material/history" element={<MaterialHistory />} />
           <Route path="/inventory" element={<InventoryCurrent />} />
 
           {/* 생산 */}
