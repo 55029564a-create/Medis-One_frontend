@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   FaSignOutAlt,
   FaClock,
-  FaCloudSun,
+  FaCloudSun, // 구름+해
+  FaSnowflake, // 눈/추위 아이콘 (겨울용)
   FaUserCircle,
   FaMapMarkerAlt,
 } from "react-icons/fa";
@@ -32,7 +33,7 @@ const Header = () => {
   // 1. 로그인 체크
   useEffect(() => {
     const token = localStorage.getItem("token");
-    setIsLoggedIn(true); // 테스트용
+    setIsLoggedIn(true);
   }, []);
 
   // 2. 실시간 시계
@@ -43,11 +44,35 @@ const Header = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // 3. 날씨 API (더미)
+  // 3. 날씨 API (현재 날씨 반영 수정)
   useEffect(() => {
-    setTimeout(() => {
-      setWeather({ temp: 21, condition: "맑음" });
-    }, 500);
+    const fetchWeather = async () => {
+      try {
+        // ----------------------------------------------------------------
+        // [실제 사용 시] 아래 주석을 풀고 본인의 OpenWeatherMap API 키를 넣으세요.
+        // ----------------------------------------------------------------
+
+        const API_KEY = "a401c48e03c0bffe9e70d13ad9a63ecb";
+        const city = "Cheonan";
+        const response = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric`,
+        );
+        const data = await response.json();
+        setWeather({
+          temp: Math.round(data.main.temp),
+          condition: data.weather[0].main === "Clear" ? "맑음" : "흐림",
+        });
+
+        // [임시] API 키가 없을 때 보여줄 데이터 (말씀하신 -3도로 수정했습니다!)
+        setTimeout(() => {
+          setWeather({ temp: -3, condition: "맑음" });
+        }, 500);
+      } catch (error) {
+        console.error("날씨 로딩 실패", error);
+        setWeather({ temp: -3, condition: "N/A" });
+      }
+    };
+    fetchWeather();
   }, []);
 
   const handleLogout = () => {
@@ -71,7 +96,14 @@ const Header = () => {
           <FaMapMarkerAlt color={COLORS.primary} size={14} />
           <span style={styles.infoText}>천안</span>
           <div style={styles.divider} />
-          <FaCloudSun color="#FFA726" size={16} />
+
+          {/* 기온이 영하일 때 눈송이 아이콘, 영상일 때 구름 아이콘 나오게 조건부 렌더링 */}
+          {parseInt(weather.temp) < 0 ? (
+            <FaSnowflake color="#90CAF9" size={14} />
+          ) : (
+            <FaCloudSun color="#FFA726" size={16} />
+          )}
+
           <span style={styles.infoText}>
             {weather.condition} {weather.temp}°C
           </span>
@@ -126,26 +158,21 @@ const styles = {
     height: "64px",
     backgroundColor: COLORS.bg,
     borderBottom: `1px solid ${COLORS.border}`,
-
-    // [핵심] 양쪽 끝으로 배분 (왼쪽 그룹 <---> 오른쪽 그룹)
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-
     padding: "0 25px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
     width: "100%",
     boxSizing: "border-box",
   },
 
-  // --- 왼쪽 그룹 스타일 ---
   leftSection: {
     display: "flex",
     alignItems: "center",
     gap: "12px",
   },
 
-  // 정보 박스 (날씨)
   infoGroup: {
     display: "flex",
     alignItems: "center",
@@ -157,11 +184,10 @@ const styles = {
     height: "40px",
   },
 
-  // 시간 박스 (별도 디자인)
   timeGroup: {
     display: "flex",
     alignItems: "center",
-    backgroundColor: "#F0F2F5", // 날씨보다 조금 더 진하거나 다른 톤
+    backgroundColor: "#F0F2F5",
     padding: "0 16px",
     borderRadius: "8px",
     gap: "10px",
@@ -175,7 +201,6 @@ const styles = {
     color: "#555",
   },
 
-  // [수정] 폰트 개선
   timeWrapper: {
     display: "flex",
     alignItems: "baseline",
@@ -190,7 +215,6 @@ const styles = {
     fontSize: "16px",
     fontWeight: "700",
     color: "#333",
-    // [핵심] 숫자 너비 고정 (폰트는 예쁘게, 흔들림은 없게)
     fontVariantNumeric: "tabular-nums",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif",
     letterSpacing: "0.5px",
@@ -203,7 +227,6 @@ const styles = {
     margin: "0 2px",
   },
 
-  // --- 오른쪽 그룹 스타일 ---
   rightSection: {
     display: "flex",
     alignItems: "center",
@@ -230,7 +253,7 @@ const styles = {
 
   userRole: {
     fontSize: "11px",
-    color: COLORS.primary, // 포인트 컬러
+    color: COLORS.primary,
     fontWeight: "600",
   },
 
@@ -243,7 +266,7 @@ const styles = {
     backgroundColor: "#fff",
     color: "#FF5252",
     border: "1px solid #FFCDD2",
-    borderRadius: "8px", // 더 둥글게
+    borderRadius: "8px",
     cursor: "pointer",
     transition: "all 0.2s",
     boxShadow: "0 2px 4px rgba(255, 82, 82, 0.1)",
