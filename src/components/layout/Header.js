@@ -62,11 +62,6 @@ const Header = () => {
           temp: Math.round(data.main.temp),
           condition: data.weather[0].main === "Clear" ? "맑음" : "흐림",
         });
-
-        // [임시] API 키가 없을 때 보여줄 데이터 (말씀하신 -3도로 수정했습니다!)
-        setTimeout(() => {
-          setWeather({ temp: -3, condition: "맑음" });
-        }, 500);
       } catch (error) {
         console.error("날씨 로딩 실패", error);
         setWeather({ temp: -3, condition: "N/A" });
