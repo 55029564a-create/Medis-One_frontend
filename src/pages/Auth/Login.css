@@ -1,0 +1,154 @@
+/* 전체 화면 배경 */
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8f9fa;
+}
+
+/* 흰색 로그인 카드 */
+.login-card {
+  background-color: white;
+  padding: 5rem 3.5rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 1rem;
+}
+
+/* 로고 영역 */
+.logo-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2.5rem;
+}
+
+.logo-img {
+  height: 7rem;
+  margin-bottom: 1rem;
+  object-fit: contain;
+}
+
+/* 입력 폼 */
+.form-area {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem; /* 입력창 사이 간격 */
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.input-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #374151;
+  margin-left: 0.25rem;
+}
+
+.input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+/* 입력창 */
+.styled-input {
+  width: 100%;
+  background-color: #f3f4f6;
+  color: #374151;
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent; /* 테두리 공간*/
+  font-size: 0.875rem;
+  font-weight: 500;
+  outline: none;
+  box-sizing: border-box; /* 패딩 포함 너비 */
+  transition: all 0.2s;
+}
+
+.styled-input::placeholder {
+  color: #9ca3af;
+}
+
+.styled-input:focus {
+  border-color: #8388f9;
+  box-shadow: 0 0 0 3px rgba(131, 136, 249, 0.2);
+}
+
+/* 비밀번호 눈 아이콘 버튼 */
+.eye-icon-btn {
+  position: absolute;
+  top: 50%;
+  right: 1rem;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+}
+
+.eye-icon-btn:hover {
+  color: #6b7280;
+}
+
+/* 비밀번호 찾기 링크 */
+.reset-link-area {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+
+.reset-link {
+  font-size: 0.875rem;
+  color: #8388f9;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.reset-link:hover {
+  text-decoration: underline;
+}
+
+/* 로그인 버튼 */
+.login-btn-area {
+  padding-top: 1rem;
+}
+
+.login-btn {
+  width: 100%;
+  background-color: #8388f9;
+  color: white;
+  font-weight: 700;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  font-size: 1.125rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.login-btn:hover {
+  background-color: #7075e8;
+}
+
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+input[type="password"]::-webkit-password-reveal-button {
+  display: none;
+  -webkit-appearance: none;
+}
