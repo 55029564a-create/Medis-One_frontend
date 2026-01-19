@@ -1,12 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App"; // 아까 만든 App 불러오기
+import App from "./App";
+import { BrowserRouter } from "react-router-dom";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
-
 root.render(
-  <React.StrictMode>
-    {/* 3. 앱 실행 */}
+  <BrowserRouter>
     <App />
-  </React.StrictMode>
+  </BrowserRouter>,
 );
