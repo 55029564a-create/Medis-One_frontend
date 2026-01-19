@@ -1,645 +1,768 @@
 import React, { useState } from "react";
 import {
   FaSearch,
-  FaPlus,
   FaFileExcel,
-  FaCalendarAlt,
   FaArrowDown,
   FaArrowUp,
+  FaBox,
+  FaBarcode,
+  FaTruckLoading,
+  FaDolly,
+  FaCheckCircle,
+  FaSyncAlt,
+  FaHistory,
 } from "react-icons/fa";
 
-// 🎨 테마 컬러
+// 🎨 MedisOne 디자인 시스템
 const COLORS = {
   primary: "#8C85FF",
   secondary: "#F3F1FF",
   success: "#00C851", // 입고
   danger: "#FF4444", // 출고
+  warning: "#FFBB33",
   text: "#333",
   subText: "#888",
   border: "#E0E0E0",
   bg: "#F5F6FA",
   white: "#FFFFFF",
+  cardShadow: "0 2px 8px rgba(0,0,0,0.05)",
 };
 
 const MaterialInout = () => {
   // --- 1. 상태 관리 ---
-
-  // 입력 폼 상태 (입고 전용)
   const [inputs, setInputs] = useState({
+    type: "IN",
     item: "",
+    lot: "",
     vendor: "",
     qty: "",
   });
 
-  // 검색 및 필터 상태
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("ALL"); // ALL, IN, OUT
-  const [period, setPeriod] = useState("today"); // today, week, month
+  const [filterType, setFilterType] = useState("ALL");
 
-  // 데이터 (Mock Data - 입고 및 출고 내역 혼합)
+  // 💾 풍부한 더미 데이터 (12개)
   const [history, setHistory] = useState([
     {
-      id: 1,
-      time: "2026-01-16 10:30",
+      id: 12,
+      time: "15:20",
+      date: "2026-01-19",
       type: "IN",
       item: "27인치 LCD 패널",
-      lot: "LOT-260116-01",
-      qty: 500,
+      lot: "LOT-260119-001",
+      change: 500,
+      prevStock: 1000,
+      stock: 1500,
       worker: "김자재",
       vendor: "LG Display",
     },
     {
-      id: 2,
-      time: "2026-01-16 11:15",
+      id: 11,
+      time: "14:45",
+      date: "2026-01-19",
       type: "OUT",
       item: "나사 (M4)",
-      lot: "LOT-260110-03",
-      qty: 2000,
+      lot: "LOT-260110-003",
+      change: 2000,
+      prevStock: 10000,
+      stock: 8000,
       worker: "박생산",
-      vendor: "-",
+      vendor: "라인투입",
     },
     {
-      id: 3,
-      time: "2026-01-15 14:20",
+      id: 10,
+      time: "13:30",
+      date: "2026-01-19",
       type: "IN",
       item: "전원 케이블",
-      lot: "LOT-260115-02",
-      qty: 300,
+      lot: "LOT-260119-002",
+      change: 300,
+      prevStock: 50,
+      stock: 350,
       worker: "이물류",
       vendor: "성진전선",
     },
     {
-      id: 4,
-      time: "2026-01-14 09:00",
+      id: 9,
+      time: "11:00",
+      date: "2026-01-19",
       type: "OUT",
-      item: "메인보드 A타입",
-      lot: "LOT-260112-05",
-      qty: 50,
+      item: "메인보드 PCB",
+      lot: "LOT-260115-088",
+      change: 50,
+      prevStock: 200,
+      stock: 150,
       worker: "최조립",
-      vendor: "-",
+      vendor: "라인투입",
+    },
+    {
+      id: 8,
+      time: "09:15",
+      date: "2026-01-19",
+      type: "IN",
+      item: "ABS 수지 (White)",
+      lot: "LOT-260119-005",
+      change: 1000,
+      prevStock: 500,
+      stock: 1500,
+      worker: "김자재",
+      vendor: "한화솔루션",
+    },
+    {
+      id: 7,
+      time: "17:40",
+      date: "2026-01-18",
+      type: "IN",
+      item: "포장 박스 (Large)",
+      lot: "LOT-260118-012",
+      change: 500,
+      prevStock: 100,
+      stock: 600,
+      worker: "이물류",
+      vendor: "대영포장",
+    },
+    {
+      id: 6,
+      time: "16:20",
+      date: "2026-01-18",
+      type: "OUT",
+      item: "27인치 LCD 패널",
+      lot: "LOT-260115-001",
+      change: 100,
+      prevStock: 1100,
+      stock: 1000,
+      worker: "박생산",
+      vendor: "라인투입",
+    },
+    {
+      id: 5,
+      time: "14:10",
+      date: "2026-01-18",
+      type: "IN",
+      item: "LED 모듈",
+      lot: "LOT-260118-003",
+      change: 2000,
+      prevStock: 0,
+      stock: 2000,
+      worker: "김자재",
+      vendor: "서울반도체",
+    },
+    {
+      id: 4,
+      time: "10:00",
+      date: "2026-01-18",
+      type: "OUT",
+      item: "나사 (M4)",
+      lot: "LOT-260110-003",
+      change: 500,
+      prevStock: 10500,
+      stock: 10000,
+      worker: "정수진",
+      vendor: "라인투입",
+    },
+    {
+      id: 3,
+      time: "09:30",
+      date: "2026-01-17",
+      type: "IN",
+      item: "방열판 (Alu)",
+      lot: "LOT-260117-001",
+      change: 300,
+      prevStock: 150,
+      stock: 450,
+      worker: "이물류",
+      vendor: "알루코",
+    },
+    {
+      id: 2,
+      time: "15:00",
+      date: "2026-01-17",
+      type: "OUT",
+      item: "전원 케이블",
+      lot: "LOT-260112-009",
+      change: 20,
+      prevStock: 70,
+      stock: 50,
+      worker: "최조립",
+      vendor: "AS센터",
+    },
+    {
+      id: 1,
+      time: "11:20",
+      date: "2026-01-16",
+      type: "IN",
+      item: "실리콘 구리스",
+      lot: "LOT-260116-004",
+      change: 50,
+      prevStock: 10,
+      stock: 60,
+      worker: "김자재",
+      vendor: "다우코닝",
     },
   ]);
 
-  // --- 2. 핸들러 ---
-
-  // 입력값 변경
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setInputs({ ...inputs, [name]: value });
+  // --- 2. 로직 ---
+  const generateLotId = () => {
+    const today = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+    const random = Math.floor(Math.random() * 999)
+      .toString()
+      .padStart(3, "0");
+    setInputs({ ...inputs, lot: `LOT-${today}-${random}` });
   };
 
-  // 입고 등록
   const handleRegister = () => {
-    if (!inputs.item || !inputs.qty)
-      return alert("품목명과 수량을 입력해주세요.");
+    if (!inputs.item || !inputs.qty || !inputs.lot)
+      return alert("필수 정보를 입력하세요.");
+
+    const qtyNum = Number(inputs.qty);
+    const currentStock = Math.floor(Math.random() * 500) + 100; // 가상 재고
+    const finalStock =
+      inputs.type === "IN" ? currentStock + qtyNum : currentStock - qtyNum;
 
     const newItem = {
       id: history.length + 1,
-      time: new Date().toLocaleString("ko-KR", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
+      time: new Date().toLocaleTimeString("ko-KR", {
         hour: "2-digit",
         minute: "2-digit",
       }),
-      type: "IN",
+      date: new Date().toISOString().split("T")[0],
+      type: inputs.type,
       item: inputs.item,
-      lot: `LOT-${new Date()
-        .toISOString()
-        .slice(2, 10)
-        .replace(/-/g, "")}-${Math.floor(Math.random() * 99)}`,
-      qty: Number(inputs.qty),
+      lot: inputs.lot,
+      change: qtyNum,
+      prevStock: currentStock,
+      stock: finalStock,
       worker: "관리자",
-      vendor: inputs.vendor || "미지정",
+      vendor: inputs.vendor || (inputs.type === "IN" ? "미지정" : "라인투입"),
     };
 
     setHistory([newItem, ...history]);
-    setInputs({ item: "", vendor: "", qty: "" }); // 초기화
-    alert("자재 입고가 등록되었습니다.");
+    setInputs({ type: "IN", item: "", lot: "", vendor: "", qty: "" });
+    alert("정상적으로 처리되었습니다.");
   };
 
-  // 데이터 필터링
+  // 통계
+  const todayIn = history
+    .filter((h) => h.type === "IN")
+    .reduce((acc, cur) => acc + cur.change, 0);
+  const todayOut = history
+    .filter((h) => h.type === "OUT")
+    .reduce((acc, cur) => acc + cur.change, 0);
+
+  // 필터링
   const filteredData = history.filter((item) => {
-    // 1. 검색어 필터
     const matchesSearch =
-      item.item.includes(searchTerm) ||
-      item.lot.includes(searchTerm) ||
-      item.worker.includes(searchTerm);
-
-    // 2. 유형 필터 (입고/출고)
+      item.item.includes(searchTerm) || item.lot.includes(searchTerm);
     const matchesType = filterType === "ALL" ? true : item.type === filterType;
-
-    // 3. 기간 필터 (Mock 구현 - 실제로는 Date 객체 비교 필요)
-    // 여기서는 간단히 today일 때만 날짜 문자열 체크 시늉만 함
-    let matchesPeriod = true;
-    if (period === "today") {
-      // 실제 구현시 new Date() 비교. 여기서는 예시로 모든 데이터 보여줌 (또는 오늘 날짜 필터링)
-    }
-
-    return matchesSearch && matchesType && matchesPeriod;
+    return matchesSearch && matchesType;
   });
 
   return (
     <div style={styles.container}>
       {/* 헤더 */}
       <div style={styles.header}>
-        <div>
-          <h2 style={{ margin: 0, color: COLORS.text }}>
-            📦 자재 입/출고 관리
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <FaBox size={22} color={COLORS.primary} />
+          <h2 style={{ margin: 0, color: COLORS.text, fontSize: "22px" }}>
+            자재 입/출고 관리
           </h2>
-          <p
-            style={{
-              margin: "5px 0 0",
-              fontSize: "14px",
-              color: COLORS.subText,
-            }}
-          >
-            자재 입고 등록 및 전체 입출고 내역 조회
-          </p>
+        </div>
+        <p
+          style={{ margin: "5px 0 0", fontSize: "13px", color: COLORS.subText }}
+        >
+          정확한 재고 관리를 위해 일련번호(Lot ID)를 필수로 입력해주세요.
+        </p>
+      </div>
+
+      {/* 1. 상단 통계 카드 */}
+      <div style={styles.statsGrid}>
+        <StatCard
+          title="금일 총 입고"
+          value={todayIn}
+          unit="EA"
+          icon={<FaTruckLoading />}
+          color={COLORS.success}
+        />
+        <StatCard
+          title="금일 총 출고"
+          value={todayOut}
+          unit="EA"
+          icon={<FaDolly />}
+          color={COLORS.danger}
+        />
+        <StatCard
+          title="재고 회전율"
+          value="98.5"
+          unit="%"
+          icon={<FaSyncAlt />}
+          color={COLORS.primary}
+        />
+      </div>
+
+      {/* 2. 신규 등록 폼 (칼각 2줄 레이아웃) */}
+      <div style={styles.inputSection}>
+        <div style={styles.sectionHeader}>
+          <h3 style={{ margin: 0, fontSize: "16px", color: COLORS.text }}>
+            📋 신규 등록
+          </h3>
+          <span style={{ fontSize: "12px", color: COLORS.danger }}>
+            * 모든 항목을 정확히 입력해주세요.
+          </span>
+        </div>
+
+        {/* ★ 여기가 핵심: CSS Grid로 완벽한 2줄 맞춤 ★ */}
+        <div style={styles.formGrid}>
+          {/* [1행 1열] 구분 (작은 사이즈) */}
+          <div style={styles.gridCell}>
+            <label style={styles.label}>구분</label>
+            <select
+              style={styles.fixedInput}
+              value={inputs.type}
+              onChange={(e) => setInputs({ ...inputs, type: e.target.value })}
+            >
+              <option value="IN">입고 (In)</option>
+              <option value="OUT">출고 (Out)</option>
+            </select>
+          </div>
+
+          {/* [1행 2열] 품목명 (큰 사이즈) */}
+          <div style={styles.gridCell}>
+            <label style={styles.label}>품목명</label>
+            <div style={styles.inputWrapper}>
+              <FaBox style={styles.inputIcon} />
+              <input
+                style={styles.fixedInputWithIcon}
+                placeholder="품목명 검색..."
+                value={inputs.item}
+                onChange={(e) => setInputs({ ...inputs, item: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {/* [1행 3열] 일련번호 (중간 사이즈 + 버튼) */}
+          <div style={styles.gridCell}>
+            <label style={styles.label}>일련번호 (Lot ID)</label>
+            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+              <div style={{ position: "relative", flex: 1 }}>
+                <FaBarcode style={styles.inputIcon} />
+                <input
+                  style={{ ...styles.fixedInputWithIcon, width: "100%" }}
+                  placeholder="Lot No 입력"
+                  value={inputs.lot}
+                  onChange={(e) =>
+                    setInputs({ ...inputs, lot: e.target.value })
+                  }
+                />
+              </div>
+              <button style={styles.fixedBtnOutline} onClick={generateLotId}>
+                번호생성
+              </button>
+            </div>
+          </div>
+
+          {/* [2행 1열] 수량 (작은 사이즈) */}
+          <div style={styles.gridCell}>
+            <label style={styles.label}>수량</label>
+            <input
+              type="number"
+              style={styles.fixedInput}
+              placeholder="0"
+              value={inputs.qty}
+              onChange={(e) => setInputs({ ...inputs, qty: e.target.value })}
+            />
+          </div>
+
+          {/* [2행 2열] 거래처 (큰 사이즈) */}
+          <div style={styles.gridCell}>
+            <label style={styles.label}>거래처 / 위치</label>
+            <input
+              style={styles.fixedInput}
+              placeholder={
+                inputs.type === "IN" ? "공급업체 입력" : "투입 라인 입력"
+              }
+              value={inputs.vendor}
+              onChange={(e) => setInputs({ ...inputs, vendor: e.target.value })}
+            />
+          </div>
+
+          {/* [2행 3열] 등록 버튼 (꽉 차게) */}
+          <div style={{ ...styles.gridCell, justifyContent: "flex-end" }}>
+            <label style={styles.label}>&nbsp;</label> {/* 줄맞춤용 빈 라벨 */}
+            <button style={styles.fixedBtnSolid} onClick={handleRegister}>
+              <FaCheckCircle /> 처리 완료
+            </button>
+          </div>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-        {/* ================= SECTION 1: 자재 입고 등록 (상단) ================= */}
-        <div style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h3
-              style={{
-                margin: 0,
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <div
-                style={{
-                  width: 8,
-                  height: 24,
-                  backgroundColor: COLORS.primary,
-                  borderRadius: 4,
-                }}
-              ></div>
-              자재 입고 등록 (Inbound)
-            </h3>
-            <span style={{ fontSize: "13px", color: COLORS.subText }}>
-              * 출고는 생산 관리 및 불출 요청에 의해 자동으로 처리됩니다.
-            </span>
+      {/* 3. 리스트 영역 */}
+      <div style={styles.listSection}>
+        <div style={styles.toolbar}>
+          <div style={styles.tabs}>
+            <TabButton
+              label="전체 내역"
+              active={filterType === "ALL"}
+              onClick={() => setFilterType("ALL")}
+            />
+            <TabButton
+              label="입고"
+              active={filterType === "IN"}
+              onClick={() => setFilterType("IN")}
+              color={COLORS.success}
+            />
+            <TabButton
+              label="출고"
+              active={filterType === "OUT"}
+              onClick={() => setFilterType("OUT")}
+              color={COLORS.danger}
+            />
           </div>
-
-          <div style={styles.formRow}>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>품목명 / 코드</label>
-              <div style={styles.searchWrapper}>
-                <FaSearch style={styles.inputIcon} />
-                <input
-                  name="item"
-                  value={inputs.item}
-                  onChange={handleInputChange}
-                  placeholder="품목 검색..."
-                  style={styles.inputWithIcon}
-                />
-              </div>
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>공급 업체</label>
-              <input
-                name="vendor"
-                value={inputs.vendor}
-                onChange={handleInputChange}
-                placeholder="업체명 입력"
-                style={styles.input}
-              />
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>입고 수량</label>
-              <input
-                name="qty"
-                type="number"
-                value={inputs.qty}
-                onChange={handleInputChange}
-                placeholder="0"
-                style={styles.input}
-              />
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>LOT ID (자동생성)</label>
-              <input
-                disabled
-                placeholder="등록 시 자동 생성됨"
-                style={{
-                  ...styles.input,
-                  backgroundColor: "#F5F6FA",
-                  color: "#999",
-                }}
-              />
-            </div>
-
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
-              <button style={styles.registerButton} onClick={handleRegister}>
-                <FaPlus style={{ marginRight: "6px" }} /> 입고 등록
-              </button>
-            </div>
+          <div style={styles.searchBox}>
+            <FaSearch color={COLORS.subText} style={{ minWidth: "14px" }} />
+            <input
+              placeholder="품목명, Lot No, 담당자 검색"
+              style={styles.searchInput}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
 
-        {/* ================= SECTION 2: 입출고 내역 (하단) ================= */}
-        <div style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h3
-              style={{
-                margin: 0,
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
+        <div style={styles.tableHeader}>
+          <div style={{ flex: 0.6 }}>구분</div>
+          <div style={{ flex: 1 }}>일시</div>
+          <div style={{ flex: 1.5 }}>품목명 / Lot No</div>
+          <div style={{ flex: 1.2, textAlign: "center" }}>거래처</div>
+          <div style={{ flex: 2, textAlign: "center" }}>
+            재고 변동 (Before → After)
+          </div>
+          <div style={{ flex: 0.8, textAlign: "center" }}>담당자</div>
+        </div>
+
+        <div style={styles.listBody}>
+          {filteredData.map((item) => (
+            <div key={item.id} style={styles.row}>
+              <div style={{ flex: 0.6 }}>
+                <span
+                  style={{
+                    ...styles.typeBadge,
+                    color: item.type === "IN" ? COLORS.success : COLORS.danger,
+                    backgroundColor: item.type === "IN" ? "#E8F5E9" : "#FFEBEE",
+                  }}
+                >
+                  {item.type === "IN" ? "입고" : "출고"}
+                </span>
+              </div>
+              <div style={{ flex: 1, fontSize: "12px", color: COLORS.subText }}>
+                <div>{item.date}</div>
+                <div style={{ fontWeight: "bold", color: "#555" }}>
+                  {item.time}
+                </div>
+              </div>
+              <div style={{ flex: 1.5 }}>
+                <div style={{ fontWeight: "bold", color: COLORS.text }}>
+                  {item.item}
+                </div>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#888",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {item.lot}
+                </div>
+              </div>
               <div
                 style={{
-                  width: 8,
-                  height: 24,
-                  backgroundColor: COLORS.success,
-                  borderRadius: 4,
+                  flex: 1.2,
+                  textAlign: "center",
+                  fontSize: "13px",
+                  color: "#555",
                 }}
-              ></div>
-              입/출고 내역 조회
-            </h3>
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button style={styles.excelButton}>
-                <FaFileExcel /> 엑셀 다운로드
-              </button>
-            </div>
-          </div>
-
-          {/* 툴바 (검색 & 필터) */}
-          <div style={styles.toolbar}>
-            <div style={styles.filterGroup}>
-              {/* 기간 버튼 */}
-              <div style={styles.periodToggle}>
-                {["today", "week", "month"].map((p) => (
-                  <button
-                    key={p}
-                    style={
-                      period === p ? styles.periodBtnActive : styles.periodBtn
-                    }
-                    onClick={() => setPeriod(p)}
-                  >
-                    {p === "today" ? "금일" : p === "week" ? "주간" : "월간"}
-                  </button>
-                ))}
-              </div>
-
-              {/* 날짜 선택기 */}
-              <div style={styles.datePicker}>
-                <FaCalendarAlt color={COLORS.subText} />
-                <input type="date" style={styles.dateInput} />
-                <span>~</span>
-                <input type="date" style={styles.dateInput} />
-              </div>
-
-              {/* 유형 선택 */}
-              <select
-                style={styles.select}
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
               >
-                <option value="ALL">전체 유형</option>
-                <option value="IN">입고 (In)</option>
-                <option value="OUT">출고 (Out)</option>
-              </select>
+                {item.vendor}
+              </div>
+              <div
+                style={{
+                  flex: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  fontSize: "13px",
+                }}
+              >
+                <span style={{ color: "#999" }}>
+                  {item.prevStock.toLocaleString()}
+                </span>
+                <span style={{ fontSize: "10px", color: "#ccc" }}>▶</span>
+                <span
+                  style={{
+                    fontWeight: "bold",
+                    color: item.type === "IN" ? COLORS.success : COLORS.danger,
+                  }}
+                >
+                  {item.type === "IN" ? "+" : "-"}
+                  {item.change.toLocaleString()}
+                </span>
+                <span style={{ fontSize: "10px", color: "#ccc" }}>▶</span>
+                <span
+                  style={{
+                    fontWeight: "bold",
+                    color: COLORS.text,
+                    backgroundColor: "#f0f0f0",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  {item.stock.toLocaleString()}
+                </span>
+              </div>
+              <div style={{ flex: 0.8, textAlign: "center" }}>
+                <span style={styles.workerBadge}>{item.worker}</span>
+              </div>
             </div>
-
-            {/* 검색창 */}
-            <div style={styles.searchBox}>
-              <FaSearch color={COLORS.subText} />
-              <input
-                placeholder="품목명, LOT ID, 담당자 검색"
-                style={styles.searchInput}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* 리스트 (헤더) */}
-          <div style={styles.listHeader}>
-            <div style={{ width: "15%" }}>일시</div>
-            <div style={{ width: "10%", textAlign: "center" }}>구분</div>
-            <div style={{ width: "20%" }}>품목명</div>
-            <div style={{ width: "20%" }}>LOT ID</div>
-            <div style={{ width: "15%" }}>수량</div>
-            <div style={{ width: "10%" }}>공급/위치</div>
-            <div style={{ width: "10%", textAlign: "right" }}>담당자</div>
-          </div>
-
-          {/* 리스트 (데이터 행) */}
-          <div style={styles.listBody}>
-            {filteredData.length > 0 ? (
-              filteredData.map((row) => (
-                <div key={row.id} style={styles.cardRow}>
-                  <div
-                    style={{ width: "15%", fontSize: "13px", color: "#666" }}
-                  >
-                    {row.time}
-                  </div>
-
-                  <div style={{ width: "10%", textAlign: "center" }}>
-                    <span
-                      style={
-                        row.type === "IN" ? styles.badgeIn : styles.badgeOut
-                      }
-                    >
-                      {row.type === "IN" ? (
-                        <FaArrowDown size={10} />
-                      ) : (
-                        <FaArrowUp size={10} />
-                      )}
-                      {row.type === "IN" ? " 입고" : " 출고"}
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      width: "20%",
-                      fontWeight: "bold",
-                      color: COLORS.text,
-                    }}
-                  >
-                    {row.item}
-                  </div>
-
-                  <div
-                    style={{
-                      width: "20%",
-                      fontSize: "13px",
-                      color: "#888",
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {row.lot}
-                  </div>
-
-                  <div
-                    style={{
-                      width: "15%",
-                      fontWeight: "bold",
-                      color: row.type === "IN" ? COLORS.success : COLORS.danger,
-                    }}
-                  >
-                    {row.type === "IN" ? "+" : "-"}
-                    {row.qty.toLocaleString()}
-                  </div>
-
-                  <div
-                    style={{ width: "10%", fontSize: "13px", color: "#666" }}
-                  >
-                    {row.vendor !== "-" ? row.vendor : "라인투입"}
-                  </div>
-
-                  <div
-                    style={{
-                      width: "10%",
-                      textAlign: "right",
-                      fontSize: "13px",
-                      color: "#555",
-                    }}
-                  >
-                    {row.worker}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div style={styles.emptyState}>검색된 내역이 없습니다.</div>
-            )}
-          </div>
+          ))}
         </div>
       </div>
     </div>
   );
 };
 
-// --- 스타일 정의 ---
+// --- 서브 컴포넌트 ---
+const StatCard = ({ title, value, unit, icon, color }) => (
+  <div style={styles.statCard}>
+    <div
+      style={{
+        ...styles.iconCircle,
+        backgroundColor: `${color}15`,
+        color: color,
+      }}
+    >
+      {icon}
+    </div>
+    <div>
+      <div style={{ fontSize: "12px", color: COLORS.subText }}>{title}</div>
+      <div style={{ fontSize: "18px", fontWeight: "bold", color: COLORS.text }}>
+        {value.toLocaleString()}{" "}
+        <span style={{ fontSize: "12px", fontWeight: "normal" }}>{unit}</span>
+      </div>
+    </div>
+  </div>
+);
+
+const TabButton = ({ label, active, onClick, color = COLORS.primary }) => (
+  <button
+    onClick={onClick}
+    style={{
+      padding: "6px 14px",
+      borderRadius: "20px",
+      border: active ? `1px solid ${color}` : "1px solid #ddd",
+      backgroundColor: active ? color : "#fff",
+      color: active ? "#fff" : "#666",
+      fontSize: "12px",
+      fontWeight: "bold",
+      cursor: "pointer",
+      transition: "all 0.2s",
+    }}
+  >
+    {label}
+  </button>
+);
+
+// --- 스타일 ---
 const styles = {
   container: {
     padding: "30px",
     backgroundColor: COLORS.bg,
     minHeight: "100vh",
   },
-  header: { marginBottom: "25px" },
-  card: {
-    backgroundColor: COLORS.white,
-    borderRadius: "16px",
-    padding: "25px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
+  header: { marginBottom: "20px" },
+
+  // 통계
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "15px",
+    marginBottom: "20px",
   },
-  cardHeader: {
+  statCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: "12px",
+    padding: "20px",
+    boxShadow: COLORS.cardShadow,
+    display: "flex",
+    alignItems: "center",
+    gap: "15px",
+  },
+  iconCircle: {
+    width: "45px",
+    height: "45px",
+    borderRadius: "12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
+  },
+
+  // 입력 폼
+  inputSection: {
+    backgroundColor: COLORS.white,
+    borderRadius: "12px",
+    padding: "25px",
+    boxShadow: COLORS.cardShadow,
+    marginBottom: "20px",
+  },
+  sectionHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "25px",
-    borderBottom: `1px solid ${COLORS.border}`,
-    paddingBottom: "15px",
+    marginBottom: "20px",
+    paddingBottom: "10px",
+    borderBottom: "1px solid #f0f0f0",
   },
 
-  // 상단 등록 폼 스타일
-  formRow: {
+  // ★ 2줄 맞춤 그리드 시스템
+  formGrid: {
     display: "grid",
-    gridTemplateColumns: "1.5fr 1fr 1fr 1fr auto",
-    gap: "15px",
-    alignItems: "end",
+    gridTemplateColumns: "1fr 2fr 1.5fr", // 3열 배치 (비율 조정)
+    rowGap: "15px", // 위아래 간격
+    columnGap: "20px", // 좌우 간격
   },
-  inputGroup: { display: "flex", flexDirection: "column", gap: "8px" },
-  label: { fontSize: "13px", fontWeight: "600", color: "#555" },
-  input: {
-    padding: "10px 12px",
-    borderRadius: "8px",
-    border: `1px solid ${COLORS.border}`,
-    fontSize: "14px",
-    outline: "none",
+  gridCell: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
     width: "100%",
+  },
+  label: { fontSize: "12px", fontWeight: "bold", color: "#666" },
+
+  // 고정 사이즈 인풋 (높이 42px로 통일)
+  fixedInput: {
+    width: "100%",
+    height: "42px",
+    padding: "0 12px",
+    borderRadius: "8px",
+    border: "1px solid #ddd",
+    backgroundColor: "#F9FAFB",
+    fontSize: "13px",
+    outline: "none",
     boxSizing: "border-box",
   },
-  searchWrapper: { position: "relative", width: "100%" },
-  inputWithIcon: {
-    padding: "10px 12px 10px 35px",
-    borderRadius: "8px",
-    border: `1px solid ${COLORS.border}`,
-    fontSize: "14px",
-    outline: "none",
+  fixedInputWithIcon: {
     width: "100%",
+    height: "42px",
+    padding: "0 12px 0 35px",
+    borderRadius: "8px",
+    border: "1px solid #ddd",
+    backgroundColor: "#F9FAFB",
+    fontSize: "13px",
+    outline: "none",
     boxSizing: "border-box",
   },
+  fixedBtnOutline: {
+    height: "42px",
+    padding: "0 15px",
+    borderRadius: "8px",
+    border: `1px solid ${COLORS.primary}`,
+    backgroundColor: "#fff",
+    color: COLORS.primary,
+    fontSize: "12px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  fixedBtnSolid: {
+    width: "100%",
+    height: "42px",
+    borderRadius: "8px",
+    border: "none",
+    backgroundColor: COLORS.primary,
+    color: "#fff",
+    fontSize: "13px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "6px",
+  },
+
+  inputWrapper: { position: "relative", width: "100%" },
   inputIcon: {
     position: "absolute",
     left: "12px",
     top: "50%",
     transform: "translateY(-50%)",
-    color: "#999",
-  },
-  registerButton: {
-    backgroundColor: COLORS.primary,
-    color: COLORS.white,
-    border: "none",
-    borderRadius: "8px",
-    padding: "10px 20px",
-    fontSize: "14px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    height: "40px", // 인풋 높이와 맞춤
-    display: "flex",
-    alignItems: "center",
-    whiteSpace: "nowrap",
+    color: "#aaa",
   },
 
-  // 하단 툴바 스타일
+  // 리스트
+  listSection: {
+    backgroundColor: COLORS.white,
+    borderRadius: "12px",
+    padding: "20px",
+    boxShadow: COLORS.cardShadow,
+  },
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "20px",
-    flexWrap: "wrap",
-    gap: "10px",
+    marginBottom: "15px",
   },
-  filterGroup: { display: "flex", alignItems: "center", gap: "15px" },
-  periodToggle: {
-    display: "flex",
-    backgroundColor: "#F0F0F5",
-    borderRadius: "8px",
-    padding: "4px",
-  },
-  periodBtn: {
-    border: "none",
-    backgroundColor: "transparent",
-    padding: "6px 12px",
-    fontSize: "13px",
-    color: "#666",
-    cursor: "pointer",
-    borderRadius: "6px",
-  },
-  periodBtnActive: {
-    border: "none",
-    backgroundColor: COLORS.white,
-    padding: "6px 12px",
-    fontSize: "13px",
-    fontWeight: "bold",
-    color: COLORS.primary,
-    cursor: "pointer",
-    borderRadius: "6px",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-  },
-  datePicker: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    backgroundColor: COLORS.white,
-    border: `1px solid ${COLORS.border}`,
-    padding: "6px 12px",
-    borderRadius: "8px",
-  },
-  dateInput: {
-    border: "none",
-    outline: "none",
-    fontSize: "13px",
-    color: "#555",
-  },
-  select: {
-    padding: "8px 12px",
-    borderRadius: "8px",
-    border: `1px solid ${COLORS.border}`,
-    outline: "none",
-    fontSize: "13px",
-    cursor: "pointer",
-  },
+  tabs: { display: "flex", gap: "8px" },
   searchBox: {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
-    backgroundColor: COLORS.white,
-    border: `1px solid ${COLORS.border}`,
-    borderRadius: "20px", // 둥근 검색창
-    padding: "8px 15px",
+    backgroundColor: "#F5F6FA",
+    borderRadius: "20px",
+    padding: "6px 15px",
     width: "250px",
   },
   searchInput: {
     border: "none",
+    background: "transparent",
     outline: "none",
-    fontSize: "14px",
+    marginLeft: "8px",
+    fontSize: "13px",
     width: "100%",
   },
-  excelButton: {
-    backgroundColor: "#217346",
-    color: "#fff",
-    border: "none",
-    padding: "8px 15px",
-    borderRadius: "6px",
-    fontSize: "13px",
-    cursor: "pointer",
+  tableHeader: {
     display: "flex",
-    alignItems: "center",
-    gap: "5px",
-  },
-
-  // 리스트(테이블) 스타일
-  listHeader: {
-    display: "flex",
-    padding: "15px 20px",
+    padding: "12px 15px",
     backgroundColor: "#F9FAFC",
-    borderRadius: "12px 12px 0 0",
-    borderBottom: `1px solid ${COLORS.border}`,
-    fontSize: "13px",
-    fontWeight: "bold",
+    borderRadius: "8px",
+    fontSize: "12px",
     color: "#666",
+    fontWeight: "bold",
+    marginBottom: "10px",
   },
-  listBody: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
-    marginTop: "10px",
-  },
-  cardRow: {
+  listBody: { display: "flex", flexDirection: "column", gap: "8px" },
+  row: {
     display: "flex",
     alignItems: "center",
-    backgroundColor: COLORS.white,
-    borderRadius: "12px",
-    padding: "15px 20px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
-    border: "1px solid transparent",
-    transition: "0.2s",
-    cursor: "pointer",
-    ":hover": {
-      transform: "translateY(-2px)",
-      borderColor: COLORS.primary,
-    },
+    padding: "12px 15px",
+    borderBottom: "1px solid #f0f0f0",
+    transition: "background-color 0.2s",
+    ":hover": { backgroundColor: "#F9FAFB" },
   },
-  badgeIn: {
+  typeBadge: {
     display: "inline-flex",
     alignItems: "center",
-    gap: "4px",
-    backgroundColor: `${COLORS.success}15`,
-    color: COLORS.success,
+    justifyContent: "center",
     padding: "4px 8px",
-    borderRadius: "20px",
-    fontSize: "12px",
+    borderRadius: "6px",
+    fontSize: "11px",
     fontWeight: "bold",
+    width: "40px",
   },
-  badgeOut: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "4px",
-    backgroundColor: `${COLORS.danger}15`,
-    color: COLORS.danger,
-    padding: "4px 8px",
-    borderRadius: "20px",
-    fontSize: "12px",
-    fontWeight: "bold",
-  },
-  emptyState: {
-    textAlign: "center",
-    padding: "40px",
-    color: "#999",
-    fontSize: "14px",
+  workerBadge: {
+    backgroundColor: "#eee",
+    color: "#555",
+    padding: "2px 8px",
+    borderRadius: "4px",
+    fontSize: "11px",
   },
 };
 
