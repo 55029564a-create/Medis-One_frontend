@@ -32,6 +32,8 @@ import CafeteriaMenu from "./pages/Support/CafeteriaMenu";
 // 관리자
 import EmployeeMgmt from "./pages/Admin/EmployeeMgmt";
 import ProcessMgmt from "./pages/Admin/ProcessMgmt";
+import WorkOrderMgmt from "./pages/Admin/WorkOrderMgmt";
+import ProductionOrder from "./pages/Admin/ProductionOrder";
 
 function App() {
   return (
@@ -66,6 +68,8 @@ function App() {
         {/* 관리자 */}
         <Route path="/admin/employees" element={<EmployeeMgmt />} />
         <Route path="/admin/process" element={<ProcessMgmt />} />
+        <Route path="/admin/workOrder" element={<WorkOrderMgmt />} />
+        <Route path="/admin/productionOrder" element={<ProductionOrder />} />
       </Route>
 
       {/* 없는 페이지 접속 시 로그인으로 보냄 */}
