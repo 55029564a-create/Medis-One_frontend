@@ -163,6 +163,8 @@ const Sidebar = () => {
           >
             <SubMenuItem to="/admin/employees" label="사원 관리" />
             <SubMenuItem to="/admin/process" label="공정 관리" />
+            <SubMenuItem to="/admin/workorder" label="작업 지시 관리" />
+            <SubMenuItem to="/admin/productionorder" label="생산 지시 관리" />
           </MenuDropdown>
         </ul>
       </div>
