@@ -3,11 +3,14 @@ import { useNavigate } from "react-router-dom";
 import "./Login.css";
 
 const Login = () => {
+  const [employeeId, setEmployeeId] = useState("");
+  const [password, setPassword] = useState("");
+
   const [showPassword, setShowPassword] = useState(false);
 
-  // 팝업 관련 상태
+  // 팝업 관련
   const [showModal, setShowModal] = useState(false);
-  const [modalStep, setModalStep] = useState(1); // 1:이메일입력, 2:인증번호입력, 3:완료
+  const [modalStep, setModalStep] = useState(1);
   const [resetEmail, setResetEmail] = useState("");
   const [authCode, setAuthCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -18,8 +21,26 @@ const Login = () => {
     setShowPassword(!showPassword);
   };
 
+  // 로그인 버튼 클릭 시 실행될 로직
   const handleLogin = () => {
-    navigate("/dashboard");
+    // 관리자 계정 정보
+    const ADMIN_ID = "admin";
+    const ADMIN_PW = "admin123";
+
+    if (employeeId === ADMIN_ID && password === ADMIN_PW) {
+      // 일치하면 대시보드로 이동
+      navigate("/dashboard");
+    } else {
+      // 불일치하면 경고창
+      alert("사원번호 또는 비밀번호를 확인해주세요.");
+    }
+  };
+
+  // 엔터키 기능
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      handleLogin();
+    }
   };
 
   // 비밀번호 찾기 클릭 시 초기화 후 열기
@@ -42,7 +63,6 @@ const Login = () => {
       return;
     }
     setIsLoading(true);
-
     setTimeout(() => {
       setIsLoading(false);
       setModalStep(2);
@@ -56,7 +76,6 @@ const Login = () => {
       alert("인증번호를 입력해주세요.");
       return;
     }
-
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
@@ -72,6 +91,7 @@ const Login = () => {
         </div>
 
         <div className="form-area">
+          {/* 사원번호 입력창 */}
           <div className="input-group">
             <label className="input-label">사원 번호</label>
             <div className="input-wrapper">
@@ -79,10 +99,14 @@ const Login = () => {
                 type="text"
                 className="styled-input"
                 placeholder="사원번호를 입력해주세요."
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
+                onKeyDown={handleKeyDown}
               />
             </div>
           </div>
 
+          {/* 비밀번호 입력창 */}
           <div className="input-group">
             <label className="input-label">비밀 번호</label>
             <div className="input-wrapper">
@@ -90,6 +114,9 @@ const Login = () => {
                 type={showPassword ? "text" : "password"}
                 className="styled-input"
                 placeholder="비밀번호를 입력해주세요."
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
               />
               <button
                 type="button"
@@ -156,7 +183,6 @@ const Login = () => {
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-box">
-            {/* 이메일 입력 */}
             {modalStep === 1 && (
               <>
                 <div className="modal-title">비밀번호 찾기</div>
@@ -183,7 +209,6 @@ const Login = () => {
               </>
             )}
 
-            {/* 인증번호 입력 */}
             {modalStep === 2 && (
               <>
                 <div className="modal-title">인증번호 입력</div>
@@ -213,7 +238,6 @@ const Login = () => {
               </>
             )}
 
-            {/* 완료 */}
             {modalStep === 3 && (
               <>
                 <div className="modal-title">인증 완료</div>
