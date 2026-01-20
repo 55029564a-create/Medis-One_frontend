@@ -2,7 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 // 레이아웃
-import Layout from "./components/common/layout/Layout"; // 경로 확인 (common 폴더 안에 있다면 수정)
+import Layout from "./components/layout/Layout"; // 경로 확인 (common 폴더 안에 있다면 수정)
 
 // 페이지들
 import Login from "./pages/Auth/Login";
