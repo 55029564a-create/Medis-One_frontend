@@ -12,6 +12,10 @@ import Dashboard from "./pages/Dashboard/Dashboard";
 import MaterialInout from "./pages/Material/MaterialInout";
 import MaterialHistory from "./pages/Material/MaterialHistory";
 
+// 재고
+import InventoryCurrent from "./pages/Inventory/InventoryCurrent";
+import InventoryHistory from "./pages/Inventory/InventoryHistory";
+
 // 생산
 import WorkOrder from "./pages/Production/WorkOrder";
 import ProductionSchedule from "./pages/Production/ProductionSchedule";
@@ -21,9 +25,6 @@ import WorkReport from "./pages/Production/WorkReport";
 import MachineList from "./pages/Equipment/MachineList";
 import QualityDefect from "./pages/Quality/QualityDefect";
 import ProductionRate from "./pages/Quality/ProductionRate";
-
-// 재고
-import InventoryCurrent from "./pages/Inventory/InventoryCurrent";
 
 // 지원
 import Notice from "./pages/Support/Notice";
@@ -49,7 +50,10 @@ function App() {
 
         <Route path="/material/inout" element={<MaterialInout />} />
         <Route path="/material/history" element={<MaterialHistory />} />
-        <Route path="/inventory" element={<InventoryCurrent />} />
+
+        {/* 재고 */}
+        <Route path="/inventory/Current" element={<InventoryCurrent />} />
+        <Route path="/inventory/history" element={<MaterialHistory />} />
 
         {/* 생산 */}
         <Route path="/production/order" element={<WorkOrder />} />
