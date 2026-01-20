@@ -2,15 +2,16 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 // 레이아웃
-import Layout from "./components/layout/Layout";
+import Layout from "./components/layout/Layout"; // 경로 확인 (common 폴더 안에 있다면 수정)
 
-// 페이지들 (경로 확인 필수!)
+// 페이지들
 import Login from "./pages/Auth/Login";
 import Dashboard from "./pages/Dashboard/Dashboard";
 
 // 자재
 import MaterialInout from "./pages/Material/MaterialInout";
 import MaterialHistory from "./pages/Material/MaterialHistory";
+import InventoryCurrent from "./pages/Inventory/InventoryCurrent";
 
 // 재고
 import InventoryCurrent from "./pages/Inventory/InventoryCurrent";
@@ -36,18 +37,20 @@ import ProcessMgmt from "./pages/Admin/ProcessMgmt";
 import WorkOrderMgmt from "./pages/Admin/WorkOrderMgmt";
 import ProductionOrder from "./pages/Admin/ProductionOrder";
 
+// [NEW] 모바일 전용 페이지 (경로 확인 필수: src/pages/Mobile/MobileTracking.js)
+import MobileTracking from "./pages/Mobile/MobileTracking";
+
 function App() {
   return (
     <Routes>
-      {/* 로그인 페이지 (별도 레이아웃) */}
+      {/* 1. 로그인 페이지 (레이아웃 없음) */}
       <Route path="/" element={<Login />} />
 
-      {/* 메인 레이아웃이 적용되는 페이지들 */}
+      {/* 2. 관리자/PC용 페이지 (사이드바 + 헤더 레이아웃 적용) */}
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />
 
         {/* 자재 */}
-
         <Route path="/material/inout" element={<MaterialInout />} />
         <Route path="/material/history" element={<MaterialHistory />} />
 
@@ -76,7 +79,11 @@ function App() {
         <Route path="/admin/productionOrder" element={<ProductionOrder />} />
       </Route>
 
-      {/* 없는 페이지 접속 시 로그인으로 보냄 */}
+      {/* 3. [NEW] 모바일 추적 페이지 (레이아웃 없음 - 전체화면) */}
+      {/* :id 부분에 LOT 번호가 들어갑니다. (예: /mobile/tracking/LOT-1234) */}
+      <Route path="/mobile/tracking/:id" element={<MobileTracking />} />
+
+      {/* 4. 잘못된 경로 접속 시 로그인으로 리다이렉트 */}
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
