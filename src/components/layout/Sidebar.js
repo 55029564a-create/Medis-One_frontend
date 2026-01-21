@@ -203,6 +203,11 @@ const Sidebar = () => {
               label="생산 실적"
               currentPath={location.pathname}
             />
+            <SubMenuItem
+              to="/production/product"
+              label="제품 관리"
+              currentPath={location.pathname}
+            />
           </MenuDropdown>
 
           {/* 5. 품질/설비 */}

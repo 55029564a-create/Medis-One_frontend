@@ -14,13 +14,14 @@ import MaterialHistory from "./pages/Material/MaterialHistory";
 import InventoryCurrent from "./pages/Inventory/InventoryCurrent";
 
 // 재고
-import InventoryCurrent from "./pages/Inventory/InventoryCurrent";
+
 import InventoryHistory from "./pages/Inventory/InventoryHistory";
 
 // 생산
 import WorkOrder from "./pages/Production/WorkOrder";
 import ProductionSchedule from "./pages/Production/ProductionSchedule";
 import WorkReport from "./pages/Production/WorkReport";
+import ProductManagement from "./pages/ProductManagement";
 
 // 설비 & 품질
 import MachineList from "./pages/Equipment/MachineList";
@@ -62,6 +63,7 @@ function App() {
         <Route path="/production/order" element={<WorkOrder />} />
         <Route path="/production/schedule" element={<ProductionSchedule />} />
         <Route path="/production/report" element={<WorkReport />} />
+        <Route path="/production/product" element={<ProductManagement />} />
 
         {/* 설비 & 품질 */}
         <Route path="/equipment" element={<MachineList />} />
