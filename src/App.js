@@ -1,130 +1,152 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
-// [보안] 로그인 상태 관리 및 보호 라우트
-import { AuthProvider, useAuth } from "./context/AuthContext"; // 경로 확인 필요
-import PrivateRoute from "./components/route/PrivateRoute"; // 경로 확인 필요
+// [보안] 인증 컨텍스트 & 보호된 라우트
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import PrivateRoute from "./components/route/PrivateRoute";
 
-// 레이아웃
+// [레이아웃]
 import Layout from "./components/layout/Layout";
 
-// 페이지들 - 인증
+// ===================== [페이지 Import] =====================
+
+// 1. 인증 (Auth)
 import Login from "./pages/Auth/Login";
+import MyPage from "./pages/Auth/MyPage";
+
+// 2. 대시보드 (Dashboard)
 import Dashboard from "./pages/Dashboard/Dashboard";
 
-// 자재
+// 3. 자재 관리 (Material)
 import MaterialInout from "./pages/Material/MaterialInout";
 import MaterialHistory from "./pages/Material/MaterialHistory";
+import LotTracking from "./pages/Material/LotTracking";
 
-// 재고
+// 4. 재고 관리 (Inventory)
 import InventoryCurrent from "./pages/Inventory/InventoryCurrent";
 import InventoryHistory from "./pages/Inventory/InventoryHistory";
 
-// 생산
+// 5. 생산 관리 (Production)
 import WorkOrder from "./pages/Production/WorkOrder";
 import ProductionSchedule from "./pages/Production/ProductionSchedule";
 import WorkReport from "./pages/Production/WorkReport";
-import ProductManagement from "./pages/ProductManagement";
+import ProcessAssembly from "./pages/Production/ProcessAssembly"; // 조립 공정
+import ProcessBonding from "./pages/Production/ProcessBonding"; // 본딩 공정
+import ProductManagement from "./pages/ProductManagement"; // 품목 관리 (위치: pages root)
 
-// 설비 & 품질
+// 6. 설비 관리 (Equipment)
 import MachineList from "./pages/Equipment/MachineList";
+import MachineDetail from "./pages/Equipment/MachineDetail";
+
+// 7. 품질 관리 (Quality)
 import QualityDefect from "./pages/Quality/QualityDefect";
 import ProductionRate from "./pages/Quality/ProductionRate";
+import AgingStatus from "./pages/Quality/AgingStatus"; // 에이징
+import CalibrationReport from "./pages/Quality/CalibarationReport"; // 캘리브레이션 (파일명 오타 반영)
+import ReliabilityTest from "./pages/Quality/ReliabilityTest"; // 신뢰성
 
-// 지원
-import Notice from "./pages/Support/Notice";
-import CafeteriaMenu from "./pages/Support/CafeteriaMenu";
+// 8. 이력 추적 (Traceability)
+import DeviceHistory from "./pages/Traceability/DeviceHistory"; // DHR
 
-// 관리자
+// 9. 시스템/관리자 (Admin)
 import EmployeeMgmt from "./pages/Admin/EmployeeMgmt";
 import ProcessMgmt from "./pages/Admin/ProcessMgmt";
 import WorkOrderMgmt from "./pages/Admin/WorkOrderMgmt";
 import ProductionOrder from "./pages/Admin/ProductionOrder";
 
-// [NEW] 모바일 전용 페이지
+// 10. 지원 업무 (Support)
+import Notice from "./pages/Support/Notice";
+import CafeteriaMenu from "./pages/Support/CafeteriaMenu";
+
+// 11. 모바일 (Mobile)
 import MobileTracking from "./pages/Mobile/MobileTracking";
 
 function App() {
   return (
-    // 1. 앱 전체에 로그인 상태 공급 (새로고침 해도 유지됨)
+    // 전체 앱에 인증 상태 공급
     <AuthProvider>
       <AppRoutes />
     </AuthProvider>
   );
 }
 
-// 2. 실제 라우팅 로직 분리 (useAuth 훅을 사용하기 위함)
+// 라우팅 로직 분리
 const AppRoutes = () => {
   const { isLoggedIn } = useAuth();
 
   return (
     <Routes>
-      {/* ----------------------------------------------------
-        1. 로그인 페이지 처리 
-        ----------------------------------------------------
-        - 이미 로그인 상태라면 -> Dashboard로 이동
-        - 아니라면 -> Login 페이지 표시
-      */}
+      {/* ----------------------------------------------------------------
+         1. 공개 라우트 (로그인 불필요)
+      ---------------------------------------------------------------- */}
+      {/* 루트 접속 시: 로그인 되어있으면 대시보드, 아니면 로그인 페이지 */}
       <Route
         path="/"
         element={isLoggedIn ? <Navigate to="/dashboard" replace /> : <Login />}
       />
 
-      {/* ----------------------------------------------------
-        2. 보호된 페이지 (로그인 필수) 
-        ----------------------------------------------------
-        - PrivateRoute가 감싸고 있어 로그인 안 하면 접근 불가
-        - Layout이 적용되어 사이드바/헤더가 보임
-      */}
+      {/* 모바일 트래킹 (단독 페이지, 레이아웃 없음) */}
+      <Route path="/mobile/tracking" element={<MobileTracking />} />
+      <Route path="/mobile/tracking/:id" element={<MobileTracking />} />
+
+      {/* ----------------------------------------------------------------
+         2. 보호된 라우트 (로그인 필수 + 레이아웃 적용)
+      ---------------------------------------------------------------- */}
       <Route element={<PrivateRoute />}>
         <Route element={<Layout />}>
+          {/* === 대시보드 === */}
           <Route path="/dashboard" element={<Dashboard />} />
-
-          {/* 자재 */}
+          <Route path="/mypage" element={<MyPage />} />
+          {/* === 자재 관리 === */}
           <Route path="/material/inout" element={<MaterialInout />} />
           <Route path="/material/history" element={<MaterialHistory />} />
-
-          {/* 재고 */}
-          <Route path="/inventory/Current" element={<InventoryCurrent />} />
+          <Route path="/material/lot" element={<LotTracking />} />
+          {/* === 재고 관리 === */}
+          <Route path="/inventory/current" element={<InventoryCurrent />} />
           <Route path="/inventory/history" element={<InventoryHistory />} />
-          {/* (참고: 기존 코드에서 element가 MaterialHistory로 되어 있어 InventoryHistory로 수정했습니다) */}
-
-          {/* 생산 */}
-          <Route path="/production/order" element={<WorkOrder />} />
+          {/* === 생산 관리 === */}
+          <Route path="/production/order" element={<WorkOrder />} />{" "}
+          {/* 작업지시 */}
           <Route path="/production/schedule" element={<ProductionSchedule />} />
-          <Route path="/production/report" element={<WorkReport />} />
-          <Route path="/production/product" element={<ProductManagement />} />
-
-          {/* 설비 & 품질 */}
+          <Route path="/production/report" element={<WorkReport />} />{" "}
+          {/* 생산실적 */}
+          <Route
+            path="/production/product"
+            element={<ProductManagement />}
+          />{" "}
+          {/* 품목관리 */}
+          {/* 핵심 공정 (모니터링/입력) */}
+          <Route path="/production/assembly" element={<ProcessAssembly />} />
+          <Route path="/production/bonding" element={<ProcessBonding />} />
+          {/* === 설비 관리 === */}
           <Route path="/equipment" element={<MachineList />} />
+          <Route
+            path="/equipment/detail/:id"
+            element={<MachineDetail />}
+          />{" "}
+          {/* 설비 상세 */}
+          {/* === 품질 관리 === */}
           <Route path="/quality/defect" element={<QualityDefect />} />
           <Route path="/quality/rate" element={<ProductionRate />} />
-
-          {/* 지원 업무 */}
-          <Route path="/support/notice" element={<Notice />} />
-          <Route path="/support/cafeteria" element={<CafeteriaMenu />} />
-
-          {/* 관리자 */}
+          <Route path="/quality/aging" element={<AgingStatus />} />
+          <Route path="/quality/calibration" element={<CalibrationReport />} />
+          <Route path="/quality/reliability" element={<ReliabilityTest />} />
+          {/* === 이력 추적 (Traceability) === */}
+          <Route path="/traceability/dhr" element={<DeviceHistory />} />
+          {/* === 시스템/관리자 === */}
           <Route path="/admin/employees" element={<EmployeeMgmt />} />
           <Route path="/admin/process" element={<ProcessMgmt />} />
-          <Route path="/admin/workOrder" element={<WorkOrderMgmt />} />
-          <Route path="/admin/productionOrder" element={<ProductionOrder />} />
+          <Route path="/admin/work-order" element={<WorkOrderMgmt />} />
+          <Route path="/admin/production-order" element={<ProductionOrder />} />
+          {/* === 지원 업무 === */}
+          <Route path="/support/notice" element={<Notice />} />
+          <Route path="/support/cafeteria" element={<CafeteriaMenu />} />
         </Route>
       </Route>
 
-      {/* ----------------------------------------------------
-        3. 모바일 / 공개 페이지
-        ----------------------------------------------------
-        - Layout 없음 (전체 화면)
-        - 필요하다면 이 Route도 PrivateRoute 안으로 넣어서 잠글 수 있음
-      */}
-      <Route path="/mobile/tracking/:id" element={<MobileTracking />} />
-
-      {/* ----------------------------------------------------
-        4. 예외 처리 (404)
-        ----------------------------------------------------
-        - 잘못된 주소로 들어오면 홈(/)으로 보냄 -> 거기서 로그인 여부 판단
-      */}
+      {/* ----------------------------------------------------------------
+         3. 예외 처리 (404)
+      ---------------------------------------------------------------- */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -1,169 +1,220 @@
 import React, { useState } from "react";
 import {
-  FaBox,
-  FaSearch,
-  FaEdit,
-  FaCheckCircle,
+  FaBoxes,
   FaExclamationTriangle,
-  FaTimesCircle,
+  FaSearch,
+  FaChartPie,
+  FaWarehouse,
+  FaShoppingCart,
+  FaFilter,
 } from "react-icons/fa";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 
-// 🎨 테마 컬러
+// 🎨 MedisOne 테마
 const COLORS = {
   primary: "#8C85FF",
-  secondary: "#F3F1FF",
-  success: "#00C851", // 양호
-  warning: "#FFBB33", // 부족
-  danger: "#FF4444", // 없음
-  text: "#333",
-  subText: "#888",
-  border: "#E0E0E0",
   bg: "#F5F6FA",
+  danger: "#FF5252",
+  warning: "#FFBB33",
+  success: "#00C851",
+  text: "#333",
+  gray: "#888",
+  border: "#E0E0E0",
   white: "#FFFFFF",
 };
 
-// Mock Data
-const initialData = [
-  {
-    id: 1,
-    code: "M-001",
-    name: "27인치 LCD 패널",
-    category: "원자재",
-    qty: 1500,
-    safeQty: 500,
-  },
-  {
-    id: 2,
-    code: "M-002",
-    name: "전원 케이블 (KR)",
-    category: "부자재",
-    qty: 120,
-    safeQty: 200,
-  },
-  {
-    id: 3,
-    code: "P-101",
-    name: "의료용 모니터 A형",
-    category: "완제품",
-    qty: 50,
-    safeQty: 30,
-  },
-  {
-    id: 4,
-    code: "M-005",
-    name: "나사 (M4)",
-    category: "부자재",
-    qty: 0,
-    safeQty: 1000,
-  },
-  {
-    id: 5,
-    code: "P-102",
-    name: "X-ray 디텍터",
-    category: "완제품",
-    qty: 5,
-    safeQty: 10,
-  },
-];
+const PIE_COLORS = ["#8C85FF", "#FFBB33", "#00C851", "#4285F4"];
 
 const InventoryCurrent = () => {
-  // 상태 관리
-  const [data, setData] = useState(initialData);
+  // 상태 관리: 검색어 + 카테고리 필터
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All"); // All, 원자재, 부자재, 완제품
+  const [selectedCategory, setSelectedCategory] = useState("All"); // 기본값: 전체
 
-  // 모달 관련 상태
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [editQty, setEditQty] = useState("");
+  // 📝 [Mock Data]
+  const inventoryData = [
+    {
+      id: 1,
+      code: "PNL-24-MED",
+      name: "24인치 의료용 패널",
+      category: "원자재",
+      qty: 450,
+      safeQty: 100,
+      loc: "A-01",
+      unit: "EA",
+    },
+    {
+      id: 2,
+      code: "RESIN-OCR",
+      name: "OCR 레진 (광학접착)",
+      category: "화학",
+      qty: 5,
+      safeQty: 20,
+      loc: "C-02 (냉장)",
+      unit: "kg",
+    },
+    {
+      id: 3,
+      code: "GLS-AG-24",
+      name: "AG 커버 글라스",
+      category: "원자재",
+      qty: 1200,
+      safeQty: 500,
+      loc: "A-03",
+      unit: "EA",
+    },
+    {
+      id: 4,
+      code: "SCREW-M4",
+      name: "M4 조립 나사",
+      category: "부자재",
+      qty: 25,
+      safeQty: 100,
+      loc: "B-05",
+      unit: "Box",
+    },
+    {
+      id: 5,
+      code: "PCB-MAIN",
+      name: "메인보드 (V2)",
+      category: "반제품",
+      qty: 80,
+      safeQty: 50,
+      loc: "B-01",
+      unit: "EA",
+    },
+    {
+      id: 6,
+      code: "BOX-PKG",
+      name: "포장 박스",
+      category: "부자재",
+      qty: 2000,
+      safeQty: 500,
+      loc: "D-01",
+      unit: "EA",
+    },
+    {
+      id: 7,
+      code: "MON-24-PRO",
+      name: "의료용 모니터 완제품",
+      category: "완제품",
+      qty: 30,
+      safeQty: 10,
+      loc: "F-01",
+      unit: "EA",
+    },
+  ];
 
-  // --- 핸들러 ---
+  // 카테고리 목록 (자동 생성 또는 고정)
+  const categories = ["All", "원자재", "부자재", "화학", "반제품", "완제품"];
 
-  // 데이터 필터링 (검색어 + 카테고리)
-  const filteredData = data.filter((item) => {
-    const matchesSearch =
+  // 📊 차트 데이터
+  const categoryStats = [
+    { name: "원자재", value: 45 },
+    { name: "부자재", value: 25 },
+    { name: "화학", value: 10 },
+    { name: "반제품", value: 20 },
+  ];
+
+  const stockComparison = [
+    { name: "패널", current: 450, safe: 100 },
+    { name: "글라스", current: 1200, safe: 500 },
+    { name: "레진", current: 5, safe: 20 },
+    { name: "나사", current: 25, safe: 100 },
+  ];
+
+  // 🔍 [필터링 로직] 검색어 AND 카테고리
+  const filteredData = inventoryData.filter((item) => {
+    const matchSearch =
       item.name.includes(searchTerm) || item.code.includes(searchTerm);
-    const matchesCategory =
-      activeCategory === "All" || item.category === activeCategory;
-    return matchesSearch && matchesCategory;
+    const matchCategory =
+      selectedCategory === "All" || item.category === selectedCategory;
+    return matchSearch && matchCategory;
   });
-
-  // 상태 판별 로직 (3단계)
-  const getStatus = (qty, safeQty) => {
-    if (qty === 0)
-      return {
-        label: "재고 없음",
-        color: COLORS.danger,
-        icon: <FaTimesCircle />,
-      };
-    if (qty < safeQty)
-      return {
-        label: "재고 부족",
-        color: COLORS.warning,
-        icon: <FaExclamationTriangle />,
-      };
-    return { label: "양호", color: COLORS.success, icon: <FaCheckCircle /> };
-  };
-
-  // 모달 열기
-  const openEditModal = (item) => {
-    setEditingItem(item);
-    setEditQty(item.qty);
-    setIsModalOpen(true);
-  };
-
-  // 재고 수정 저장
-  const handleSave = () => {
-    if (editQty < 0) return alert("수량은 0 이상이어야 합니다.");
-
-    setData(
-      data.map((d) =>
-        d.id === editingItem.id ? { ...d, qty: Number(editQty) } : d,
-      ),
-    );
-    setIsModalOpen(false);
-    alert(`[${editingItem.name}] 재고가 수정되었습니다.`);
-  };
 
   return (
     <div style={styles.container}>
-      {/* 헤더 */}
-      <div style={styles.header}>
-        <div>
-          <h2
-            style={{
-              margin: 0,
-              color: COLORS.text,
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <FaBox color={COLORS.primary} /> 실시간 재고 현황
-          </h2>
-          <p
-            style={{
-              margin: "5px 0 0",
-              fontSize: "14px",
-              color: COLORS.subText,
-            }}
-          >
-            전체 자재 및 완제품의 재고 수량을 실시간으로 모니터링하고
-            관리합니다.
-          </p>
+      <h2 style={styles.title}>📦 실시간 재고 현황 (Real-time Inventory)</h2>
+
+      {/* 1. 상단 차트 영역 */}
+      <div style={styles.chartRow}>
+        <div style={styles.chartCard}>
+          <h3 style={styles.cardTitle}>
+            <FaChartPie /> 자재 카테고리 구성
+          </h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={categoryStats}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={5}
+                dataKey="value"
+              >
+                {categoryStats.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={PIE_COLORS[index % PIE_COLORS.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend verticalAlign="bottom" height={36} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={styles.chartCard}>
+          <h3 style={styles.cardTitle}>
+            <FaExclamationTriangle /> 주요 자재 수급 현황
+          </h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={stockComparison} barSize={20}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" fontSize={12} />
+              <YAxis fontSize={12} />
+              <Tooltip cursor={{ fill: "transparent" }} />
+              <Legend />
+              <Bar
+                dataKey="current"
+                name="현재고"
+                fill={COLORS.primary}
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar
+                dataKey="safe"
+                name="안전재고"
+                fill={COLORS.warning}
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      {/* 메인 카드 */}
-      <div style={styles.card}>
-        {/* 툴바 (카테고리 탭 + 검색창) */}
-        <div style={styles.toolbar}>
+      {/* 2. 하단 리스트 영역 */}
+      <div style={styles.listCard}>
+        {/* [NEW] 탭 필터 & 검색바 헤더 */}
+        <div style={styles.filterHeader}>
           <div style={styles.tabGroup}>
-            {["All", "원자재", "부자재", "완제품"].map((cat) => (
+            {categories.map((cat) => (
               <button
                 key={cat}
-                style={activeCategory === cat ? styles.tabActive : styles.tab}
-                onClick={() => setActiveCategory(cat)}
+                onClick={() => setSelectedCategory(cat)}
+                style={selectedCategory === cat ? styles.tabActive : styles.tab}
               >
                 {cat === "All" ? "전체" : cat}
               </button>
@@ -171,335 +222,296 @@ const InventoryCurrent = () => {
           </div>
 
           <div style={styles.searchBox}>
-            <FaSearch color={COLORS.subText} />
+            <FaSearch color={COLORS.gray} />
             <input
-              type="text"
-              placeholder="품목명 / 코드 검색"
+              style={styles.input}
+              placeholder="품목명 또는 코드 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={styles.searchInput}
             />
           </div>
         </div>
 
         {/* 테이블 */}
-        <div style={styles.tableContainer}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thRow}>
-                <th style={styles.th}>품목 코드</th>
-                <th style={styles.th}>품목명</th>
-                <th style={styles.th}>카테고리</th>
-                <th style={styles.th}>현재고 (EA)</th>
-                <th style={styles.th}>안전재고 (EA)</th>
-                <th style={{ ...styles.th, textAlign: "center" }}>상태</th>
-                <th style={{ ...styles.th, textAlign: "center" }}>관리</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.length > 0 ? (
-                filteredData.map((item) => {
-                  const status = getStatus(item.qty, item.safeQty);
-                  return (
-                    <tr key={item.id} style={styles.tr}>
-                      <td style={styles.tdCode}>{item.code}</td>
-                      <td style={styles.tdName}>{item.name}</td>
-                      <td style={styles.td}>
-                        <span style={styles.categoryBadge}>
-                          {item.category}
-                        </span>
-                      </td>
-                      <td style={{ ...styles.td, fontWeight: "bold" }}>
-                        {item.qty.toLocaleString()}
-                      </td>
-                      <td style={styles.tdSafe}>
-                        {item.safeQty.toLocaleString()}
-                      </td>
-                      <td style={{ ...styles.td, textAlign: "center" }}>
+        <table style={styles.table}>
+          <thead>
+            <tr style={styles.thRow}>
+              <th style={styles.th}>상태</th>
+              <th style={styles.th}>자재코드</th>
+              <th style={styles.th}>품목명</th>
+              <th style={styles.th}>카테고리</th>
+              <th style={styles.th}>현재고 / 안전재고</th>
+              <th style={styles.th}>보관위치</th>
+              <th style={styles.th}>관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredData.length > 0 ? (
+              filteredData.map((item) => {
+                const percent = (item.qty / item.safeQty) * 100;
+                let status = "NORMAL";
+                if (percent <= 50) status = "LOW";
+                if (item.qty < item.safeQty) status = "DANGER";
+
+                return (
+                  <tr key={item.id} style={styles.tr}>
+                    <td style={styles.td}>
+                      <StatusDot status={status} />
+                    </td>
+                    <td style={styles.tdCode}>{item.code}</td>
+                    <td style={{ ...styles.td, fontWeight: "bold" }}>
+                      {item.name}
+                    </td>
+                    <td style={styles.td}>
+                      <span style={styles.categoryBadge}>{item.category}</span>
+                    </td>
+                    <td style={styles.td}>
+                      <div style={styles.qtyWrapper}>
                         <span
                           style={{
-                            ...styles.statusBadge,
-                            color: status.color,
-                            backgroundColor: `${status.color}20`,
+                            color:
+                              status === "DANGER" ? COLORS.danger : COLORS.text,
+                            fontWeight: "bold",
                           }}
                         >
-                          {status.icon}{" "}
-                          <span style={{ marginLeft: "4px" }}>
-                            {status.label}
-                          </span>
+                          {item.qty.toLocaleString()} {item.unit}
                         </span>
-                      </td>
-                      <td style={{ ...styles.td, textAlign: "center" }}>
-                        <button
-                          style={styles.iconButton}
-                          onClick={() => openEditModal(item)}
-                        >
-                          <FaEdit color="#888" />
+                        <span style={{ fontSize: "11px", color: "#999" }}>
+                          {" "}
+                          / {item.safeQty}
+                        </span>
+                      </div>
+                      <div style={styles.progressBarBg}>
+                        <div
+                          style={{
+                            ...styles.progressBarFill,
+                            width: `${Math.min(percent, 100)}%`,
+                            backgroundColor:
+                              status === "DANGER"
+                                ? COLORS.danger
+                                : status === "LOW"
+                                  ? COLORS.warning
+                                  : COLORS.success,
+                          }}
+                        />
+                      </div>
+                    </td>
+                    <td style={styles.td}>{item.loc}</td>
+                    <td style={styles.td}>
+                      {status !== "NORMAL" && (
+                        <button style={styles.orderBtn}>
+                          <FaShoppingCart /> 발주
                         </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan="7" style={styles.emptyState}>
-                    검색 결과가 없습니다.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan="7" style={styles.emptyState}>
+                  검색된 자재가 없습니다.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
-
-      {/* 재고 수정 모달 */}
-      {isModalOpen && editingItem && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <div style={styles.modalHeader}>
-              <h3>🛠️ 재고 수량 수정 (수동)</h3>
-              <div style={{ fontSize: "13px", color: "#888" }}>
-                {editingItem.name} ({editingItem.code})
-              </div>
-            </div>
-
-            <div style={styles.modalBody}>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>현재 수량</label>
-                <input
-                  type="number"
-                  value={editQty}
-                  onChange={(e) => setEditQty(e.target.value)}
-                  style={styles.input}
-                />
-              </div>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>사유 (선택)</label>
-                <input
-                  type="text"
-                  placeholder="조정 사유 입력"
-                  style={styles.input}
-                />
-              </div>
-            </div>
-
-            <div style={styles.modalFooter}>
-              <button
-                style={styles.btnCancel}
-                onClick={() => setIsModalOpen(false)}
-              >
-                취소
-              </button>
-              <button style={styles.btnSave} onClick={handleSave}>
-                수정 완료
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-// --- 스타일 정의 (CSS in JS) ---
+// --- 서브 컴포넌트 ---
+const StatusDot = ({ status }) => {
+  let color = COLORS.success;
+  let text = "정상";
+
+  if (status === "DANGER") {
+    color = COLORS.danger;
+    text = "부족";
+  } else if (status === "LOW") {
+    color = COLORS.warning;
+    text = "관심";
+  }
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "5px",
+        padding: "4px 8px",
+        borderRadius: "20px",
+        fontSize: "11px",
+        fontWeight: "bold",
+        backgroundColor: `${color}15`,
+        color: color,
+      }}
+    >
+      <div
+        style={{
+          width: "8px",
+          height: "8px",
+          borderRadius: "50%",
+          backgroundColor: color,
+        }}
+      />
+      {text}
+    </span>
+  );
+};
+
+// --- 스타일 ---
 const styles = {
-  container: {
-    padding: "30px",
-    backgroundColor: COLORS.bg,
-    minHeight: "100vh",
-    fontFamily: "'Pretendard', sans-serif",
+  container: { padding: "30px", backgroundColor: COLORS.bg, minHeight: "100%" },
+  title: {
+    fontSize: "24px",
+    fontWeight: "bold",
+    marginBottom: "20px",
+    color: COLORS.text,
   },
-  header: { marginBottom: "25px" },
-  card: {
-    backgroundColor: COLORS.white,
-    borderRadius: "16px",
-    padding: "25px",
-    boxShadow: "0 4px 15px rgba(0,0,0,0.03)",
-    border: `1px solid ${COLORS.border}`,
+
+  // 차트
+  chartRow: { display: "flex", gap: "20px", marginBottom: "20px" },
+  chartCard: {
+    flex: 1,
+    backgroundColor: "white",
+    padding: "20px",
+    borderRadius: "12px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
   },
-  // 툴바 (탭 + 검색)
-  toolbar: {
+  cardTitle: {
+    fontSize: "16px",
+    fontWeight: "bold",
+    marginBottom: "15px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    margin: 0,
+    color: "#333",
+  },
+
+  // 리스트 영역
+  listCard: {
+    backgroundColor: "white",
+    padding: "20px",
+    borderRadius: "12px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+  },
+
+  // [NEW] 필터 헤더 스타일
+  filterHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "20px",
+    flexWrap: "wrap",
+    gap: "10px",
   },
   tabGroup: {
     display: "flex",
-    gap: "10px",
+    gap: "8px",
+    backgroundColor: "#F5F6FA",
+    padding: "4px",
+    borderRadius: "8px",
   },
   tab: {
-    padding: "8px 16px",
-    borderRadius: "20px",
-    border: `1px solid ${COLORS.border}`,
-    backgroundColor: COLORS.white,
-    color: "#666",
+    border: "none",
+    background: "transparent",
+    padding: "6px 14px",
+    borderRadius: "6px",
     cursor: "pointer",
     fontSize: "13px",
+    color: "#666",
     fontWeight: "600",
-    transition: "0.2s",
   },
   tabActive: {
-    padding: "8px 16px",
-    borderRadius: "20px",
     border: "none",
-    backgroundColor: COLORS.primary,
-    color: COLORS.white,
+    backgroundColor: COLORS.white,
+    padding: "6px 14px",
+    borderRadius: "6px",
     cursor: "pointer",
     fontSize: "13px",
+    color: COLORS.primary,
     fontWeight: "bold",
-    boxShadow: "0 2px 5px rgba(140, 133, 255, 0.3)",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
   },
+
   searchBox: {
     display: "flex",
     alignItems: "center",
-    backgroundColor: "#F2F4F7",
+    backgroundColor: "#F5F6FA",
     borderRadius: "20px",
-    padding: "8px 16px",
-    width: "240px",
+    padding: "8px 15px",
+    width: "250px",
   },
-  searchInput: {
+  input: {
     border: "none",
-    backgroundColor: "transparent",
-    outline: "none",
+    background: "transparent",
     marginLeft: "10px",
-    fontSize: "14px",
+    outline: "none",
     width: "100%",
-    color: COLORS.text,
+    fontSize: "14px",
   },
+
   // 테이블
-  tableContainer: { overflowX: "auto" },
-  table: {
-    width: "100%",
-    borderCollapse: "separate",
-    borderSpacing: 0,
-    fontSize: "14px",
-  },
-  thRow: { backgroundColor: "#F9FAFB" },
+  table: { width: "100%", borderCollapse: "collapse" },
+  thRow: { backgroundColor: "#f9f9f9", borderBottom: "1px solid #eee" },
   th: {
-    padding: "14px 16px",
+    padding: "12px",
     textAlign: "left",
-    color: "#555",
+    fontSize: "13px",
+    color: "#666",
     fontWeight: "600",
-    borderBottom: `1px solid ${COLORS.border}`,
-    whiteSpace: "nowrap",
   },
-  tr: {
-    borderBottom: "1px solid #f0f2f5",
-    transition: "background-color 0.2s",
-  },
+  tr: { borderBottom: "1px solid #f5f5f5", height: "50px" },
   td: {
-    padding: "16px",
-    borderBottom: "1px solid #f0f2f5",
+    padding: "12px",
+    fontSize: "14px",
+    color: "#333",
     verticalAlign: "middle",
-    color: COLORS.text,
   },
   tdCode: {
-    padding: "16px",
-    borderBottom: "1px solid #f0f2f5",
-    color: "#666",
+    padding: "12px",
     fontSize: "13px",
-  },
-  tdName: {
-    padding: "16px",
-    borderBottom: "1px solid #f0f2f5",
-    fontWeight: "600",
-    color: "#111",
-  },
-  tdSafe: {
-    padding: "16px",
-    borderBottom: "1px solid #f0f2f5",
     color: "#888",
+    fontFamily: "monospace",
   },
+  emptyState: { padding: "40px", textAlign: "center", color: "#999" },
+
+  // 요소들
   categoryBadge: {
-    display: "inline-block",
+    backgroundColor: "#F0F2F5",
+    color: "#555",
     padding: "4px 8px",
-    backgroundColor: "#F2F4F7",
-    color: "#475467",
     borderRadius: "6px",
     fontSize: "12px",
-    fontWeight: "500",
   },
-  statusBadge: {
-    display: "inline-flex",
+  qtyWrapper: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: "5px",
+    marginBottom: "4px",
+  },
+  progressBarBg: {
+    width: "100px",
+    height: "6px",
+    backgroundColor: "#eee",
+    borderRadius: "3px",
+  },
+  progressBarFill: { height: "100%", borderRadius: "3px" },
+  orderBtn: {
+    display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    padding: "4px 10px",
-    borderRadius: "20px",
+    gap: "5px",
+    backgroundColor: COLORS.danger,
+    color: "white",
+    border: "none",
+    padding: "6px 12px",
+    borderRadius: "6px",
+    cursor: "pointer",
     fontSize: "12px",
     fontWeight: "bold",
-  },
-  iconButton: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: "5px",
-    borderRadius: "50%",
-    transition: "background 0.2s",
-  },
-  emptyState: {
-    textAlign: "center",
-    padding: "40px",
-    color: "#999",
-    fontSize: "14px",
-  },
-  // 모달 스타일
-  modalOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  modalContent: {
-    backgroundColor: COLORS.white,
-    borderRadius: "16px",
-    width: "400px",
-    padding: "25px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-  },
-  modalHeader: {
-    marginBottom: "20px",
-    borderBottom: `1px solid ${COLORS.border}`,
-    paddingBottom: "10px",
-  },
-  modalBody: { display: "flex", flexDirection: "column", gap: "15px" },
-  inputGroup: { display: "flex", flexDirection: "column", gap: "5px" },
-  label: { fontSize: "13px", fontWeight: "bold", color: "#555" },
-  input: {
-    padding: "10px",
-    borderRadius: "8px",
-    border: `1px solid ${COLORS.border}`,
-    fontSize: "14px",
-    outline: "none",
-  },
-  modalFooter: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "10px",
-    marginTop: "20px",
-  },
-  btnSave: {
-    backgroundColor: COLORS.primary,
-    color: COLORS.white,
-    border: "none",
-    borderRadius: "8px",
-    padding: "8px 16px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  btnCancel: {
-    backgroundColor: "#eee",
-    color: "#333",
-    border: "none",
-    borderRadius: "8px",
-    padding: "8px 16px",
-    cursor: "pointer",
   },
 };
 
