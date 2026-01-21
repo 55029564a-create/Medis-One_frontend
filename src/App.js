@@ -30,35 +30,37 @@ import InventoryHistory from "./pages/Inventory/InventoryHistory";
 import WorkOrder from "./pages/Production/WorkOrder";
 import ProductionSchedule from "./pages/Production/ProductionSchedule";
 import WorkReport from "./pages/Production/WorkReport";
-import ProcessAssembly from "./pages/Production/ProcessAssembly"; // 조립 공정
-import ProcessBonding from "./pages/Production/ProcessBonding"; // 본딩 공정
 import ProductManagement from "./pages/ProductManagement"; // 품목 관리 (위치: pages root)
 
-// 6. 설비 관리 (Equipment)
+// 6. 프로세스 (Process)
+import ProcessAssembly from "./pages/Process/ProcessAssembly"; // 조립 공정
+import ProcessBonding from "./pages/Process/ProcessBonding"; // 본딩 공정
+import AgingStatus from "./pages/Process/AgingStatus"; // 에이징
+
+// 7. 설비 관리 (Equipment)
 import MachineList from "./pages/Equipment/MachineList";
 import MachineDetail from "./pages/Equipment/MachineDetail";
 
-// 7. 품질 관리 (Quality)
+// 8. 품질 관리 (Quality)
 import QualityDefect from "./pages/Quality/QualityDefect";
 import ProductionRate from "./pages/Quality/ProductionRate";
-import AgingStatus from "./pages/Quality/AgingStatus"; // 에이징
 import CalibrationReport from "./pages/Quality/CalibarationReport"; // 캘리브레이션 (파일명 오타 반영)
 import ReliabilityTest from "./pages/Quality/ReliabilityTest"; // 신뢰성
 
-// 8. 이력 추적 (Traceability)
+// 9. 이력 추적 (Traceability)
 import DeviceHistory from "./pages/Traceability/DeviceHistory"; // DHR
 
-// 9. 시스템/관리자 (Admin)
+// 10. 시스템/관리자 (Admin)
 import EmployeeMgmt from "./pages/Admin/EmployeeMgmt";
 import ProcessMgmt from "./pages/Admin/ProcessMgmt";
 import WorkOrderMgmt from "./pages/Admin/WorkOrderMgmt";
 import ProductionOrder from "./pages/Admin/ProductionOrder";
 
-// 10. 지원 업무 (Support)
+// 11. 지원 업무 (Support)
 import Notice from "./pages/Support/Notice";
 import CafeteriaMenu from "./pages/Support/CafeteriaMenu";
 
-// 11. 모바일 (Mobile)
+// 12. 모바일 (Mobile)
 import MobileTracking from "./pages/Mobile/MobileTracking";
 
 function App() {
@@ -115,9 +117,10 @@ const AppRoutes = () => {
             element={<ProductManagement />}
           />{" "}
           {/* 품목관리 */}
-          {/* 핵심 공정 (모니터링/입력) */}
-          <Route path="/production/assembly" element={<ProcessAssembly />} />
-          <Route path="/production/bonding" element={<ProcessBonding />} />
+          {/* === 프로세스 === */}
+          <Route path="/process/assembly" element={<ProcessAssembly />} />
+          <Route path="/process/bonding" element={<ProcessBonding />} />
+          <Route path="/process/aging" element={<AgingStatus />} />
           {/* === 설비 관리 === */}
           <Route path="/equipment" element={<MachineList />} />
           <Route
@@ -128,7 +131,6 @@ const AppRoutes = () => {
           {/* === 품질 관리 === */}
           <Route path="/quality/defect" element={<QualityDefect />} />
           <Route path="/quality/rate" element={<ProductionRate />} />
-          <Route path="/quality/aging" element={<AgingStatus />} />
           <Route path="/quality/calibration" element={<CalibrationReport />} />
           <Route path="/quality/reliability" element={<ReliabilityTest />} />
           {/* === 이력 추적 (Traceability) === */}

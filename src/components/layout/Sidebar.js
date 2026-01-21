@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext"; // [추가] 로그인 정보 연동
 import {
   FaChartPie,
+  FaMicrochip,
+  FaBox,
   FaBoxOpen,
   FaIndustry,
   FaCogs,
@@ -197,12 +199,12 @@ const Sidebar = () => {
           >
             <SubMenuItem
               to="/production/schedule"
-              label="생산 일정/지시"
+              label="생산 계획"
               currentPath={location.pathname}
             />
             <SubMenuItem
               to="/production/order"
-              label="작업 지시(현장)"
+              label="작업 지시서"
               currentPath={location.pathname}
             />
             <SubMenuItem
@@ -215,20 +217,35 @@ const Sidebar = () => {
               label="제품 관리"
               currentPath={location.pathname}
             />
-            {/* [추가] 핵심 공정 */}
+          </MenuDropdown>
+
+          {/* [신규] 5. Process (공정 실행 - 현장) */}
+          <MenuDropdown
+            title="Process"
+            icon={<FaMicrochip />}
+            isOpen={isOpen}
+            isExpanded={activeMenu === "process"}
+            isActive={location.pathname.startsWith("/process")}
+            onClick={() => toggleSubMenu("process")}
+          >
             <SubMenuItem
-              to="/production/assembly"
-              label="조립 공정"
+              to="/process/bonding"
+              label="본딩(Bonding)"
               currentPath={location.pathname}
             />
             <SubMenuItem
-              to="/production/bonding"
-              label="본딩 공정"
+              to="/process/assembly"
+              label="조립(Assembly)"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/process/aging"
+              label="에이징(Aging)"
               currentPath={location.pathname}
             />
           </MenuDropdown>
 
-          {/* 5. 품질/설비 */}
+          {/* 6. 품질/설비 */}
           <MenuDropdown
             title="Quality"
             icon={<FaCogs />}
@@ -257,11 +274,6 @@ const Sidebar = () => {
             />
             {/* [추가] 품질 테스트 관련 */}
             <SubMenuItem
-              to="/quality/aging"
-              label="에이징 현황"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
               to="/quality/calibration"
               label="캘리브레이션"
               currentPath={location.pathname}
@@ -273,7 +285,7 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* [신규] 6. 이력 추적 (Traceability) */}
+          {/* [신규] 7. 이력 추적 (Traceability) */}
           <MenuDropdown
             title="Traceability"
             icon={<FaSitemap />}
@@ -289,7 +301,7 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* 7. 지원 업무 */}
+          {/* 8. 지원 업무 */}
           <MenuDropdown
             title="Support"
             icon={<FaUtensils />}
@@ -310,7 +322,7 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* 8. 관리자 */}
+          {/* 9. 관리자 */}
           <MenuDropdown
             title="Admin"
             icon={<FaUserCog />}
