@@ -29,10 +29,16 @@ const Login = () => {
     const ADMIN_PW = "admin123";
 
     if (employeeId === ADMIN_ID && password === ADMIN_PW) {
-      // [추가 3] 로그인 상태 업데이트 (이게 있어야 페이지 이동 후 튕기지 않음)
-      login();
+      // [핵심 변경] 로그인 성공 시 사원 정보를 객체로 만들어 전달!
+      const userInfo = {
+        name: "김관리", // 실제 DB에서 가져올 이름
+        id: employeeId,
+        dept: "생산관리팀", // 부서
+        role: "Master Admin", // 직책
+      };
 
-      // 대시보드로 이동
+      login(userInfo); // Context에 정보 전달
+
       navigate("/dashboard");
     } else {
       alert("사원번호 또는 비밀번호를 확인해주세요.");
