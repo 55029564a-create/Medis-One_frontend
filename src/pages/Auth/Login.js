@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext"; // [추가 1] Context 훅 불러오기
 import "./Login.css";
 
 const Login = () => {
   const [employeeId, setEmployeeId] = useState("");
   const [password, setPassword] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
 
-  // 팝업 관련
+  // 팝업 관련 상태
   const [showModal, setShowModal] = useState(false);
   const [modalStep, setModalStep] = useState(1);
   const [resetEmail, setResetEmail] = useState("");
@@ -16,6 +16,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
+  const { login } = useAuth(); // [추가 2] 전역 로그인 함수 가져오기
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -28,10 +29,18 @@ const Login = () => {
     const ADMIN_PW = "admin123";
 
     if (employeeId === ADMIN_ID && password === ADMIN_PW) {
-      // 일치하면 대시보드로 이동
+      // [핵심 변경] 로그인 성공 시 사원 정보를 객체로 만들어 전달!
+      const userInfo = {
+        name: "김관리", // 실제 DB에서 가져올 이름
+        id: employeeId,
+        dept: "생산관리팀", // 부서
+        role: "Master Admin", // 직책
+      };
+
+      login(userInfo); // Context에 정보 전달
+
       navigate("/dashboard");
     } else {
-      // 불일치하면 경고창
       alert("사원번호 또는 비밀번호를 확인해주세요.");
     }
   };
@@ -42,6 +51,8 @@ const Login = () => {
       handleLogin();
     }
   };
+
+  // --- (이하 팝업 관련 및 JSX 코드는 기존과 동일) ---
 
   // 비밀번호 찾기 클릭 시 초기화 후 열기
   const handleOpenModal = (e) => {
@@ -124,6 +135,7 @@ const Login = () => {
                 onClick={togglePasswordVisibility}
               >
                 {showPassword ? (
+                  // 눈 아이콘 (보임)
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="18"
@@ -145,6 +157,7 @@ const Login = () => {
                     />
                   </svg>
                 ) : (
+                  // 눈 아이콘 (숨김)
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="18"

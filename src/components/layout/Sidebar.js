@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext"; // [추가] 로그인 정보 연동
 import {
   FaChartPie,
   FaBoxOpen,
@@ -13,6 +14,7 @@ import {
   FaWarehouse,
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
+  FaSitemap, // [추가] Traceability 아이콘
 } from "react-icons/fa";
 import { MdDashboard } from "react-icons/md";
 
@@ -29,6 +31,9 @@ const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const sidebarRef = useRef(null); // 외부 클릭 감지용 Ref
+
+  // [추가] AuthContext에서 유저 정보와 로그아웃 함수 가져오기
+  const { user, logout } = useAuth();
 
   // --- 1. 외부 클릭 시 사이드바 닫기 ---
   useEffect(() => {
@@ -66,15 +71,11 @@ const Sidebar = () => {
     }
   };
 
-  // --- 4. 로그아웃 핸들러 ---
+  // --- 4. 로그아웃 핸들러 (AuthContext 사용) ---
   const handleLogout = () => {
     if (window.confirm("로그아웃 하시겠습니까?")) {
-      // 1. 토큰 삭제 (예시)
-      localStorage.removeItem("token");
-      sessionStorage.removeItem("token");
-
-      // 2. 로그인 페이지로 이동
-      navigate("/"); // 또는 "/login"
+      logout(); // [수정] Context 로그아웃 함수 호출
+      navigate("/");
     }
   };
 
@@ -156,6 +157,12 @@ const Sidebar = () => {
               label="입/출고 이력"
               currentPath={location.pathname}
             />
+            {/* [추가] LOT 추적 */}
+            <SubMenuItem
+              to="/material/lot"
+              label="LOT 추적"
+              currentPath={location.pathname}
+            />
           </MenuDropdown>
 
           {/* 3. 재고 관리 */}
@@ -194,7 +201,7 @@ const Sidebar = () => {
               currentPath={location.pathname}
             />
             <SubMenuItem
-              to="/production/work-order"
+              to="/production/order"
               label="작업 지시(현장)"
               currentPath={location.pathname}
             />
@@ -206,6 +213,17 @@ const Sidebar = () => {
             <SubMenuItem
               to="/production/product"
               label="제품 관리"
+              currentPath={location.pathname}
+            />
+            {/* [추가] 핵심 공정 */}
+            <SubMenuItem
+              to="/production/assembly"
+              label="조립 공정"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/production/bonding"
+              label="본딩 공정"
               currentPath={location.pathname}
             />
           </MenuDropdown>
@@ -229,7 +247,7 @@ const Sidebar = () => {
             />
             <SubMenuItem
               to="/quality/defect"
-              label="불량 등록"
+              label="불량 등록/현황"
               currentPath={location.pathname}
             />
             <SubMenuItem
@@ -237,9 +255,41 @@ const Sidebar = () => {
               label="생산 효율"
               currentPath={location.pathname}
             />
+            {/* [추가] 품질 테스트 관련 */}
+            <SubMenuItem
+              to="/quality/aging"
+              label="에이징 현황"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/quality/calibration"
+              label="캘리브레이션"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/quality/reliability"
+              label="신뢰성 테스트"
+              currentPath={location.pathname}
+            />
           </MenuDropdown>
 
-          {/* 6. 지원 업무 */}
+          {/* [신규] 6. 이력 추적 (Traceability) */}
+          <MenuDropdown
+            title="Traceability"
+            icon={<FaSitemap />}
+            isOpen={isOpen}
+            isExpanded={activeMenu === "traceability"}
+            isActive={location.pathname.startsWith("/traceability")}
+            onClick={() => toggleSubMenu("traceability")}
+          >
+            <SubMenuItem
+              to="/traceability/dhr"
+              label="이력 추적 (DHR)"
+              currentPath={location.pathname}
+            />
+          </MenuDropdown>
+
+          {/* 7. 지원 업무 */}
           <MenuDropdown
             title="Support"
             icon={<FaUtensils />}
@@ -260,7 +310,7 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* 7. 관리자 */}
+          {/* 8. 관리자 */}
           <MenuDropdown
             title="Admin"
             icon={<FaUserCog />}
@@ -280,12 +330,12 @@ const Sidebar = () => {
               currentPath={location.pathname}
             />
             <SubMenuItem
-              to="/admin/workorder"
+              to="/admin/work-order"
               label="작업 지시 관리"
               currentPath={location.pathname}
             />
             <SubMenuItem
-              to="/admin/productionorder"
+              to="/admin/production-order"
               label="생산 지시 관리"
               currentPath={location.pathname}
             />
@@ -345,6 +395,7 @@ const Sidebar = () => {
 
           {isOpen && (
             <div style={{ flex: 1, overflow: "hidden" }}>
+              {/* [수정] 실제 유저 정보 표시 */}
               <p
                 style={{
                   margin: 0,
@@ -354,7 +405,7 @@ const Sidebar = () => {
                   whiteSpace: "nowrap",
                 }}
               >
-                Kim Manager
+                {user ? user.name : "Guest User"}
               </p>
               <p
                 style={{
@@ -364,7 +415,7 @@ const Sidebar = () => {
                   whiteSpace: "nowrap",
                 }}
               >
-                Production Team
+                {user ? `${user.dept} / ${user.role}` : "Please Login"}
               </p>
             </div>
           )}
