@@ -2,12 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
-<<<<<<< HEAD
-=======
-  FaChartPie,
-  FaMicrochip,
-  FaBox,
->>>>>>> 3cb0a512893928cf3e8c65219db991d39a0f6f0c
   FaBoxOpen,
   FaIndustry,
   FaCogs,
@@ -22,9 +16,6 @@ import {
 } from "react-icons/fa";
 import { MdDashboard } from "react-icons/md";
 
-// ✅ [중요] 여기에 로그인 화면에서 사용한 로고 파일 경로를 넣어주세요!
-// 예시: src/assets/logo.png 파일이 있다면 아래와 같이 import 합니다.
-// 경로가 다르다면 "../" 개수를 조절해서 맞춰주세요.
 import logoImage from "../../assets/logo.png";
 
 // 🎨 MedisOne 테마 컬러
@@ -222,20 +213,6 @@ const Sidebar = () => {
               label="제품 관리"
               currentPath={location.pathname}
             />
-<<<<<<< HEAD
-=======
-          </MenuDropdown>
-
-          {/* [신규] 5. Process (공정 실행 - 현장) */}
-          <MenuDropdown
-            title="Process"
-            icon={<FaMicrochip />}
-            isOpen={isOpen}
-            isExpanded={activeMenu === "process"}
-            isActive={location.pathname.startsWith("/process")}
-            onClick={() => toggleSubMenu("process")}
-          >
->>>>>>> 3cb0a512893928cf3e8c65219db991d39a0f6f0c
             <SubMenuItem
               to="/process/bonding"
               label="본딩(Bonding)"
@@ -292,11 +269,7 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-<<<<<<< HEAD
           {/* 6. 이력 추적 */}
-=======
-          {/* [신규] 7. 이력 추적 (Traceability) */}
->>>>>>> 3cb0a512893928cf3e8c65219db991d39a0f6f0c
           <MenuDropdown
             title="Traceability"
             icon={<FaSitemap />}
