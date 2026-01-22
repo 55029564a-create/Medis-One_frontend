@@ -454,7 +454,7 @@ const MachineStatus = ({ name, status }) => {
 // ==============================================
 const styles = {
   container: {
-    padding: "30px",
+    padding: "20px",
     backgroundColor: COLORS.background,
     minHeight: "100vh",
   },
@@ -468,14 +468,14 @@ const styles = {
     display: "grid",
     gridTemplateColumns: "repeat(4, 1fr)",
     gap: "20px",
-    marginBottom: "90px",
+    marginBottom: "70px",
   },
   // 차트 그리드: 여기 zIndex가 50이면 하단의 zIndex 1보다 무조건 위에 그려짐
   gridChart: {
     display: "grid",
     gridTemplateColumns: "2fr 1fr",
     gap: "20px",
-    marginBottom: "90px",
+    marginBottom: "25px",
   },
   grid3: {
     display: "grid",
@@ -487,7 +487,7 @@ const styles = {
     borderRadius: "16px",
     padding: "24px",
     boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
-    height: "100%",
+    height: "80%",
     display: "flex",
     flexDirection: "column",
     position: "relative",
