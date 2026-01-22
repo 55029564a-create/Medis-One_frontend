@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-// Icons (날씨 아이콘 추가)
+// Icons
 import {
   FaSignOutAlt,
   FaClock,
@@ -36,7 +36,7 @@ import {
   FaSnowflake,
   FaExclamationTriangle,
   FaBolt,
-  FaSmog, // 날씨용 아이콘들
+  FaSmog,
 } from "react-icons/fa";
 
 const COLORS = {
@@ -90,10 +90,11 @@ const SortableTab = ({ tab, isActive, onClick, onClose }) => {
           ...styles.closeTabBtn,
           color: isActive ? COLORS.primary : "#bbb",
         }}
+        // [중요] 마우스 누르는 순간 이벤트 전파 중단 (드래그/클릭 방지)
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
-          e.stopPropagation();
-          onClose();
+          e.stopPropagation(); // 클릭 이벤트 상위 전파 중단
+          onClose(); // 탭 닫기 실행
         }}
       >
         <FaTimes size={10} />
@@ -112,71 +113,49 @@ const Header = () => {
   const scrollRef = useRef(null);
   const [showList, setShowList] = useState(false);
 
-  // --- 날씨 & 시간 상태 ---
+  // --- 날씨 & 시간 ---
   const [currentTime, setCurrentTime] = useState(new Date());
-  // [수정] 초기 상태를 '로딩중'이 아닌 '대기' 상태로, 에러 시 명확히 표시
   const [weather, setWeather] = useState({
     temp: null,
     status: "Loading",
     iconCode: "Loading",
   });
 
-  // 시계
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 날씨 API 호출
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        const API_KEY = "a401c48e03c0bffe9e70d13ad9a63ecb"; // 만료 시 교체 필요
+        const API_KEY = "a401c48e03c0bffe9e70d13ad9a63ecb";
         const city = "Cheonan";
         const response = await fetch(
           `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric`,
         );
-
-        if (!response.ok) {
-          throw new Error("API Error"); // 응답 코드가 200이 아니면 에러 처리
-        }
-
+        if (!response.ok) throw new Error("API Error");
         const data = await response.json();
         const weatherMain = data.weather[0].main;
 
-        // 상태 한글 변환
+        // 날씨 상태 텍스트
         let statusText = "맑음";
         if (weatherMain === "Clouds") statusText = "흐림";
         else if (weatherMain === "Rain") statusText = "비";
         else if (weatherMain === "Snow") statusText = "눈";
-        else if (weatherMain === "Thunderstorm") statusText = "뇌우";
-        else if (weatherMain === "Drizzle") statusText = "이슬비";
-        else if (
-          weatherMain === "Mist" ||
-          weatherMain === "Haze" ||
-          weatherMain === "Fog"
-        )
-          statusText = "안개";
 
         setWeather({
           temp: Math.round(data.main.temp),
           status: statusText,
-          iconCode: weatherMain, // 아이콘 결정을 위한 영문 코드 저장
+          iconCode: weatherMain,
         });
       } catch (error) {
-        // [수정] 에러 발생 시 임의의 값(-3도)을 넣지 않고 에러 상태 표시
-        console.error("Weather API Error:", error);
-        setWeather({
-          temp: null,
-          status: "API 점검중",
-          iconCode: "Error",
-        });
+        setWeather({ temp: null, status: "API 점검", iconCode: "Error" });
       }
     };
     fetchWeather();
   }, []);
 
-  // 날씨 아이콘 렌더링 함수
   const getWeatherIcon = (code) => {
     switch (code) {
       case "Clear":
@@ -185,20 +164,12 @@ const Header = () => {
         return <FaCloud color="#90A4AE" size={16} />;
       case "Rain":
         return <FaCloudRain color="#42A5F5" size={16} />;
-      case "Drizzle":
-        return <FaCloudRain color="#64B5F6" size={16} />;
-      case "Thunderstorm":
-        return <FaBolt color="#FFD600" size={16} />;
       case "Snow":
         return <FaSnowflake color="#81D4FA" size={16} />;
-      case "Mist":
-      case "Haze":
-      case "Fog":
-        return <FaSmog color="#B0BEC5" size={16} />;
       case "Error":
-        return <FaExclamationTriangle color="#FF5252" size={14} />; // 에러 아이콘
+        return <FaExclamationTriangle color="#FF5252" size={14} />;
       default:
-        return <FaSun color="#ccc" size={16} />; // 로딩/기본
+        return <FaSun color="#ccc" size={16} />;
     }
   };
 
@@ -236,24 +207,22 @@ const Header = () => {
     }
   };
 
+  // 대시보드를 제외한 탭 목록 (드래그 대상)
   const draggableTabs = tabs.filter((t) => t.path !== "/dashboard");
 
   return (
     <header style={styles.headerWrapper}>
-      {/* 1. Top Bar */}
       <div style={styles.topBar}>
         <div style={styles.leftSection}>
           <div style={styles.infoGroup}>
             <FaMapMarkerAlt color={COLORS.primary} size={14} />
             <span style={styles.infoText}>천안</span>
             <div style={styles.divider} />
-
-            {/* [수정] 날씨 아이콘 및 텍스트 렌더링 */}
             {getWeatherIcon(weather.iconCode)}
             <span
               style={{
                 ...styles.infoText,
-                color: weather.temp === null ? "#FF5252" : "#555", // 에러 시 빨간 글씨
+                color: weather.temp === null ? "#FF5252" : "#555",
               }}
             >
               {weather.temp !== null
@@ -261,7 +230,6 @@ const Header = () => {
                 : weather.status}
             </span>
           </div>
-
           <div style={styles.timeGroup}>
             <FaClock color={COLORS.primary} size={14} />
             <div style={styles.timeWrapper}>
@@ -291,9 +259,8 @@ const Header = () => {
         </div>
       </div>
 
-      {/* 2. Tab Bar */}
       <div style={styles.tabContainer}>
-        {/* 홈 버튼 */}
+        {/* 홈 버튼 (고정) */}
         <div
           style={{
             ...styles.homeTab,
@@ -343,7 +310,6 @@ const Header = () => {
 
         <div style={styles.tabDivider} />
 
-        {/* 탭 목록 보기 */}
         <div style={{ position: "relative" }}>
           <button style={styles.listBtn} onClick={() => setShowList(!showList)}>
             <FaList />
@@ -452,8 +418,6 @@ const styles = {
     borderRadius: "8px",
     cursor: "pointer",
   },
-
-  // Tab Bar
   tabContainer: {
     display: "flex",
     alignItems: "center",
@@ -504,7 +468,7 @@ const styles = {
     background: "transparent",
     border: "none",
     cursor: "pointer",
-    padding: "2px",
+    padding: "4px", // 패딩 늘림 (클릭 영역 확보)
     marginLeft: "8px",
     borderRadius: "50%",
     display: "flex",
