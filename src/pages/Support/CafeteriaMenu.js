@@ -44,42 +44,226 @@ const CafeteriaMenu = () => {
 
       const month = ("0" + (date.getMonth() + 1)).slice(-2);
       const dayNum = ("0" + date.getDate()).slice(-2);
-      const dayName = days[date.getDay()];
-      const isWeekend = dayName === "토" || dayName === "일";
+      const dayIndex = date.getDay(); // 0:일, 1:월 ... 6:토
+      const dayName = days[dayIndex];
 
-      // 샘플 데이터 (기존 데이터 구조 유지)
+      // 요일별 메뉴 데이터 베이스
+      const menuDB = {
+        1: {
+          // 월요일
+          breakfast: {
+            rice: "쌀밥",
+            soup: "미역국",
+            main: "스크램블에그",
+            side: "멸치볶음",
+            kimchi: "배추김치",
+          },
+          lunch: {
+            rice: "현미밥",
+            soup: "김치찌개",
+            main: "제육볶음",
+            side: "계란찜",
+            kimchi: "깍두기",
+          },
+          dinner: {
+            rice: "차조밥",
+            soup: "아욱국",
+            main: "오징어볶음",
+            side: "동그랑땡",
+            kimchi: "배추김치",
+          },
+          snack: "햄치즈 샌드위치 & 쥬스",
+          latenight: {
+            rice: "쌀밥",
+            soup: "육개장",
+            main: "떡갈비구이",
+            side: "어묵볶음",
+            kimchi: "깍두기",
+          },
+        },
+        2: {
+          // 화요일
+          breakfast: {
+            rice: "야채죽",
+            soup: "동치미",
+            main: "장조림",
+            side: "오징어젓갈",
+            kimchi: "배추김치",
+          },
+          lunch: {
+            rice: "흑미밥",
+            soup: "얼큰짬뽕국",
+            main: "등심탕수육",
+            side: "군만두",
+            kimchi: "단무지무침",
+          },
+          dinner: {
+            rice: "쌀밥",
+            soup: "된장국",
+            main: "안동찜닭",
+            side: "도토리묵",
+            kimchi: "배추김치",
+          },
+          snack: "뉴욕핫도그 & 콜라",
+          latenight: {
+            rice: "쌀밥",
+            soup: "순두부찌개",
+            main: "고등어구이",
+            side: "마늘쫑",
+            kimchi: "석박지",
+          },
+        },
+        3: {
+          // 수요일
+          breakfast: {
+            rice: "쌀밥",
+            soup: "북엇국",
+            main: "두부부침",
+            side: "김자반",
+            kimchi: "배추김치",
+          },
+          lunch: {
+            rice: "보리밥",
+            soup: "콩나물국",
+            main: "전주비빔밥",
+            side: "약고추장",
+            kimchi: "백김치",
+          },
+          dinner: {
+            rice: "쌀밥",
+            soup: "부대찌개",
+            main: "생선까스",
+            side: "타르타르",
+            kimchi: "깍두기",
+          },
+          snack: "크로플 & 아메리카노",
+          latenight: {
+            rice: "주먹밥",
+            soup: "해물라면",
+            main: "소세지야채볶음",
+            side: "단무지",
+            kimchi: "배추김치",
+          },
+        },
+        4: {
+          // 목요일
+          breakfast: {
+            rice: "토스트",
+            soup: "양송이스프",
+            main: "베이컨구이",
+            side: "그린샐러드",
+            kimchi: "피클",
+          },
+          lunch: {
+            rice: "기장밥",
+            soup: "근대국",
+            main: "춘천닭갈비",
+            side: "감자채볶음",
+            kimchi: "쌈무",
+          },
+          dinner: {
+            rice: "카레라이스",
+            soup: "우동국물",
+            main: "치킨너겟",
+            side: "양배추샐러드",
+            kimchi: "배추김치",
+          },
+          snack: "소보로빵 & 바나나우유",
+          latenight: {
+            rice: "쌀밥",
+            soup: "설렁탕",
+            main: "메밀전병",
+            side: "오징어젓갈",
+            kimchi: "깍두기",
+          },
+        },
+        5: {
+          // 금요일
+          breakfast: {
+            rice: "쌀밥",
+            soup: "소고기무국",
+            main: "계란말이",
+            side: "진미채",
+            kimchi: "배추김치",
+          },
+          lunch: {
+            rice: "잡곡밥",
+            soup: "육개장",
+            main: "가자미구이",
+            side: "잡채",
+            kimchi: "배추김치",
+          },
+          dinner: {
+            rice: "쌀밥",
+            soup: "사골순대국",
+            main: "수육보쌈",
+            side: "야채스틱",
+            kimchi: "보쌈김치",
+          },
+          snack: "국물떡볶이 & 김말이",
+          latenight: {
+            rice: "쌀밥",
+            soup: "김치콩나물국",
+            main: "돈육장조림",
+            side: "김구이",
+            kimchi: "깍두기",
+          },
+        },
+        6: {
+          // 토요일 (특식, 석식/야식 미운영)
+          breakfast: {
+            rice: "쌀밥",
+            soup: "시금치국",
+            main: "감자조림",
+            side: "콩자반",
+            kimchi: "배추김치",
+          },
+          lunch: {
+            rice: "새우볶음밥",
+            soup: "계란국",
+            main: "짜장소스",
+            side: "깐풍기",
+            kimchi: "짜사이",
+          },
+          dinner: {
+            rice: "-",
+            soup: "-",
+            main: "미운영",
+            side: "-",
+            kimchi: "-",
+          },
+          snack: "츄러스 & 초코우유",
+          latenight: {
+            rice: "-",
+            soup: "-",
+            main: "미운영",
+            side: "-",
+            kimchi: "-",
+          },
+        },
+        0: {
+          // 일요일 (휴무 - 데이터 없음)
+          breakfast: {},
+          lunch: {},
+          dinner: {},
+          snack: "",
+          latenight: {},
+        },
+      };
+
+      // 해당 요일의 메뉴 가져오기
+      const dailyMenu = menuDB[dayIndex];
+
       return {
         day: dayName,
         date: `${month}/${dayNum}`,
         fullDate: date,
-        isHoliday: dayName === "일", // 일요일 휴무 가정
-        breakfast: {
-          rice: "쌀밥",
-          soup: "소고기무국",
-          main: "두부조림",
-          side: "배추김치",
-        },
-        lunch: {
-          rice: "현미밥",
-          soup: "된장찌개",
-          main: "제육볶음",
-          side: "쌈채소/쌈장",
-          kimchi: "깍두기",
-        },
-        dinner: {
-          rice: "차조밥",
-          soup: "콩나물국",
-          main: "오징어덮밥",
-          side: "계란찜",
-          kimchi: "배추김치",
-        },
-        snack: "토스트 & 우유",
-        latenight: {
-          rice: "쌀밥",
-          soup: "얼큰육개장",
-          main: "너비아니구이",
-          side: "깍두기",
-        },
+        isHoliday: dayIndex === 0, // 일요일 휴무
+        breakfast: dailyMenu.breakfast,
+        lunch: dailyMenu.lunch,
+        dinner: dailyMenu.dinner,
+        snack: dailyMenu.snack,
+        latenight: dailyMenu.latenight,
       };
     });
     setWeeklyMenu(newWeeklyMenu);
@@ -236,6 +420,9 @@ const DayCard = ({ menu, isToday }) => {
 
 // --- [컴포넌트] 식사 항목 ---
 const MealItem = ({ title, icon, color, data, isMainMeal }) => {
+  // 토요일 석식/야식 미운영 처리 (데이터가 있는지 확인)
+  const isClosed = data.main === "미운영";
+
   return (
     <div style={styles.mealItem}>
       {/* 타이틀 */}
@@ -247,8 +434,16 @@ const MealItem = ({ title, icon, color, data, isMainMeal }) => {
           marginBottom: "6px",
         }}
       >
-        <span style={{ color: color, fontSize: "14px" }}>{icon}</span>
-        <span style={{ fontSize: "12px", fontWeight: "bold", color: "#666" }}>
+        <span style={{ color: isClosed ? "#ddd" : color, fontSize: "14px" }}>
+          {icon}
+        </span>
+        <span
+          style={{
+            fontSize: "12px",
+            fontWeight: "bold",
+            color: isClosed ? "#ddd" : "#666",
+          }}
+        >
           {title}
         </span>
       </div>
@@ -259,25 +454,27 @@ const MealItem = ({ title, icon, color, data, isMainMeal }) => {
           style={{
             fontSize: isMainMeal ? "14px" : "13px",
             fontWeight: "bold",
-            color: isMainMeal ? COLORS.text : "#444",
+            color: isClosed ? "#aaa" : isMainMeal ? COLORS.text : "#444",
           }}
         >
           {data.main}
         </div>
         {/* 부메뉴들도 세로로 쌓이게 처리 */}
-        <div
-          style={{
-            fontSize: "12px",
-            color: COLORS.subText,
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <span>{data.soup}</span>
-          <span>{data.rice}</span>
-          {data.side && <span>{data.side}</span>}
-          {data.kimchi && <span>{data.kimchi}</span>}
-        </div>
+        {!isClosed && (
+          <div
+            style={{
+              fontSize: "12px",
+              color: COLORS.subText,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <span>{data.soup}</span>
+            <span>{data.rice}</span>
+            {data.side && <span>{data.side}</span>}
+            {data.kimchi && <span>{data.kimchi}</span>}
+          </div>
+        )}
       </div>
     </div>
   );

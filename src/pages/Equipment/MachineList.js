@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FaThermometerHalf,
   FaBoxOpen,
@@ -28,7 +29,7 @@ const COLORS = {
 
 const MachineList = () => {
   const [selectedMachine, setSelectedMachine] = useState(null);
-
+  const navigate = useNavigate();
   const machines = [
     {
       id: "EQ-01",
@@ -127,7 +128,7 @@ const MachineList = () => {
           <SimpleCard
             key={machine.id}
             machine={machine}
-            onClick={() => setSelectedMachine(machine)}
+            onClick={() => navigate(`/equipment/detail/${machine.id}`)}
           />
         ))}
       </div>

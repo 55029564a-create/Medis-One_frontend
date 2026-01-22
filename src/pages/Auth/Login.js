@@ -1,26 +1,58 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext"; // [추가 1] Context 훅 불러오기
 import "./Login.css";
 
 const Login = () => {
+  const [employeeId, setEmployeeId] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   // 팝업 관련 상태
   const [showModal, setShowModal] = useState(false);
-  const [modalStep, setModalStep] = useState(1); // 1:이메일입력, 2:인증번호입력, 3:완료
+  const [modalStep, setModalStep] = useState(1);
   const [resetEmail, setResetEmail] = useState("");
   const [authCode, setAuthCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
+  const { login } = useAuth(); // [추가 2] 전역 로그인 함수 가져오기
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
 
+  // 로그인 버튼 클릭 시 실행될 로직
   const handleLogin = () => {
-    navigate("/dashboard");
+    // 관리자 계정 정보
+    const ADMIN_ID = "admin";
+    const ADMIN_PW = "admin123";
+
+    if (employeeId === ADMIN_ID && password === ADMIN_PW) {
+      // [핵심 변경] 로그인 성공 시 사원 정보를 객체로 만들어 전달!
+      const userInfo = {
+        name: "김관리", // 실제 DB에서 가져올 이름
+        id: employeeId,
+        dept: "생산관리팀", // 부서
+        role: "Master Admin", // 직책
+      };
+
+      login(userInfo); // Context에 정보 전달
+
+      navigate("/dashboard");
+    } else {
+      alert("사원번호 또는 비밀번호를 확인해주세요.");
+    }
   };
+
+  // 엔터키 기능
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      handleLogin();
+    }
+  };
+
+  // --- (이하 팝업 관련 및 JSX 코드는 기존과 동일) ---
 
   // 비밀번호 찾기 클릭 시 초기화 후 열기
   const handleOpenModal = (e) => {
@@ -42,7 +74,6 @@ const Login = () => {
       return;
     }
     setIsLoading(true);
-
     setTimeout(() => {
       setIsLoading(false);
       setModalStep(2);
@@ -56,7 +87,6 @@ const Login = () => {
       alert("인증번호를 입력해주세요.");
       return;
     }
-
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
@@ -72,6 +102,7 @@ const Login = () => {
         </div>
 
         <div className="form-area">
+          {/* 사원번호 입력창 */}
           <div className="input-group">
             <label className="input-label">사원 번호</label>
             <div className="input-wrapper">
@@ -79,10 +110,14 @@ const Login = () => {
                 type="text"
                 className="styled-input"
                 placeholder="사원번호를 입력해주세요."
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
+                onKeyDown={handleKeyDown}
               />
             </div>
           </div>
 
+          {/* 비밀번호 입력창 */}
           <div className="input-group">
             <label className="input-label">비밀 번호</label>
             <div className="input-wrapper">
@@ -90,6 +125,9 @@ const Login = () => {
                 type={showPassword ? "text" : "password"}
                 className="styled-input"
                 placeholder="비밀번호를 입력해주세요."
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
               />
               <button
                 type="button"
@@ -97,6 +135,7 @@ const Login = () => {
                 onClick={togglePasswordVisibility}
               >
                 {showPassword ? (
+                  // 눈 아이콘 (보임)
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="18"
@@ -118,6 +157,7 @@ const Login = () => {
                     />
                   </svg>
                 ) : (
+                  // 눈 아이콘 (숨김)
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="18"
@@ -156,7 +196,6 @@ const Login = () => {
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-box">
-            {/* 이메일 입력 */}
             {modalStep === 1 && (
               <>
                 <div className="modal-title">비밀번호 찾기</div>
@@ -183,7 +222,6 @@ const Login = () => {
               </>
             )}
 
-            {/* 인증번호 입력 */}
             {modalStep === 2 && (
               <>
                 <div className="modal-title">인증번호 입력</div>
@@ -213,7 +251,6 @@ const Login = () => {
               </>
             )}
 
-            {/* 완료 */}
             {modalStep === 3 && (
               <>
                 <div className="modal-title">인증 완료</div>

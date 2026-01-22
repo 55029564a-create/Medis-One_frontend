@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext"; // [중요] Context 불러오기
 import {
   FaSignOutAlt,
   FaClock,
-  FaCloudSun, // 구름+해
-  FaSnowflake, // 눈/추위 아이콘 (겨울용)
+  FaCloudSun,
+  FaSnowflake,
   FaUserCircle,
   FaMapMarkerAlt,
 } from "react-icons/fa";
 
-// 🎨 MedisOne 디자인 시스템 컬러
 const COLORS = {
   primary: "#8C85FF",
   text: "#333",
@@ -22,36 +22,26 @@ const COLORS = {
 const Header = () => {
   const navigate = useNavigate();
 
-  // 상태 관리
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // [변경] Context에서 로그인 상태, 유저 정보, 로그아웃 함수를 한방에 가져옴
+  const { isLoggedIn, user, logout } = useAuth();
+
+  // 날씨, 시간 상태
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState({
     temp: "-",
     condition: "Loading...",
   });
 
-  // 1. 로그인 체크
+  // 1. 실시간 시계
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    setIsLoggedIn(true);
-  }, []);
-
-  // 2. 실시간 시계
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 3. 날씨 API (현재 날씨 반영 수정)
+  // 2. 날씨 API
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        // ----------------------------------------------------------------
-        // [실제 사용 시] 아래 주석을 풀고 본인의 OpenWeatherMap API 키를 넣으세요.
-        // ----------------------------------------------------------------
-
         const API_KEY = "a401c48e03c0bffe9e70d13ad9a63ecb";
         const city = "Cheonan";
         const response = await fetch(
@@ -63,48 +53,41 @@ const Header = () => {
           condition: data.weather[0].main === "Clear" ? "맑음" : "흐림",
         });
       } catch (error) {
-        console.error("날씨 로딩 실패", error);
         setWeather({ temp: -3, condition: "N/A" });
       }
     };
     fetchWeather();
   }, []);
 
-  const handleLogout = () => {
+  // [변경] 로그아웃 핸들러 (Context의 logout 사용)
+  const handleLogoutClick = () => {
     if (window.confirm("로그아웃 하시겠습니까?")) {
-      localStorage.removeItem("token");
-      setIsLoggedIn(false);
+      logout(); // Context에서 상태 지우고 로컬스토리지 비움
       navigate("/");
     }
   };
 
-  // 날짜 포맷
   const formattedDate = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, "0")}-${String(currentTime.getDate()).padStart(2, "0")} (${"일월화수목금토"[currentTime.getDay()]})`;
   const formattedTime = `${String(currentTime.getHours()).padStart(2, "0")}:${String(currentTime.getMinutes()).padStart(2, "0")}:${String(currentTime.getSeconds()).padStart(2, "0")}`;
 
   return (
     <header style={styles.headerContainer}>
-      {/* --- [왼쪽] 정보 영역 (날씨, 위치, 시간) --- */}
+      {/* 왼쪽: 날씨, 위치, 시간 */}
       <div style={styles.leftSection}>
-        {/* 1. 날씨 & 위치 */}
         <div style={styles.infoGroup}>
           <FaMapMarkerAlt color={COLORS.primary} size={14} />
           <span style={styles.infoText}>천안</span>
           <div style={styles.divider} />
-
-          {/* 기온이 영하일 때 눈송이 아이콘, 영상일 때 구름 아이콘 나오게 조건부 렌더링 */}
           {parseInt(weather.temp) < 0 ? (
             <FaSnowflake color="#90CAF9" size={14} />
           ) : (
             <FaCloudSun color="#FFA726" size={16} />
           )}
-
           <span style={styles.infoText}>
             {weather.condition} {weather.temp}°C
           </span>
         </div>
 
-        {/* 2. 실시간 시계 */}
         <div style={styles.timeGroup}>
           <FaClock color={COLORS.primary} size={14} />
           <div style={styles.timeWrapper}>
@@ -114,20 +97,23 @@ const Header = () => {
         </div>
       </div>
 
-      {/* --- [오른쪽] 사용자 영역 (프로필, 로그아웃) --- */}
+      {/* 오른쪽: 유저 정보 표시 */}
       <div style={styles.rightSection}>
-        {isLoggedIn ? (
+        {isLoggedIn && user ? (
           <>
             <div style={styles.userSection}>
               <div style={styles.userInfo}>
-                <span style={styles.userName}>관리자님</span>
-                <span style={styles.userRole}>Master Account</span>
+                {/* [핵심] user 객체의 정보 표시 */}
+                <span style={styles.userName}>{user.name} 님</span>
+                <span style={styles.userRole}>
+                  {user.dept} / {user.role}
+                </span>
               </div>
               <FaUserCircle size={32} color="#e0e0e0" />
             </div>
 
             <button
-              onClick={handleLogout}
+              onClick={handleLogoutClick}
               style={styles.logoutButton}
               title="로그아웃"
             >
@@ -144,7 +130,7 @@ const Header = () => {
   );
 };
 
-// --- 스타일 객체 ---
+// 스타일 (기존과 동일)
 const styles = {
   headerContainer: {
     position: "sticky",
@@ -161,13 +147,7 @@ const styles = {
     width: "100%",
     boxSizing: "border-box",
   },
-
-  leftSection: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-  },
-
+  leftSection: { display: "flex", alignItems: "center", gap: "12px" },
   infoGroup: {
     display: "flex",
     alignItems: "center",
@@ -178,7 +158,6 @@ const styles = {
     border: "1px solid #eee",
     height: "40px",
   },
-
   timeGroup: {
     display: "flex",
     alignItems: "center",
@@ -189,69 +168,32 @@ const styles = {
     height: "40px",
     border: "1px solid #e5e5e5",
   },
-
-  infoText: {
-    fontSize: "14px",
-    fontWeight: "600",
-    color: "#555",
-  },
-
-  timeWrapper: {
-    display: "flex",
-    alignItems: "baseline",
-    gap: "8px",
-  },
-  dateText: {
-    fontSize: "13px",
-    color: "#777",
-    fontWeight: "500",
-  },
+  infoText: { fontSize: "14px", fontWeight: "600", color: "#555" },
+  timeWrapper: { display: "flex", alignItems: "baseline", gap: "8px" },
+  dateText: { fontSize: "13px", color: "#777", fontWeight: "500" },
   timeText: {
     fontSize: "16px",
     fontWeight: "700",
     color: "#333",
     fontVariantNumeric: "tabular-nums",
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif",
     letterSpacing: "0.5px",
   },
-
   divider: {
     width: "1px",
     height: "12px",
     backgroundColor: "#ccc",
     margin: "0 2px",
   },
-
-  rightSection: {
-    display: "flex",
-    alignItems: "center",
-    gap: "15px",
-  },
-
+  rightSection: { display: "flex", alignItems: "center", gap: "15px" },
   userSection: {
     display: "flex",
     alignItems: "center",
     gap: "10px",
     textAlign: "right",
   },
-
-  userInfo: {
-    display: "flex",
-    flexDirection: "column",
-  },
-
-  userName: {
-    fontSize: "14px",
-    fontWeight: "bold",
-    color: COLORS.text,
-  },
-
-  userRole: {
-    fontSize: "11px",
-    color: COLORS.primary,
-    fontWeight: "600",
-  },
-
+  userInfo: { display: "flex", flexDirection: "column" },
+  userName: { fontSize: "14px", fontWeight: "bold", color: COLORS.text },
+  userRole: { fontSize: "11px", color: COLORS.primary, fontWeight: "600" },
   logoutButton: {
     display: "flex",
     alignItems: "center",
@@ -266,7 +208,6 @@ const styles = {
     transition: "all 0.2s",
     boxShadow: "0 2px 4px rgba(255, 82, 82, 0.1)",
   },
-
   loginButton: {
     padding: "8px 20px",
     backgroundColor: COLORS.primary,

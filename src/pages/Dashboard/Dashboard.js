@@ -14,6 +14,7 @@ import {
   Cell,
 } from "recharts";
 // 아이콘 (설치: npm install react-icons)
+// yarn add react-icons
 import {
   FaIndustry,
   FaCogs,

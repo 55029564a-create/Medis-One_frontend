@@ -1,153 +1,518 @@
 import React, { useState } from "react";
-import "./InventoryCurrent.css";
+import {
+  FaBoxes,
+  FaExclamationTriangle,
+  FaSearch,
+  FaChartPie,
+  FaWarehouse,
+  FaShoppingCart,
+  FaFilter,
+} from "react-icons/fa";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+} from "recharts";
+
+// 🎨 MedisOne 테마
+const COLORS = {
+  primary: "#8C85FF",
+  bg: "#F5F6FA",
+  danger: "#FF5252",
+  warning: "#FFBB33",
+  success: "#00C851",
+  text: "#333",
+  gray: "#888",
+  border: "#E0E0E0",
+  white: "#FFFFFF",
+};
+
+const PIE_COLORS = ["#8C85FF", "#FFBB33", "#00C851", "#4285F4"];
 
 const InventoryCurrent = () => {
+  // 상태 관리: 검색어 + 카테고리 필터
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All"); // 기본값: 전체
 
-  const initialData = [
+  // 📝 [Mock Data]
+  const inventoryData = [
     {
-      code: "M-001",
-      name: "27인치 LCD 패널",
+      id: 1,
+      code: "PNL-24-MED",
+      name: "24인치 의료용 패널",
       category: "원자재",
-      qty: 1500,
-      safeQty: 500,
+      qty: 450,
+      safeQty: 100,
+      loc: "A-01",
+      unit: "EA",
     },
     {
-      code: "M-002",
-      name: "전원 케이블 (KR)",
-      category: "부자재",
-      qty: 120,
-      safeQty: 200,
-    },
-    {
-      code: "P-101",
-      name: "의료용 모니터 A형",
-      category: "완제품",
-      qty: 50,
-      safeQty: 30,
-    },
-    {
-      code: "M-005",
-      name: "나사 (M4)",
-      category: "부자재",
-      qty: 50000,
-      safeQty: 1000,
-    },
-    {
-      code: "P-102",
-      name: "X-ray 디텍터",
-      category: "완제품",
+      id: 2,
+      code: "RESIN-OCR",
+      name: "OCR 레진 (광학접착)",
+      category: "화학",
       qty: 5,
+      safeQty: 20,
+      loc: "C-02 (냉장)",
+      unit: "kg",
+    },
+    {
+      id: 3,
+      code: "GLS-AG-24",
+      name: "AG 커버 글라스",
+      category: "원자재",
+      qty: 1200,
+      safeQty: 500,
+      loc: "A-03",
+      unit: "EA",
+    },
+    {
+      id: 4,
+      code: "SCREW-M4",
+      name: "M4 조립 나사",
+      category: "부자재",
+      qty: 25,
+      safeQty: 100,
+      loc: "B-05",
+      unit: "Box",
+    },
+    {
+      id: 5,
+      code: "PCB-MAIN",
+      name: "메인보드 (V2)",
+      category: "반제품",
+      qty: 80,
+      safeQty: 50,
+      loc: "B-01",
+      unit: "EA",
+    },
+    {
+      id: 6,
+      code: "BOX-PKG",
+      name: "포장 박스",
+      category: "부자재",
+      qty: 2000,
+      safeQty: 500,
+      loc: "D-01",
+      unit: "EA",
+    },
+    {
+      id: 7,
+      code: "MON-24-PRO",
+      name: "의료용 모니터 완제품",
+      category: "완제품",
+      qty: 30,
       safeQty: 10,
+      loc: "F-01",
+      unit: "EA",
     },
   ];
 
-  // 데이터 필터링
-  const filteredData = initialData.filter((item) =>
-    item.name.includes(searchTerm),
-  );
+  // 카테고리 목록 (자동 생성 또는 고정)
+  const categories = ["All", "원자재", "부자재", "화학", "반제품", "완제품"];
+
+  // 📊 차트 데이터
+  const categoryStats = [
+    { name: "원자재", value: 45 },
+    { name: "부자재", value: 25 },
+    { name: "화학", value: 10 },
+    { name: "반제품", value: 20 },
+  ];
+
+  const stockComparison = [
+    { name: "패널", current: 450, safe: 100 },
+    { name: "글라스", current: 1200, safe: 500 },
+    { name: "레진", current: 5, safe: 20 },
+    { name: "나사", current: 25, safe: 100 },
+  ];
+
+  // 🔍 [필터링 로직] 검색어 AND 카테고리
+  const filteredData = inventoryData.filter((item) => {
+    const matchSearch =
+      item.name.includes(searchTerm) || item.code.includes(searchTerm);
+    const matchCategory =
+      selectedCategory === "All" || item.category === selectedCategory;
+    return matchSearch && matchCategory;
+  });
 
   return (
-    <div className="inventory-page-container">
-      {/* 페이지 헤더 부분 */}
-      <div className="page-header-wrapper">
-        <h2 className="page-title">
-          <span className="title-icon">📦</span> 실시간 재고 현황
-        </h2>
-        <p className="page-description">
-          전체 자재 및 완제품의 재고 수량을 실시간으로 모니터링합니다.
-        </p>
+    <div style={styles.container}>
+      <h2 style={styles.title}>📦 실시간 재고 현황 (Real-time Inventory)</h2>
+
+      {/* 1. 상단 차트 영역 */}
+      <div style={styles.chartRow}>
+        <div style={styles.chartCard}>
+          <h3 style={styles.cardTitle}>
+            <FaChartPie /> 자재 카테고리 구성
+          </h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={categoryStats}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={5}
+                dataKey="value"
+              >
+                {categoryStats.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={PIE_COLORS[index % PIE_COLORS.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend verticalAlign="bottom" height={36} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={styles.chartCard}>
+          <h3 style={styles.cardTitle}>
+            <FaExclamationTriangle /> 주요 자재 수급 현황
+          </h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={stockComparison} barSize={20}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" fontSize={12} />
+              <YAxis fontSize={12} />
+              <Tooltip cursor={{ fill: "transparent" }} />
+              <Legend />
+              <Bar
+                dataKey="current"
+                name="현재고"
+                fill={COLORS.primary}
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar
+                dataKey="safe"
+                name="안전재고"
+                fill={COLORS.warning}
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      {/* 메인 컨텐츠 카드 */}
-      <div className="content-card">
-        <div className="card-header-row">
-          <h3 className="card-sub-title">전체 품목 리스트</h3>
+      {/* 2. 하단 리스트 영역 */}
+      <div style={styles.listCard}>
+        {/* [NEW] 탭 필터 & 검색바 헤더 */}
+        <div style={styles.filterHeader}>
+          <div style={styles.tabGroup}>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                style={selectedCategory === cat ? styles.tabActive : styles.tab}
+              >
+                {cat === "All" ? "전체" : cat}
+              </button>
+            ))}
+          </div>
 
-          <div className="search-box-wrapper">
-            <svg
-              className="search-icon"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                clipRule="evenodd"
-              />
-            </svg>
+          <div style={styles.searchBox}>
+            <FaSearch color={COLORS.gray} />
             <input
-              type="text"
-              placeholder="품목명 / LOT ID 검색"
+              style={styles.input}
+              placeholder="품목명 또는 코드 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="custom-search-input"
             />
           </div>
         </div>
 
-        <div className="table-responsive">
-          <table className="custom-table">
-            <thead>
+        {/* 테이블 */}
+        <table style={styles.table}>
+          <thead>
+            <tr style={styles.thRow}>
+              <th style={styles.th}>상태</th>
+              <th style={styles.th}>자재코드</th>
+              <th style={styles.th}>품목명</th>
+              <th style={styles.th}>카테고리</th>
+              <th style={styles.th}>현재고 / 안전재고</th>
+              <th style={styles.th}>보관위치</th>
+              <th style={styles.th}>관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredData.length > 0 ? (
+              filteredData.map((item) => {
+                const percent = (item.qty / item.safeQty) * 100;
+                let status = "NORMAL";
+                if (percent <= 50) status = "LOW";
+                if (item.qty < item.safeQty) status = "DANGER";
+
+                return (
+                  <tr key={item.id} style={styles.tr}>
+                    <td style={styles.td}>
+                      <StatusDot status={status} />
+                    </td>
+                    <td style={styles.tdCode}>{item.code}</td>
+                    <td style={{ ...styles.td, fontWeight: "bold" }}>
+                      {item.name}
+                    </td>
+                    <td style={styles.td}>
+                      <span style={styles.categoryBadge}>{item.category}</span>
+                    </td>
+                    <td style={styles.td}>
+                      <div style={styles.qtyWrapper}>
+                        <span
+                          style={{
+                            color:
+                              status === "DANGER" ? COLORS.danger : COLORS.text,
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {item.qty.toLocaleString()} {item.unit}
+                        </span>
+                        <span style={{ fontSize: "11px", color: "#999" }}>
+                          {" "}
+                          / {item.safeQty}
+                        </span>
+                      </div>
+                      <div style={styles.progressBarBg}>
+                        <div
+                          style={{
+                            ...styles.progressBarFill,
+                            width: `${Math.min(percent, 100)}%`,
+                            backgroundColor:
+                              status === "DANGER"
+                                ? COLORS.danger
+                                : status === "LOW"
+                                  ? COLORS.warning
+                                  : COLORS.success,
+                          }}
+                        />
+                      </div>
+                    </td>
+                    <td style={styles.td}>{item.loc}</td>
+                    <td style={styles.td}>
+                      {status !== "NORMAL" && (
+                        <button style={styles.orderBtn}>
+                          <FaShoppingCart /> 발주
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
               <tr>
-                <th>품목 코드</th>
-                <th>품목명</th>
-                <th>카테고리</th>
-                <th>현재고 (EA)</th>
-                <th>안전재고 (EA)</th>
-                <th>상태</th>
+                <td colSpan="7" style={styles.emptyState}>
+                  검색된 자재가 없습니다.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filteredData.length > 0 ? (
-                filteredData.map((item, index) => {
-                  const isShortage = item.qty < item.safeQty;
-                  return (
-                    <tr key={index}>
-                      <td className="text-gray">{item.code}</td>
-                      <td className="text-bold">{item.name}</td>
-                      <td>
-                        <span className="category-tag">{item.category}</span>
-                      </td>
-                      <td className={isShortage ? "text-danger-bold" : ""}>
-                        {item.qty.toLocaleString()}
-                      </td>
-                      <td className="text-gray">
-                        {item.safeQty.toLocaleString()}
-                      </td>
-                      <td>
-                        {isShortage ? (
-                          <span className="status-badge shortage">
-                            ⚠️ 재고 부족
-                          </span>
-                        ) : (
-                          <span className="status-badge good">양호</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td
-                    colSpan="6"
-                    style={{
-                      textAlign: "center",
-                      padding: "40px",
-                      color: "#999",
-                    }}
-                  >
-                    검색 결과가 없습니다.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
+};
+
+// --- 서브 컴포넌트 ---
+const StatusDot = ({ status }) => {
+  let color = COLORS.success;
+  let text = "정상";
+
+  if (status === "DANGER") {
+    color = COLORS.danger;
+    text = "부족";
+  } else if (status === "LOW") {
+    color = COLORS.warning;
+    text = "관심";
+  }
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "5px",
+        padding: "4px 8px",
+        borderRadius: "20px",
+        fontSize: "11px",
+        fontWeight: "bold",
+        backgroundColor: `${color}15`,
+        color: color,
+      }}
+    >
+      <div
+        style={{
+          width: "8px",
+          height: "8px",
+          borderRadius: "50%",
+          backgroundColor: color,
+        }}
+      />
+      {text}
+    </span>
+  );
+};
+
+// --- 스타일 ---
+const styles = {
+  container: { padding: "30px", backgroundColor: COLORS.bg, minHeight: "100%" },
+  title: {
+    fontSize: "24px",
+    fontWeight: "bold",
+    marginBottom: "20px",
+    color: COLORS.text,
+  },
+
+  // 차트
+  chartRow: { display: "flex", gap: "20px", marginBottom: "20px" },
+  chartCard: {
+    flex: 1,
+    backgroundColor: "white",
+    padding: "20px",
+    borderRadius: "12px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+  },
+  cardTitle: {
+    fontSize: "16px",
+    fontWeight: "bold",
+    marginBottom: "15px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    margin: 0,
+    color: "#333",
+  },
+
+  // 리스트 영역
+  listCard: {
+    backgroundColor: "white",
+    padding: "20px",
+    borderRadius: "12px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+  },
+
+  // [NEW] 필터 헤더 스타일
+  filterHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "20px",
+    flexWrap: "wrap",
+    gap: "10px",
+  },
+  tabGroup: {
+    display: "flex",
+    gap: "8px",
+    backgroundColor: "#F5F6FA",
+    padding: "4px",
+    borderRadius: "8px",
+  },
+  tab: {
+    border: "none",
+    background: "transparent",
+    padding: "6px 14px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "13px",
+    color: "#666",
+    fontWeight: "600",
+  },
+  tabActive: {
+    border: "none",
+    backgroundColor: COLORS.white,
+    padding: "6px 14px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "13px",
+    color: COLORS.primary,
+    fontWeight: "bold",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
+  },
+
+  searchBox: {
+    display: "flex",
+    alignItems: "center",
+    backgroundColor: "#F5F6FA",
+    borderRadius: "20px",
+    padding: "8px 15px",
+    width: "250px",
+  },
+  input: {
+    border: "none",
+    background: "transparent",
+    marginLeft: "10px",
+    outline: "none",
+    width: "100%",
+    fontSize: "14px",
+  },
+
+  // 테이블
+  table: { width: "100%", borderCollapse: "collapse" },
+  thRow: { backgroundColor: "#f9f9f9", borderBottom: "1px solid #eee" },
+  th: {
+    padding: "12px",
+    textAlign: "left",
+    fontSize: "13px",
+    color: "#666",
+    fontWeight: "600",
+  },
+  tr: { borderBottom: "1px solid #f5f5f5", height: "50px" },
+  td: {
+    padding: "12px",
+    fontSize: "14px",
+    color: "#333",
+    verticalAlign: "middle",
+  },
+  tdCode: {
+    padding: "12px",
+    fontSize: "13px",
+    color: "#888",
+    fontFamily: "monospace",
+  },
+  emptyState: { padding: "40px", textAlign: "center", color: "#999" },
+
+  // 요소들
+  categoryBadge: {
+    backgroundColor: "#F0F2F5",
+    color: "#555",
+    padding: "4px 8px",
+    borderRadius: "6px",
+    fontSize: "12px",
+  },
+  qtyWrapper: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: "5px",
+    marginBottom: "4px",
+  },
+  progressBarBg: {
+    width: "100px",
+    height: "6px",
+    backgroundColor: "#eee",
+    borderRadius: "3px",
+  },
+  progressBarFill: { height: "100%", borderRadius: "3px" },
+  orderBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "5px",
+    backgroundColor: COLORS.danger,
+    color: "white",
+    border: "none",
+    padding: "6px 12px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: "bold",
+  },
 };
 
 export default InventoryCurrent;
