@@ -7,8 +7,7 @@ import {
   FaCheckCircle,
   FaArrowRight,
   FaUndo,
-  FaClipboardCheck,
-  FaClock
+  FaClipboardCheck
 } from "react-icons/fa";
 
 // 🎨 MedisOne 테마
@@ -28,41 +27,23 @@ const COLORS = {
 
 const ProcessAssembly = () => {
   // --- 상태 관리 ---
-  const [currentStep, setCurrentStep] = useState(0); // 0: BLU, 1: Housing, 2: Sealing
-  const [workTime, setWorkTime] = useState(0); // 작업 시간 타이머
+  const [currentStep, setCurrentStep] = useState(0); 
+  const [workTime, setWorkTime] = useState(0); 
   const [isWorking, setIsWorking] = useState(false);
-  const [completedCount, setCompletedCount] = useState(142); // 금일 생산량
+  const [completedCount, setCompletedCount] = useState(142); 
 
-  // 입력 데이터 관리
   const [inputs, setInputs] = useState({
     bluSerial: "",
     screwTorque: "",
     sealCheck: false
   });
 
-  // 📝 공정 단계 정의
   const STEPS = [
-    { 
-      id: "STEP_01", 
-      title: "BLU Assembly", 
-      desc: "백라이트 유닛 장착 및 FPCB 연결",
-      icon: <FaLayerGroup /> 
-    },
-    { 
-      id: "STEP_02", 
-      title: "Housing & Screw", 
-      desc: "베젤 조립 및 스크류 체결 (4 point)",
-      icon: <FaScrewdriver /> 
-    },
-    { 
-      id: "STEP_03", 
-      title: "Sealing & Finish", 
-      desc: "방수 실링 도포 및 외관 검사",
-      icon: <FaTint /> 
-    }
+    { id: "STEP_01", title: "BLU Assembly", desc: "백라이트 유닛 장착 및 FPCB 연결", icon: <FaLayerGroup /> },
+    { id: "STEP_02", title: "Housing & Screw", desc: "베젤 조립 및 스크류 체결 (4 point)", icon: <FaScrewdriver /> },
+    { id: "STEP_03", title: "Sealing & Finish", desc: "방수 실링 도포 및 외관 검사", icon: <FaTint /> }
   ];
 
-  // 타이머 로직
   useEffect(() => {
     let timer;
     if (isWorking) {
@@ -71,7 +52,6 @@ const ProcessAssembly = () => {
     return () => clearInterval(timer);
   }, [isWorking]);
 
-  // 핸들러: 작업 시작
   const handleStartWork = () => {
     setIsWorking(true);
     setWorkTime(0);
@@ -79,25 +59,21 @@ const ProcessAssembly = () => {
     setCurrentStep(0);
   };
 
-  // 핸들러: 다음 단계로
   const handleNext = () => {
     if (currentStep < 2) {
       setCurrentStep(prev => prev + 1);
     } else {
-      // 마지막 단계 완료 시
       handleFinishCycle();
     }
   };
 
-  // 핸들러: 1사이클 완료
   const handleFinishCycle = () => {
     setIsWorking(false);
     setCompletedCount(prev => prev + 1);
     alert(`[생산완료] 제품 조립이 정상적으로 완료되었습니다.\n소요시간: ${workTime}초`);
-    setCurrentStep(0); // 초기화
+    setCurrentStep(0);
   };
 
-  // 시간 포맷 (00:00)
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
@@ -134,7 +110,7 @@ const ProcessAssembly = () => {
       {/* 2. 메인 작업 영역 */}
       <div style={styles.workspace}>
         
-        {/* [좌측] 공정 스텝 표시기 (Stepper) */}
+        {/* [좌측] 공정 스텝 표시기 */}
         <div style={styles.stepperCol}>
           {STEPS.map((step, index) => {
             const isActive = index === currentStep;
@@ -165,11 +141,10 @@ const ProcessAssembly = () => {
           })}
         </div>
 
-        {/* [중앙] 작업 인터페이스 (입력폼) */}
+        {/* [중앙] 작업 인터페이스 */}
         <div style={styles.actionCol}>
           <div style={styles.actionCard}>
             
-            {/* 작업 시작 전 대기 화면 */}
             {!isWorking ? (
               <div style={styles.idleState}>
                 <div style={styles.iconBig}><FaClipboardCheck /></div>
@@ -180,7 +155,6 @@ const ProcessAssembly = () => {
                 </button>
               </div>
             ) : (
-              // 작업 진행 중 화면
               <div style={styles.workingState}>
                 <div style={styles.stepHeader}>
                   <div style={styles.stepIconBox}>{STEPS[currentStep].icon}</div>
@@ -190,7 +164,7 @@ const ProcessAssembly = () => {
                   </div>
                 </div>
 
-                {/* --- Step 1: BLU 바코드 스캔 --- */}
+                {/* 입력 폼 영역 */}
                 {currentStep === 0 && (
                   <div style={styles.inputArea}>
                     <label style={styles.label}>BLU Serial No. (Scan)</label>
@@ -207,7 +181,6 @@ const ProcessAssembly = () => {
                   </div>
                 )}
 
-                {/* --- Step 2: 스크류 토크 확인 --- */}
                 {currentStep === 1 && (
                   <div style={styles.inputArea}>
                     <label style={styles.label}>Electric Driver Torque (cNm)</label>
@@ -225,7 +198,6 @@ const ProcessAssembly = () => {
                   </div>
                 )}
 
-                {/* --- Step 3: 실링 및 검사 --- */}
                 {currentStep === 2 && (
                   <div style={styles.inputArea}>
                     <label style={styles.label}>Visual Inspection</label>
@@ -244,7 +216,6 @@ const ProcessAssembly = () => {
                   </div>
                 )}
 
-                {/* 하단 컨트롤 버튼 */}
                 <div style={styles.controlRow}>
                   <button style={styles.resetBtn} onClick={() => setIsWorking(false)}>
                     <FaUndo /> 초기화
@@ -258,30 +229,14 @@ const ProcessAssembly = () => {
           </div>
         </div>
 
-        {/* [우측] 작업 가이드 / 이미지 */}
+        {/* [우측] 작업 가이드 */}
         <div style={styles.guideCol}>
            <div style={styles.guideCard}>
              <h4 style={styles.guideTitle}>📋 Work Instruction</h4>
              <div style={styles.guideImageArea}>
-               {/* 이미지가 들어갈 자리 (플레이스홀더) */}
-               {currentStep === 0 && (
-                 <div style={styles.placeholderImg}>
-                   [Image: BLU Assembly Guide]<br/>
-                   FPCB 커넥터 파손 주의
-                 </div>
-               )}
-               {currentStep === 1 && (
-                 <div style={styles.placeholderImg}>
-                   [Image: Screw Point Guide]<br/>
-                   순서: 좌상 -> 우하 -> 우상 -> 좌하
-                 </div>
-               )}
-               {currentStep === 2 && (
-                 <div style={styles.placeholderImg}>
-                   [Image: Sealing Path]<br/>
-                   끊김 없이 도포 확인
-                 </div>
-               )}
+               {currentStep === 0 && <div style={styles.placeholderImg}>[Image: BLU Assembly Guide]<br/>FPCB 커넥터 파손 주의</div>}
+               {currentStep === 1 && <div style={styles.placeholderImg}>[Image: Screw Point Guide]<br/>순서: 좌상 -> 우하 -> 우상 -> 좌하</div>}
+               {currentStep === 2 && <div style={styles.placeholderImg}>[Image: Sealing Path]<br/>끊김 없이 도포 확인</div>}
                {!isWorking && <div style={styles.placeholderImg}>대기중...</div>}
              </div>
              <div style={styles.safetyBox}>
@@ -296,9 +251,14 @@ const ProcessAssembly = () => {
   );
 };
 
-// --- 스타일 정의 ---
+// --- 스타일 정의 (수정됨: boxSizing 추가) ---
 const styles = {
-  container: { padding: "30px", backgroundColor: COLORS.bg, minHeight: "100%" },
+  container: { 
+    padding: "30px", 
+    backgroundColor: COLORS.bg, 
+    minHeight: "100%",
+    boxSizing: "border-box", // [중요] 전체 패딩 포함 계산
+  },
   
   // 상단 바
   topBar: {
@@ -314,10 +274,10 @@ const styles = {
   statValue: { fontSize: "24px", fontWeight: "bold", color: "#333" },
   divider: { width: "1px", height: "30px", backgroundColor: "#eee" },
 
-  // 메인 워크스페이스 (3단 레이아웃)
+  // 메인 워크스페이스
   workspace: { display: "flex", gap: "20px", height: "600px" },
   
-  // 1. 좌측 스텝퍼
+  // 좌측 스텝퍼
   stepperCol: { width: "250px", display: "flex", flexDirection: "column", gap: "0" },
   stepItem: { display: "flex", gap: "15px", position: "relative", paddingBottom: "40px" },
   stepLine: { position: "absolute", left: "20px", top: "40px", bottom: "0", width: "2px", display: "flex", justifyContent: "center" },
@@ -329,14 +289,14 @@ const styles = {
   stepTitle: { fontWeight: "bold", fontSize: "15px", color: "#333", marginTop: "5px" },
   stepDesc: { fontSize: "12px", color: "#888", lineHeight: "1.4" },
 
-  // 2. 중앙 작업 영역
+  // 중앙 작업 영역
   actionCol: { flex: 1, minWidth: "400px" },
   actionCard: {
     backgroundColor: "white", borderRadius: "16px", padding: "40px", height: "100%",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", justifyContent: "center"
+    boxShadow: "0 4px 20px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", justifyContent: "center",
+    boxSizing: "border-box" // [중요] 패딩 포함 계산
   },
   
-  // 대기 상태
   idleState: { textAlign: "center" },
   iconBig: { fontSize: "60px", color: COLORS.primary, marginBottom: "20px" },
   startBtn: {
@@ -345,7 +305,6 @@ const styles = {
     marginTop: "20px", boxShadow: "0 4px 15px rgba(140, 133, 255, 0.4)"
   },
 
-  // 작업 상태
   workingState: { display: "flex", flexDirection: "column", height: "100%" },
   stepHeader: { display: "flex", alignItems: "center", gap: "20px", marginBottom: "40px", borderBottom: "1px solid #eee", paddingBottom: "20px" },
   stepIconBox: {
@@ -386,11 +345,12 @@ const styles = {
     boxShadow: "0 4px 12px rgba(140, 133, 255, 0.3)"
   },
 
-  // 3. 우측 가이드
+  // 우측 가이드
   guideCol: { width: "300px" },
   guideCard: {
     backgroundColor: "white", borderRadius: "16px", padding: "20px", height: "100%",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column"
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column",
+    boxSizing: "border-box" // [중요] 패딩 포함 계산
   },
   guideTitle: { fontSize: "16px", fontWeight: "bold", marginBottom: "15px", borderBottom: "1px solid #eee", paddingBottom: "10px" },
   guideImageArea: {
