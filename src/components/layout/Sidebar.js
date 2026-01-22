@@ -1,10 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
-  FaChartPie,
-  FaMicrochip,
-  FaBox,
   FaBoxOpen,
   FaIndustry,
   FaCogs,
@@ -16,15 +13,12 @@ import {
   FaWarehouse,
   FaAngleDoubleLeft,
   FaSitemap,
+  FaMicrochip,
 } from "react-icons/fa";
 import { MdDashboard } from "react-icons/md";
 
-// ✅ [중요] 여기에 로그인 화면에서 사용한 로고 파일 경로를 넣어주세요!
-// 예시: src/assets/logo.png 파일이 있다면 아래와 같이 import 합니다.
-// 경로가 다르다면 "../" 개수를 조절해서 맞춰주세요.
 import logoImage from "../../assets/logo.png";
 
-// 🎨 MedisOne 테마 컬러
 const THEME_COLOR = "#8C85FF";
 const BG_COLOR = "#FFFFFF";
 const TEXT_COLOR = "#888";
@@ -32,40 +26,14 @@ const ACTIVE_TEXT_COLOR = "#8C85FF";
 const ACTIVE_BG_COLOR = "#F3F1FF";
 
 const Sidebar = () => {
-  const [isOpen, setIsOpen] = useState(true); // 사이드바 열림 상태
-  const [activeMenu, setActiveMenu] = useState(null); // 현재 열린 상위 메뉴
+  const [isOpen, setIsOpen] = useState(true);
+  const [activeMenu, setActiveMenu] = useState(null); // 펼쳐진 메뉴 관리
   const location = useLocation();
   const navigate = useNavigate();
-  const sidebarRef = useRef(null); // 외부 클릭 감지용 Ref
-
   const { user, logout } = useAuth();
 
-  // --- 1. 외부 클릭 시 사이드바 닫기 ---
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        isOpen &&
-        sidebarRef.current &&
-        !sidebarRef.current.contains(event.target)
-      ) {
-        setIsOpen(false);
-        setActiveMenu(null);
-      }
-    };
+  const toggleSidebar = () => setIsOpen(!isOpen);
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen]);
-
-  // --- 2. 토글 핸들러 ---
-  const toggleSidebar = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen) setActiveMenu(null);
-  };
-
-  // --- 3. 메뉴 드롭다운 토글 ---
   const toggleSubMenu = (menuName) => {
     if (!isOpen) {
       setIsOpen(true);
@@ -75,7 +43,6 @@ const Sidebar = () => {
     }
   };
 
-  // --- 4. 로그아웃 핸들러 ---
   const handleLogout = () => {
     if (window.confirm("로그아웃 하시겠습니까?")) {
       logout();
@@ -84,72 +51,48 @@ const Sidebar = () => {
   };
 
   return (
-    <div
-      ref={sidebarRef}
-      style={{
-        ...styles.sidebar,
-        width: isOpen ? "260px" : "80px",
-      }}
-    >
-      {/* ================= HEADER (로고 & 토글) ================= */}
-      <div style={styles.header} onClick={toggleSidebar}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            cursor: "pointer",
-            flex: 1,
-            overflow: "hidden",
-            justifyContent: isOpen ? "flex-start" : "center", // 닫혔을 때 중앙 정렬
-          }}
-        >
-          {/* ▼▼▼ [수정됨] import한 로고 이미지 사용 ▼▼▼ */}
+    <div style={{ ...styles.sidebar, width: isOpen ? "260px" : "80px" }}>
+      {/* HEADER */}
+      <div style={styles.header}>
+        <div style={styles.logoContainer} onClick={toggleSidebar}>
           <img
-            src={logoImage} // 위에서 import한 변수명
+            src={logoImage}
             alt="MedisOne Logo"
             style={{
-              height: "40px", // 로고 높이 고정
+              height: "36px",
+              width: isOpen ? "130px" : "40px",
               objectFit: "contain",
-              flexShrink: 0,
-              transition: "all 0.3s ease",
-              // 열려있을 땐 원래 크기, 닫혀있을 땐 작게(아이콘처럼) 보이도록 설정
-              width: isOpen ? "140px" : "40px",
-              // 닫혔을 때 이미지 위치 조정 (필요시 수정)
-              marginLeft: isOpen ? "0" : "0",
+              transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              display: "block",
             }}
           />
-          {/* ▲▲▲ 수정 끝 ▲▲▲ */}
         </div>
-
-        {/* 접기/펼치기 아이콘 (보조) */}
         {isOpen && (
-          <button style={styles.toggleBtn}>
+          <button style={styles.toggleBtn} onClick={toggleSidebar}>
             <FaAngleDoubleLeft color="#ccc" />
           </button>
         )}
       </div>
 
-      {/* ================= MENU LIST ================= */}
+      {/* MENU LIST */}
       <div style={styles.menuContainer}>
         <ul style={styles.ul}>
-          {/* 1. 대시보드 */}
+          {/* 단일 메뉴 (대시보드) */}
           <MenuItem
             to="/dashboard"
-            icon={<MdDashboard />}
+            icon={<MdDashboard size={20} />}
             label="Dashboard"
             isOpen={isOpen}
             isActive={location.pathname === "/dashboard"}
           />
-
           <div style={styles.divider}></div>
 
-          {/* 2. 자재 관리 */}
+          {/* 그룹 메뉴들 */}
           <MenuDropdown
             title="Material"
-            icon={<FaBoxOpen />}
+            icon={<FaBoxOpen size={20} />}
             isOpen={isOpen}
             isExpanded={activeMenu === "material"}
-            isActive={location.pathname.startsWith("/material")}
             onClick={() => toggleSubMenu("material")}
           >
             <SubMenuItem
@@ -169,13 +112,11 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* 3. 재고 관리 */}
           <MenuDropdown
             title="Inventory"
-            icon={<FaWarehouse />}
+            icon={<FaWarehouse size={20} />}
             isOpen={isOpen}
             isExpanded={activeMenu === "inventory"}
-            isActive={location.pathname.startsWith("/inventory")}
             onClick={() => toggleSubMenu("inventory")}
           >
             <SubMenuItem
@@ -190,13 +131,11 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* 4. 생산 관리 */}
           <MenuDropdown
             title="Production"
-            icon={<FaIndustry />}
+            icon={<FaIndustry size={20} />}
             isOpen={isOpen}
             isExpanded={activeMenu === "production"}
-            isActive={location.pathname.startsWith("/production")}
             onClick={() => toggleSubMenu("production")}
           >
             <SubMenuItem
@@ -221,13 +160,11 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* [신규] 5. Process (공정 실행 - 현장) */}
           <MenuDropdown
             title="Process"
-            icon={<FaMicrochip />}
+            icon={<FaMicrochip size={20} />}
             isOpen={isOpen}
             isExpanded={activeMenu === "process"}
-            isActive={location.pathname.startsWith("/process")}
             onClick={() => toggleSubMenu("process")}
           >
             <SubMenuItem
@@ -247,16 +184,11 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* 6. 품질/설비 */}
           <MenuDropdown
             title="Quality"
-            icon={<FaCogs />}
+            icon={<FaCogs size={20} />}
             isOpen={isOpen}
             isExpanded={activeMenu === "quality"}
-            isActive={
-              location.pathname.startsWith("/quality") ||
-              location.pathname.startsWith("/equipment")
-            }
             onClick={() => toggleSubMenu("quality")}
           >
             <SubMenuItem
@@ -286,13 +218,11 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* [신규] 7. 이력 추적 (Traceability) */}
           <MenuDropdown
             title="Traceability"
-            icon={<FaSitemap />}
+            icon={<FaSitemap size={20} />}
             isOpen={isOpen}
             isExpanded={activeMenu === "traceability"}
-            isActive={location.pathname.startsWith("/traceability")}
             onClick={() => toggleSubMenu("traceability")}
           >
             <SubMenuItem
@@ -302,13 +232,11 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* 8. 지원 업무 */}
           <MenuDropdown
             title="Support"
-            icon={<FaUtensils />}
+            icon={<FaUtensils size={20} />}
             isOpen={isOpen}
             isExpanded={activeMenu === "support"}
-            isActive={location.pathname.startsWith("/support")}
             onClick={() => toggleSubMenu("support")}
           >
             <SubMenuItem
@@ -323,13 +251,11 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-          {/* 9. 관리자 */}
           <MenuDropdown
             title="Admin"
-            icon={<FaUserCog />}
+            icon={<FaUserCog size={20} />}
             isOpen={isOpen}
             isExpanded={activeMenu === "admin"}
-            isActive={location.pathname.startsWith("/admin")}
             onClick={() => toggleSubMenu("admin")}
           >
             <SubMenuItem
@@ -356,196 +282,183 @@ const Sidebar = () => {
         </ul>
       </div>
 
-      {/* ================= BOTTOM (Banner & Profile) ================= */}
-
-      {isOpen && (
-        <div style={styles.bannerCard}>
-          <div style={styles.bannerIconCircle}>
-            <FaIndustry size={20} color="#fff" />
-          </div>
-          <p
-            style={{
-              margin: "10px 0 5px",
-              fontWeight: "bold",
-              fontSize: "14px",
-            }}
-          >
-            System Status
-          </p>
-          <p
-            style={{
-              margin: "0 0 10px",
-              fontSize: "11px",
-              color: "#fff",
-              opacity: 0.8,
-            }}
-          >
-            All systems operational
-          </p>
-          <button style={styles.bannerBtn}>Check Report</button>
+      {/* BOTTOM */}
+      <div
+        style={{
+          ...styles.bannerCard,
+          opacity: isOpen ? 1 : 0,
+          height: isOpen ? "auto" : 0,
+          padding: isOpen ? "20px" : 0,
+          margin: isOpen ? "0 20px 20px" : 0,
+          overflow: "hidden",
+          transition: "all 0.3s ease",
+        }}
+      >
+        <div style={styles.bannerIconCircle}>
+          <FaIndustry size={20} color="#fff" />
         </div>
-      )}
+        <p
+          style={{ margin: "10px 0 5px", fontWeight: "bold", fontSize: "14px" }}
+        >
+          System Status
+        </p>
+        <p
+          style={{
+            margin: "0 0 10px",
+            fontSize: "11px",
+            color: "#fff",
+            opacity: 0.8,
+          }}
+        >
+          All systems operational
+        </p>
+        <button style={styles.bannerBtn}>Check Report</button>
+      </div>
 
       <div style={styles.profileSection}>
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
+            ...styles.profileContainer,
+            paddingLeft: 0,
             justifyContent: isOpen ? "flex-start" : "center",
-            width: "100%",
           }}
         >
-          <div style={styles.avatar}>
-            <img
-              src="https://via.placeholder.com/40"
-              alt="User"
-              style={{ borderRadius: "50%" }}
-            />
-          </div>
-
-          {isOpen && (
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              <p
-                style={{
-                  margin: 0,
-                  fontWeight: "bold",
-                  fontSize: "14px",
-                  color: "#333",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {user ? user.name : "Guest User"}
-              </p>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "11px",
-                  color: "#999",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {user ? `${user.dept} / ${user.role}` : "Please Login"}
-              </p>
+          <div style={styles.avatarWrapper}>
+            <div style={styles.avatar}>
+              <img
+                src="https://via.placeholder.com/40"
+                alt="User"
+                style={{ borderRadius: "50%", width: "100%", height: "100%" }}
+              />
             </div>
-          )}
-
-          {isOpen && (
-            <button
-              onClick={handleLogout}
-              style={styles.logoutBtn}
-              title="로그아웃"
+          </div>
+          <div style={{ ...styles.profileText, opacity: isOpen ? 1 : 0 }}>
+            <p
+              style={{
+                margin: 0,
+                fontWeight: "bold",
+                fontSize: "14px",
+                color: "#333",
+              }}
             >
-              <FaSignOutAlt size={16} />
-            </button>
-          )}
+              {user ? user.name : "Guest User"}
+            </p>
+            <p style={{ margin: 0, fontSize: "11px", color: "#999" }}>
+              {user ? `${user.dept} / ${user.role}` : "Please Login"}
+            </p>
+          </div>
+          <button
+            onClick={handleLogout}
+            style={{
+              ...styles.logoutBtn,
+              opacity: isOpen ? 1 : 0,
+              width: isOpen ? "30px" : 0,
+              pointerEvents: isOpen ? "auto" : "none",
+            }}
+            title="로그아웃"
+          >
+            <FaSignOutAlt size={16} />
+          </button>
         </div>
       </div>
     </div>
   );
 };
 
-// --- Sub Components (기존과 동일) ---
+// --- Sub Components (로직 대폭 단순화) ---
 
+// 1. 단일 메뉴 아이템 (예: 대시보드)
 const MenuItem = ({ to, icon, label, isOpen, isActive }) => (
-  <li style={{ listStyle: "none", marginBottom: "5px" }}>
+  <li style={styles.li}>
     <Link
       to={to}
       style={{
         ...styles.link,
-        justifyContent: isOpen ? "flex-start" : "center",
+        // isActive일 때만 색상 적용 (심플)
         color: isActive ? ACTIVE_TEXT_COLOR : TEXT_COLOR,
         backgroundColor: isActive ? ACTIVE_BG_COLOR : "transparent",
-        borderRight: isActive && !isOpen ? `3px solid ${THEME_COLOR}` : "none",
+        fontWeight: isActive ? "700" : "500",
+        borderRight:
+          isActive && !isOpen
+            ? `3px solid ${THEME_COLOR}`
+            : "3px solid transparent",
       }}
     >
-      <span
+      <div style={styles.iconBox}>{icon}</div>
+      <div
         style={{
-          fontSize: "20px",
-          display: "flex",
-          alignItems: "center",
-          minWidth: "20px",
+          ...styles.textBox,
+          opacity: isOpen ? 1 : 0,
+          width: isOpen ? "auto" : 0,
         }}
       >
-        {icon}
-      </span>
-      {isOpen && (
-        <span
-          style={{
-            marginLeft: "15px",
-            fontWeight: isActive ? "700" : "500",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {label}
-        </span>
-      )}
+        {label}
+      </div>
     </Link>
   </li>
 );
 
+// 2. 그룹 메뉴 헤더 (예: Material, Production 등)
 const MenuDropdown = ({
   title,
   icon,
   isOpen,
   isExpanded,
-  isActive,
   onClick,
   children,
-}) => (
-  <li style={{ listStyle: "none", marginBottom: "5px" }}>
-    <div
-      onClick={onClick}
-      style={{
-        ...styles.link,
-        justifyContent: isOpen ? "flex-start" : "center",
-        cursor: "pointer",
-        color: isActive ? ACTIVE_TEXT_COLOR : TEXT_COLOR,
-        backgroundColor:
-          isActive && !isExpanded ? ACTIVE_BG_COLOR : "transparent",
-      }}
-    >
-      <span
+}) => {
+  // [중요] isActive prop을 아예 제거했습니다.
+  // 부모 메뉴는 오직 '펼쳐졌느냐(isExpanded)'에 따라 화살표만 바뀝니다.
+  // 색상은 변하지 않으므로, 하위 메뉴 선택 시 부모 색상이 남는 문제가 원천 차단됩니다.
+
+  return (
+    <li style={styles.li}>
+      <div
+        onClick={onClick}
         style={{
-          fontSize: "20px",
-          display: "flex",
-          alignItems: "center",
-          minWidth: "20px",
+          ...styles.link,
+          cursor: "pointer",
+          color: TEXT_COLOR, // 항상 기본 색상 (하위 메뉴가 선택되어도 부모는 색 안 바뀜)
+          backgroundColor: "transparent", // 항상 투명
+          fontWeight: "500",
         }}
       >
-        {icon}
-      </span>
-      {isOpen && (
-        <>
+        <div style={styles.iconBox}>{icon}</div>
+        <div
+          style={{
+            ...styles.textBox,
+            opacity: isOpen ? 1 : 0,
+            width: isOpen ? "auto" : 0,
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <span>{title}</span>
           <span
-            style={{
-              marginLeft: "15px",
-              flex: 1,
-              fontWeight: isActive ? "700" : "500",
-              whiteSpace: "nowrap",
-            }}
+            style={{ fontSize: "10px", color: "#aaa", marginRight: "10px" }}
           >
-            {title}
-          </span>
-          <span style={{ fontSize: "10px", color: "#aaa" }}>
             {isExpanded ? <FaChevronUp /> : <FaChevronDown />}
           </span>
-        </>
-      )}
-    </div>
-    {isOpen && isExpanded && <ul style={styles.subUl}>{children}</ul>}
-  </li>
-);
+        </div>
+      </div>
+      {/* 서브메뉴 렌더링 */}
+      {isOpen && isExpanded && <ul style={styles.subUl}>{children}</ul>}
+    </li>
+  );
+};
 
+// 3. 서브 메뉴 아이템 (실제 페이지 링크)
 const SubMenuItem = ({ to, label, currentPath }) => {
   const isSubActive = currentPath === to;
-
   return (
     <li style={{ listStyle: "none", marginBottom: "2px" }}>
       <Link
         to={to}
         style={{
           ...styles.subLink,
+          // 여기서만 활성화 스타일 적용 (배경색 + 글자색)
           color: isSubActive ? ACTIVE_TEXT_COLOR : "#888",
           fontWeight: isSubActive ? "700" : "400",
           backgroundColor: isSubActive ? ACTIVE_BG_COLOR : "transparent",
@@ -563,7 +476,7 @@ const SubMenuItem = ({ to, label, currentPath }) => {
   );
 };
 
-// --- Styles ---
+// --- Styles (기존 유지) ---
 const styles = {
   sidebar: {
     height: "100vh",
@@ -580,66 +493,95 @@ const styles = {
   },
   header: {
     height: "80px",
+    minHeight: "80px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 20px",
+    justifyContent: "center",
     borderBottom: "1px solid #f9f9f9",
+    position: "relative",
+    boxSizing: "border-box",
+    padding: 0,
+    margin: 0,
+  },
+  logoContainer: {
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    overflow: "hidden",
+    padding: 0,
+    margin: 0,
   },
   toggleBtn: {
     background: "transparent",
     border: "none",
     cursor: "pointer",
-    padding: "5px",
+    padding: "10px",
     display: "flex",
     alignItems: "center",
-    marginLeft: "10px",
+    justifyContent: "center",
+    position: "absolute",
+    right: "10px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    zIndex: 10,
   },
   menuContainer: {
     flex: 1,
-    padding: "15px",
+    padding: "10px 0",
     overflowY: "auto",
     scrollbarWidth: "none",
   },
   ul: { padding: 0, margin: 0 },
-  divider: { height: "1px", backgroundColor: "#f0f0f0", margin: "15px 0" },
+  li: { listStyle: "none", marginBottom: "4px" },
+  divider: { height: "1px", backgroundColor: "#f0f0f0", margin: "10px 0" },
   link: {
     display: "flex",
     alignItems: "center",
-    padding: "12px 15px",
-    borderRadius: "12px",
+    height: "48px",
     textDecoration: "none",
-    transition: "all 0.2s ease-in-out",
-    marginBottom: "2px",
-    "&:hover": {
-      backgroundColor: "#FAFAFA",
-    },
+    transition: "background-color 0.2s, color 0.2s",
+    width: "100%",
+    position: "relative",
+    borderLeft: "3px solid transparent",
+  },
+  iconBox: {
+    width: "80px",
+    minWidth: "80px",
+    height: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textBox: {
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    transition: "opacity 0.2s ease, width 0.2s ease",
   },
   subUl: {
-    padding: "5px 0 5px 20px",
+    padding: "5px 0 5px 0",
     margin: 0,
-    borderLeft: "2px solid #f5f5f5",
-    marginLeft: "25px",
+    backgroundColor: "#fafafa",
   },
   subLink: {
     display: "flex",
     alignItems: "center",
-    padding: "10px 15px",
-    borderRadius: "8px",
+    height: "40px",
+    paddingLeft: "80px",
     textDecoration: "none",
     fontSize: "13px",
-    transition: "all 0.2s",
+    transition: "background-color 0.2s",
   },
   dot: {
-    width: "6px",
-    height: "6px",
+    width: "5px",
+    height: "5px",
     borderRadius: "50%",
     marginRight: "10px",
     flexShrink: 0,
   },
   bannerCard: {
-    margin: "0 20px 20px",
-    padding: "20px",
     backgroundColor: THEME_COLOR,
     borderRadius: "20px",
     color: "#fff",
@@ -649,7 +591,6 @@ const styles = {
     textAlign: "center",
     boxShadow: "0 8px 20px rgba(140, 133, 255, 0.25)",
     position: "relative",
-    overflow: "hidden",
   },
   bannerIconCircle: {
     width: "40px",
@@ -671,14 +612,27 @@ const styles = {
     cursor: "pointer",
     marginTop: "10px",
     width: "100%",
-    transition: "transform 0.1s",
   },
   profileSection: {
-    padding: "20px",
+    height: "70px",
     borderTop: "1px solid #f0f0f0",
     display: "flex",
     alignItems: "center",
     backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  profileContainer: {
+    display: "flex",
+    alignItems: "center",
+    width: "100%",
+    gap: "12px",
+  },
+  avatarWrapper: {
+    width: "80px",
+    minWidth: "80px",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
   },
   avatar: {
     width: "40px",
@@ -688,6 +642,12 @@ const styles = {
     flexShrink: 0,
     border: "2px solid #fff",
     boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
+  },
+  profileText: {
+    flex: 1,
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    transition: "opacity 0.2s ease",
   },
   logoutBtn: {
     background: "transparent",
@@ -699,11 +659,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    transition: "background 0.2s, color 0.2s",
-    "&:hover": {
-      backgroundColor: "#f5f5f5",
-      color: "#FF4444",
-    },
+    transition: "opacity 0.2s",
+    marginRight: "10px",
   },
 };
 
