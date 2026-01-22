@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext"; // [추가] 로그인 정보 연동
+import { useAuth } from "../../context/AuthContext";
 import {
+<<<<<<< HEAD
+=======
   FaChartPie,
   FaMicrochip,
   FaBox,
+>>>>>>> 3cb0a512893928cf3e8c65219db991d39a0f6f0c
   FaBoxOpen,
   FaIndustry,
   FaCogs,
@@ -15,10 +18,14 @@ import {
   FaSignOutAlt,
   FaWarehouse,
   FaAngleDoubleLeft,
-  FaAngleDoubleRight,
-  FaSitemap, // [추가] Traceability 아이콘
+  FaSitemap,
 } from "react-icons/fa";
 import { MdDashboard } from "react-icons/md";
+
+// ✅ [중요] 여기에 로그인 화면에서 사용한 로고 파일 경로를 넣어주세요!
+// 예시: src/assets/logo.png 파일이 있다면 아래와 같이 import 합니다.
+// 경로가 다르다면 "../" 개수를 조절해서 맞춰주세요.
+import logoImage from "../../assets/logo.png";
 
 // 🎨 MedisOne 테마 컬러
 const THEME_COLOR = "#8C85FF";
@@ -34,20 +41,18 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const sidebarRef = useRef(null); // 외부 클릭 감지용 Ref
 
-  // [추가] AuthContext에서 유저 정보와 로그아웃 함수 가져오기
   const { user, logout } = useAuth();
 
   // --- 1. 외부 클릭 시 사이드바 닫기 ---
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // 사이드바가 열려있고, 클릭한 곳이 사이드바 내부가 아닐 경우 닫기
       if (
         isOpen &&
         sidebarRef.current &&
         !sidebarRef.current.contains(event.target)
       ) {
         setIsOpen(false);
-        setActiveMenu(null); // (선택사항) 닫힐 때 메뉴도 접을지 여부
+        setActiveMenu(null);
       }
     };
 
@@ -57,26 +62,26 @@ const Sidebar = () => {
     };
   }, [isOpen]);
 
-  // --- 2. 토글 핸들러 (로고 클릭 시) ---
+  // --- 2. 토글 핸들러 ---
   const toggleSidebar = () => {
     setIsOpen(!isOpen);
-    if (!isOpen) setActiveMenu(null); // 열 때 초기화 (선택사항)
+    if (!isOpen) setActiveMenu(null);
   };
 
   // --- 3. 메뉴 드롭다운 토글 ---
   const toggleSubMenu = (menuName) => {
     if (!isOpen) {
-      setIsOpen(true); // 닫힌 상태에서 클릭하면 사이드바 열기
+      setIsOpen(true);
       setActiveMenu(menuName);
     } else {
       setActiveMenu(activeMenu === menuName ? null : menuName);
     }
   };
 
-  // --- 4. 로그아웃 핸들러 (AuthContext 사용) ---
+  // --- 4. 로그아웃 핸들러 ---
   const handleLogout = () => {
     if (window.confirm("로그아웃 하시겠습니까?")) {
-      logout(); // [수정] Context 로그아웃 함수 호출
+      logout();
       navigate("/");
     }
   };
@@ -95,27 +100,28 @@ const Sidebar = () => {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "12px",
             cursor: "pointer",
+            flex: 1,
+            overflow: "hidden",
+            justifyContent: isOpen ? "flex-start" : "center", // 닫혔을 때 중앙 정렬
           }}
         >
-          {/* 로고 아이콘 */}
-          <div style={styles.logoIcon}>
-            <MdDashboard size={24} color="#fff" />
-          </div>
-
-          {/* 로고 텍스트 (열렸을 때만) */}
-          <div
+          {/* ▼▼▼ [수정됨] import한 로고 이미지 사용 ▼▼▼ */}
+          <img
+            src={logoImage} // 위에서 import한 변수명
+            alt="MedisOne Logo"
             style={{
-              opacity: isOpen ? 1 : 0,
-              width: isOpen ? "auto" : 0,
-              overflow: "hidden",
-              whiteSpace: "nowrap",
-              transition: "opacity 0.2s",
+              height: "40px", // 로고 높이 고정
+              objectFit: "contain",
+              flexShrink: 0,
+              transition: "all 0.3s ease",
+              // 열려있을 땐 원래 크기, 닫혀있을 땐 작게(아이콘처럼) 보이도록 설정
+              width: isOpen ? "140px" : "40px",
+              // 닫혔을 때 이미지 위치 조정 (필요시 수정)
+              marginLeft: isOpen ? "0" : "0",
             }}
-          >
-            <h2 style={styles.logoText}>MedisOne</h2>
-          </div>
+          />
+          {/* ▲▲▲ 수정 끝 ▲▲▲ */}
         </div>
 
         {/* 접기/펼치기 아이콘 (보조) */}
@@ -129,7 +135,7 @@ const Sidebar = () => {
       {/* ================= MENU LIST ================= */}
       <div style={styles.menuContainer}>
         <ul style={styles.ul}>
-          {/* 1. 대시보드 (단일 메뉴) */}
+          {/* 1. 대시보드 */}
           <MenuItem
             to="/dashboard"
             icon={<MdDashboard />}
@@ -159,7 +165,6 @@ const Sidebar = () => {
               label="입/출고 이력"
               currentPath={location.pathname}
             />
-            {/* [추가] LOT 추적 */}
             <SubMenuItem
               to="/material/lot"
               label="LOT 추적"
@@ -217,6 +222,8 @@ const Sidebar = () => {
               label="제품 관리"
               currentPath={location.pathname}
             />
+<<<<<<< HEAD
+=======
           </MenuDropdown>
 
           {/* [신규] 5. Process (공정 실행 - 현장) */}
@@ -228,6 +235,7 @@ const Sidebar = () => {
             isActive={location.pathname.startsWith("/process")}
             onClick={() => toggleSubMenu("process")}
           >
+>>>>>>> 3cb0a512893928cf3e8c65219db991d39a0f6f0c
             <SubMenuItem
               to="/process/bonding"
               label="본딩(Bonding)"
@@ -272,7 +280,6 @@ const Sidebar = () => {
               label="생산 효율"
               currentPath={location.pathname}
             />
-            {/* [추가] 품질 테스트 관련 */}
             <SubMenuItem
               to="/quality/calibration"
               label="캘리브레이션"
@@ -285,7 +292,11 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
+<<<<<<< HEAD
+          {/* 6. 이력 추적 */}
+=======
           {/* [신규] 7. 이력 추적 (Traceability) */}
+>>>>>>> 3cb0a512893928cf3e8c65219db991d39a0f6f0c
           <MenuDropdown
             title="Traceability"
             icon={<FaSitemap />}
@@ -357,7 +368,6 @@ const Sidebar = () => {
 
       {/* ================= BOTTOM (Banner & Profile) ================= */}
 
-      {/* 배너 (열림 상태일 때만) */}
       {isOpen && (
         <div style={styles.bannerCard}>
           <div style={styles.bannerIconCircle}>
@@ -386,7 +396,6 @@ const Sidebar = () => {
         </div>
       )}
 
-      {/* 프로필 및 로그아웃 */}
       <div style={styles.profileSection}>
         <div
           style={{
@@ -407,7 +416,6 @@ const Sidebar = () => {
 
           {isOpen && (
             <div style={{ flex: 1, overflow: "hidden" }}>
-              {/* [수정] 실제 유저 정보 표시 */}
               <p
                 style={{
                   margin: 0,
@@ -447,9 +455,8 @@ const Sidebar = () => {
   );
 };
 
-// --- Sub Components ---
+// --- Sub Components (기존과 동일) ---
 
-// 1. 단일 메뉴 아이템 (Dashboard 등)
 const MenuItem = ({ to, icon, label, isOpen, isActive }) => (
   <li style={{ listStyle: "none", marginBottom: "5px" }}>
     <Link
@@ -459,7 +466,7 @@ const MenuItem = ({ to, icon, label, isOpen, isActive }) => (
         justifyContent: isOpen ? "flex-start" : "center",
         color: isActive ? ACTIVE_TEXT_COLOR : TEXT_COLOR,
         backgroundColor: isActive ? ACTIVE_BG_COLOR : "transparent",
-        borderRight: isActive && !isOpen ? `3px solid ${THEME_COLOR}` : "none", // 닫힘 상태일 때 인디케이터
+        borderRight: isActive && !isOpen ? `3px solid ${THEME_COLOR}` : "none",
       }}
     >
       <span
@@ -487,7 +494,6 @@ const MenuItem = ({ to, icon, label, isOpen, isActive }) => (
   </li>
 );
 
-// 2. 드롭다운 상위 메뉴
 const MenuDropdown = ({
   title,
   icon,
@@ -504,7 +510,6 @@ const MenuDropdown = ({
         ...styles.link,
         justifyContent: isOpen ? "flex-start" : "center",
         cursor: "pointer",
-        // 상위 메뉴가 활성화되었지만 펼쳐지지 않았을 때만 하이라이트 (선택사항)
         color: isActive ? ACTIVE_TEXT_COLOR : TEXT_COLOR,
         backgroundColor:
           isActive && !isExpanded ? ACTIVE_BG_COLOR : "transparent",
@@ -538,12 +543,10 @@ const MenuDropdown = ({
         </>
       )}
     </div>
-    {/* 하위 메뉴 영역 */}
     {isOpen && isExpanded && <ul style={styles.subUl}>{children}</ul>}
   </li>
 );
 
-// 3. 하위 메뉴 아이템 (클릭 시 굵게 + 배경)
 const SubMenuItem = ({ to, label, currentPath }) => {
   const isSubActive = currentPath === to;
 
@@ -555,13 +558,13 @@ const SubMenuItem = ({ to, label, currentPath }) => {
           ...styles.subLink,
           color: isSubActive ? ACTIVE_TEXT_COLOR : "#888",
           fontWeight: isSubActive ? "700" : "400",
-          backgroundColor: isSubActive ? ACTIVE_BG_COLOR : "transparent", // 활성 시 배경 추가
+          backgroundColor: isSubActive ? ACTIVE_BG_COLOR : "transparent",
         }}
       >
         <span
           style={{
             ...styles.dot,
-            backgroundColor: isSubActive ? ACTIVE_TEXT_COLOR : "#ddd", // 활성 시 점 색상 변경
+            backgroundColor: isSubActive ? ACTIVE_TEXT_COLOR : "#ddd",
           }}
         ></span>
         {label}
@@ -577,39 +580,21 @@ const styles = {
     backgroundColor: BG_COLOR,
     display: "flex",
     flexDirection: "column",
-    transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)", // 부드러운 애니메이션
+    transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     boxShadow: "4px 0 15px rgba(0,0,0,0.03)",
     borderRight: "1px solid #f0f0f0",
     overflowX: "hidden",
     position: "relative",
     zIndex: 100,
-    whiteSpace: "nowrap", // 텍스트 줄바꿈 방지
+    whiteSpace: "nowrap",
   },
   header: {
     height: "80px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between", // 아이콘 배치를 위해 space-between
+    justifyContent: "space-between",
     padding: "0 20px",
     borderBottom: "1px solid #f9f9f9",
-  },
-  logoIcon: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "12px",
-    backgroundColor: THEME_COLOR,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    boxShadow: "0 4px 10px rgba(140, 133, 255, 0.3)",
-    flexShrink: 0,
-  },
-  logoText: {
-    margin: 0,
-    color: "#333",
-    fontSize: "20px",
-    fontWeight: "800",
-    fontFamily: "'Nunito', sans-serif",
   },
   toggleBtn: {
     background: "transparent",
@@ -618,6 +603,7 @@ const styles = {
     padding: "5px",
     display: "flex",
     alignItems: "center",
+    marginLeft: "10px",
   },
   menuContainer: {
     flex: 1,
@@ -627,8 +613,6 @@ const styles = {
   },
   ul: { padding: 0, margin: 0 },
   divider: { height: "1px", backgroundColor: "#f0f0f0", margin: "15px 0" },
-
-  // 상위 메뉴 링크 스타일
   link: {
     display: "flex",
     alignItems: "center",
@@ -641,20 +625,17 @@ const styles = {
       backgroundColor: "#FAFAFA",
     },
   },
-
-  // 하위 메뉴 컨테이너
   subUl: {
-    padding: "5px 0 5px 20px", // 들여쓰기 조정
+    padding: "5px 0 5px 20px",
     margin: 0,
-    borderLeft: "2px solid #f5f5f5", // 계층 구조 가이드라인 (선택)
+    borderLeft: "2px solid #f5f5f5",
     marginLeft: "25px",
   },
-  // 하위 메뉴 링크 스타일 (수정됨)
   subLink: {
     display: "flex",
     alignItems: "center",
     padding: "10px 15px",
-    borderRadius: "8px", // 둥근 모서리 추가
+    borderRadius: "8px",
     textDecoration: "none",
     fontSize: "13px",
     transition: "all 0.2s",
@@ -666,8 +647,6 @@ const styles = {
     marginRight: "10px",
     flexShrink: 0,
   },
-
-  // 배너 스타일
   bannerCard: {
     margin: "0 20px 20px",
     padding: "20px",
@@ -704,8 +683,6 @@ const styles = {
     width: "100%",
     transition: "transform 0.1s",
   },
-
-  // 프로필 영역
   profileSection: {
     padding: "20px",
     borderTop: "1px solid #f0f0f0",
