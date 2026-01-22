@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext"; // [추가 1] Context 훅 불러오기
+import client from "../../api/client";
 import "./Login.css";
 
 const Login = () => {
@@ -22,26 +23,73 @@ const Login = () => {
     setShowPassword(!showPassword);
   };
 
-  // 로그인 버튼 클릭 시 실행될 로직
-  const handleLogin = () => {
-    // 관리자 계정 정보
-    const ADMIN_ID = "admin";
-    const ADMIN_PW = "admin123";
+  // JWT 디코딩 함수
+  // 백엔드 토큰에 들어있는 권한(auth)과 ID(sub)를 꺼내기 위함
+  const parseJwt = (token) => {
+    try {
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map(function (c) {
+            return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+          })
+          .join(""),
+      );
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  };
 
-    if (employeeId === ADMIN_ID && password === ADMIN_PW) {
-      // [핵심 변경] 로그인 성공 시 사원 정보를 객체로 만들어 전달!
+  // [핵심 변경] 실제 로그인 API 호출 로직
+  const handleLogin = async () => {
+    if (!employeeId || !password) {
+      alert("사원번호와 비밀번호를 모두 입력해주세요.");
+      return;
+    }
+
+    try {
+      // 1. 백엔드 로그인 API 호출
+      // 백엔드 DTO: { employeeNumber, password }
+      const response = await client.post("/auth/login", {
+        employeeNumber: employeeId,
+        password: password,
+      });
+
+      const { accessToken, refreshToken } = response.data;
+
+      // 2. 토큰을 로컬 스토리지에 저장 (나중에 인터셉터가 갖다 씀)
+      localStorage.setItem("accessToken", accessToken);
+      localStorage.setItem("refreshToken", refreshToken);
+
+      // 3. 토큰에서 유저 정보 추출 (Role, ID 등)
+      const decoded = parseJwt(accessToken);
+
+      // 주의: 현재 백엔드 토큰에는 '이름(name)'이나 '부서(dept)' 정보가 없습니다.
+      // 필요하다면 백엔드 TokenProvider에 클레임을 추가하거나,
+      // 로그인 후 내 정보 조회 API(/api/member/me)를 한 번 더 호출해야 합니다.
       const userInfo = {
-        name: "김관리", // 실제 DB에서 가져올 이름
-        id: employeeId,
-        dept: "생산관리팀", // 부서
-        role: "Master Admin", // 직책
+        id: decoded?.sub || employeeId, // 토큰의 sub (memberId PK)
+        employeeNumber: employeeId, // 입력한 사원번호
+        role: decoded?.auth || "USER", // 토큰의 auth (예: ROLE_ADMIN)
+        // name: "이름모름",              // 현재 알 수 없음
       };
 
-      login(userInfo); // Context에 정보 전달
+      // 4. 전역 상태 로그인 처리
+      login(userInfo);
 
+      // 5. 페이지 이동
       navigate("/dashboard");
-    } else {
-      alert("사원번호 또는 비밀번호를 확인해주세요.");
+    } catch (error) {
+      // 에러 처리
+      if (error.response && error.response.status === 401) {
+        alert("로그인 실패: 사원번호 또는 비밀번호가 일치하지 않습니다.");
+      } else {
+        alert("로그인 중 오류가 발생했습니다. 서버 상태를 확인해주세요.");
+        console.error("Login Error:", error);
+      }
     }
   };
 
