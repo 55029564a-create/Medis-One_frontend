@@ -19,10 +19,10 @@ export const CommonStyles = {
   pageContainer: {
     padding: "20px",
     minHeight: "100vh",
-    backgroundColor: "#f4f6f9",
+    backgroundColor: "#ffffff",
   },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: "#ffffff",
     borderRadius: "8px",
     padding: "20px",
     boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
