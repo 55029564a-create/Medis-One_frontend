@@ -20,6 +20,7 @@
     "react-scripts": "5.0.1",
     "recharts": "^3.6.0",
     "styled": "^1.0.0",
+    "styled-components": "^6.3.8",
     "web-vitals": "^2.1.0"
   },
   "scripts": {
