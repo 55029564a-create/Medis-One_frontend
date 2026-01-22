@@ -2,12 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
-<<<<<<< HEAD
-=======
   FaChartPie,
   FaMicrochip,
   FaBox,
->>>>>>> 3cb0a512893928cf3e8c65219db991d39a0f6f0c
   FaBoxOpen,
   FaIndustry,
   FaCogs,
@@ -222,8 +219,6 @@ const Sidebar = () => {
               label="제품 관리"
               currentPath={location.pathname}
             />
-<<<<<<< HEAD
-=======
           </MenuDropdown>
 
           {/* [신규] 5. Process (공정 실행 - 현장) */}
@@ -235,7 +230,6 @@ const Sidebar = () => {
             isActive={location.pathname.startsWith("/process")}
             onClick={() => toggleSubMenu("process")}
           >
->>>>>>> 3cb0a512893928cf3e8c65219db991d39a0f6f0c
             <SubMenuItem
               to="/process/bonding"
               label="본딩(Bonding)"
@@ -292,11 +286,7 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
-<<<<<<< HEAD
-          {/* 6. 이력 추적 */}
-=======
           {/* [신규] 7. 이력 추적 (Traceability) */}
->>>>>>> 3cb0a512893928cf3e8c65219db991d39a0f6f0c
           <MenuDropdown
             title="Traceability"
             icon={<FaSitemap />}
