@@ -35,7 +35,7 @@ const PROCESS_STEPS = [
   "신뢰성 테스트",
 ];
 
-const ProductManagement = () => {
+const ProductMgmt = () => {
   const [filterCategory, setFilterCategory] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -844,4 +844,4 @@ const styles = {
   },
 };
 
-export default ProductManagement;
+export default ProductMgmt;
