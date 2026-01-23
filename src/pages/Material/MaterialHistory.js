@@ -29,7 +29,7 @@ const MaterialHistory = () => {
     {
       id: 1,
       date: "2026-01-20 09:15",
-      type: "IN", // 입고
+      type: "IN",
       partCode: "PNL-24FHD-MED",
       item: "24인치 의료용 패널 (High-Bright)",
       lot: "LOT-260120-A01",
@@ -41,7 +41,7 @@ const MaterialHistory = () => {
     {
       id: 2,
       date: "2026-01-20 10:30",
-      type: "OUT", // 출고
+      type: "OUT",
       partCode: "PCB-MAIN-V2",
       item: "메인보드 AD Board",
       lot: "LOT-251215-B05",
@@ -65,7 +65,7 @@ const MaterialHistory = () => {
     {
       id: 4,
       date: "2026-01-20 13:20",
-      type: "RETURN", // 반납
+      type: "RETURN",
       partCode: "SCR-M4-10",
       item: "조립용 M4 나사 Set",
       lot: "LOT-251120-D01",
@@ -77,7 +77,7 @@ const MaterialHistory = () => {
     {
       id: 5,
       date: "2026-01-19 15:40",
-      type: "DISCARD", // 폐기
+      type: "DISCARD",
       partCode: "PNL-24FHD-MED",
       item: "24인치 의료용 패널",
       lot: "LOT-251010-F09",
@@ -100,11 +100,9 @@ const MaterialHistory = () => {
     },
   ]);
 
-  // 필터 상태
   const [filterType, setFilterType] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // 필터링 로직
   const filteredHistory = history.filter((item) => {
     const typeMatch = filterType === "ALL" ? true : item.type === filterType;
     const searchMatch =
@@ -131,7 +129,7 @@ const MaterialHistory = () => {
         </button>
       </div>
 
-      {/* 2. 요약 카드 (Dashboard Style) */}
+      {/* 2. 요약 카드 */}
       <div style={styles.summaryRow}>
         <SummaryCard
           label="금일 입고"
@@ -159,9 +157,8 @@ const MaterialHistory = () => {
         />
       </div>
 
-      {/* 3. 메인 콘텐츠 (필터 + 테이블) */}
+      {/* 3. 메인 콘텐츠 */}
       <div style={styles.card}>
-        {/* 필터 바 */}
         <div style={styles.filterBar}>
           <div style={styles.filterGroup}>
             <div style={styles.dateGroup}>
@@ -177,7 +174,6 @@ const MaterialHistory = () => {
                 defaultValue="2026-01-20"
               />
             </div>
-
             <div style={styles.selectWrapper}>
               <FaFilter style={styles.filterIcon} />
               <select
@@ -193,7 +189,6 @@ const MaterialHistory = () => {
               </select>
             </div>
           </div>
-
           <div style={styles.searchBox}>
             <FaSearch color="#999" />
             <input
@@ -206,19 +201,31 @@ const MaterialHistory = () => {
           </div>
         </div>
 
-        {/* 테이블 */}
+        {/* 테이블 (가로 스크롤 추가) */}
         <div style={styles.tableWrapper}>
           <table style={styles.table}>
             <thead>
               <tr style={styles.thRow}>
-                <th style={styles.th}>일시</th>
-                <th style={styles.th}>구분</th>
-                <th style={styles.th}>자재코드 / 품목명</th>
-                <th style={styles.th}>LOT ID</th>
-                <th style={styles.th}>수량</th>
-                <th style={styles.th}>위치 (Location)</th>
-                <th style={styles.th}>작업자</th>
-                <th style={styles.th}>비고</th>
+                <th style={{ ...styles.th, width: "140px" }}>일시</th>
+                <th
+                  style={{ ...styles.th, width: "80px", textAlign: "center" }}
+                >
+                  구분
+                </th>
+                <th style={{ ...styles.th, minWidth: "200px" }}>
+                  자재코드 / 품목명
+                </th>
+                <th style={{ ...styles.th, width: "140px" }}>LOT ID</th>
+                <th
+                  style={{ ...styles.th, width: "100px", textAlign: "right" }}
+                >
+                  수량
+                </th>
+                <th style={{ ...styles.th, width: "150px" }}>
+                  위치 (Location)
+                </th>
+                <th style={{ ...styles.th, width: "100px" }}>작업자</th>
+                <th style={{ ...styles.th, minWidth: "150px" }}>비고</th>
               </tr>
             </thead>
             <tbody>
@@ -232,7 +239,7 @@ const MaterialHistory = () => {
                 filteredHistory.map((item) => (
                   <tr key={item.id} style={styles.tr}>
                     <td style={styles.td}>{item.date}</td>
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, textAlign: "center" }}>
                       <TypeBadge type={item.type} />
                     </td>
                     <td style={styles.td}>
@@ -246,6 +253,7 @@ const MaterialHistory = () => {
                       style={{
                         ...styles.td,
                         fontWeight: "bold",
+                        textAlign: "right",
                         color: getQtyColor(item.type),
                       }}
                     >
@@ -266,7 +274,6 @@ const MaterialHistory = () => {
           </table>
         </div>
 
-        {/* 페이지네이션 (디자인용) */}
         <div style={styles.pagination}>
           <button style={styles.pageBtn}>&lt;</button>
           <button style={{ ...styles.pageBtn, ...styles.activePageBtn }}>
@@ -299,7 +306,6 @@ const SummaryCard = ({ label, value, color, icon }) => (
 const TypeBadge = ({ type }) => {
   let label = "";
   let color = "";
-
   switch (type) {
     case "IN":
       label = "입고";
@@ -321,7 +327,6 @@ const TypeBadge = ({ type }) => {
       label = type;
       color = COLORS.gray;
   }
-
   return (
     <span
       style={{
@@ -332,6 +337,8 @@ const TypeBadge = ({ type }) => {
         fontSize: "11px",
         fontWeight: "bold",
         border: `1px solid ${color}30`,
+        display: "inline-block",
+        whiteSpace: "nowrap",
       }}
     >
       {label}
@@ -350,12 +357,18 @@ const styles = {
     padding: "20px",
     backgroundColor: COLORS.bg,
     minHeight: "100%",
+    // 전체 페이지 스크롤 방지 (필요 시)
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
   },
   header: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "20px",
+    flexWrap: "wrap",
+    gap: "10px",
   },
   pageTitle: {
     fontSize: "22px",
@@ -364,7 +377,6 @@ const styles = {
     marginBottom: "4px",
   },
   pageSubtitle: { fontSize: "13px", color: COLORS.gray },
-
   excelBtn: {
     backgroundColor: "#217346",
     color: "white",
@@ -378,12 +390,17 @@ const styles = {
     gap: "8px",
     fontSize: "13px",
     boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
+    whiteSpace: "nowrap",
   },
-
-  // 요약 카드
-  summaryRow: { display: "flex", gap: "15px", marginBottom: "20px" },
+  summaryRow: {
+    display: "flex",
+    gap: "15px",
+    marginBottom: "20px",
+    flexWrap: "wrap",
+  },
   summaryCard: {
     flex: 1,
+    minWidth: "180px", // 최소 너비 보장
     backgroundColor: "white",
     padding: "15px",
     borderRadius: "10px",
@@ -401,18 +418,22 @@ const styles = {
     justifyContent: "center",
     fontSize: "16px",
   },
-  summaryLabel: { fontSize: "12px", color: "#888", marginBottom: "2px" },
+  summaryLabel: {
+    fontSize: "12px",
+    color: "#888",
+    marginBottom: "2px",
+    whiteSpace: "nowrap",
+  },
   summaryValue: { fontSize: "18px", fontWeight: "900" },
-
-  // 메인 카드
   card: {
     backgroundColor: "white",
     borderRadius: "12px",
     padding: "20px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden", // 내부 스크롤을 위해 숨김
   },
-
-  // 필터 바
   filterBar: {
     display: "flex",
     justifyContent: "space-between",
@@ -421,7 +442,12 @@ const styles = {
     flexWrap: "wrap",
     gap: "10px",
   },
-  filterGroup: { display: "flex", gap: "10px", alignItems: "center" },
+  filterGroup: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
   dateGroup: {
     display: "flex",
     alignItems: "center",
@@ -438,7 +464,6 @@ const styles = {
     color: "#555",
     outline: "none",
   },
-
   selectWrapper: { position: "relative" },
   filterIcon: {
     position: "absolute",
@@ -457,7 +482,6 @@ const styles = {
     outline: "none",
     cursor: "pointer",
   },
-
   searchBox: {
     display: "flex",
     alignItems: "center",
@@ -465,6 +489,7 @@ const styles = {
     borderRadius: "8px",
     padding: "8px 12px",
     width: "250px",
+    minWidth: "200px",
   },
   searchInput: {
     border: "none",
@@ -475,9 +500,13 @@ const styles = {
     width: "100%",
   },
 
-  // 테이블
-  tableWrapper: { overflowX: "auto" },
-  table: { width: "100%", borderCollapse: "collapse" },
+  // [핵심] 테이블 스타일 수정
+  tableWrapper: {
+    overflowX: "auto", // 가로 스크롤 활성화
+    width: "100%",
+    paddingBottom: "5px",
+  },
+  table: { width: "100%", borderCollapse: "collapse", minWidth: "1000px" }, // 최소 너비 설정하여 찌그러짐 방지
   thRow: { borderBottom: "1px solid #eee", backgroundColor: "#FAFAFA" },
   th: {
     padding: "12px 10px",
@@ -485,7 +514,7 @@ const styles = {
     fontSize: "12px",
     color: "#666",
     fontWeight: "bold",
-    whiteSpace: "nowrap",
+    whiteSpace: "nowrap", // [핵심] 줄바꿈 방지
   },
   tr: { borderBottom: "1px solid #f5f5f5", transition: "background 0.2s" },
   td: {
@@ -493,6 +522,9 @@ const styles = {
     fontSize: "13px",
     color: "#333",
     verticalAlign: "middle",
+    whiteSpace: "nowrap", // [핵심] 데이터 셀도 줄바꿈 방지
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   emptyTd: {
     padding: "40px",
@@ -501,9 +533,14 @@ const styles = {
     fontSize: "14px",
   },
 
-  // 데이터 스타일
   partCode: { fontSize: "11px", color: "#888", marginBottom: "2px" },
-  itemName: { fontSize: "13px", fontWeight: "bold", color: "#333" },
+  itemName: {
+    fontSize: "13px",
+    fontWeight: "bold",
+    color: "#333",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
   lotBadge: {
     backgroundColor: "#F3F1FF",
     color: COLORS.primary,
@@ -512,8 +549,6 @@ const styles = {
     fontSize: "11px",
     fontFamily: "monospace",
   },
-
-  // 페이지네이션
   pagination: {
     display: "flex",
     justifyContent: "center",
