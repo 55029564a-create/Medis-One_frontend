@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-// 아이콘 라이브러리
+// ... (아이콘, 스타일 등 import 부분은 기존과 동일) ...
 import {
   FaUsers,
   FaClock,
@@ -14,7 +14,7 @@ import Table from "../../components/common/Table";
 import Button from "../../components/common/Button";
 import { Colors, CommonStyles } from "../../styles/GlobalStyle";
 
-// 대시보드 스타일 정의
+// ... (DashboardStyles 스타일 정의 부분도 기존과 동일) ...
 const DashboardStyles = {
   card: {
     backgroundColor: "#fff",
@@ -22,7 +22,7 @@ const DashboardStyles = {
     padding: "24px",
     boxShadow: "0 4px 20px rgba(0, 0, 0, 0.05)",
     border: "none",
-    marginBottom: "20px", // 카드 간 간격 추가
+    marginBottom: "20px",
   },
   kpiIconBox: (color) => ({
     width: "50px",
@@ -55,9 +55,7 @@ const DashboardStyles = {
 };
 
 const ProductionManagement = () => {
-  // ==============================
-  // 1. 공정 모니터링 데이터 (ProductionRate)
-  // ==============================
+  // ... (useState 데이터 부분은 기존과 동일) ...
   const [lines, setLines] = useState([
     {
       id: "Line-A",
@@ -109,9 +107,6 @@ const ProductionManagement = () => {
     },
   ]);
 
-  // ==============================
-  // 2. 공정 마스터 데이터 (ProcessMgmt)
-  // ==============================
   const [processes, setProcesses] = useState([
     {
       code: "L-01",
@@ -136,9 +131,7 @@ const ProductionManagement = () => {
     },
   ]);
 
-  // ==============================
-  // 3. Helper 함수 (계산 로직)
-  // ==============================
+  // ... (Helper 함수 부분 동일) ...
   const totalPersonnel = lines.reduce((acc, cur) => acc + cur.personnel, 0);
   const avgRate = Math.round(
     lines.reduce((acc, cur) => acc + (cur.current / cur.target) * 100, 0) /
@@ -160,9 +153,7 @@ const ProductionManagement = () => {
 
   return (
     <div style={{ ...CommonStyles.pageContainer, backgroundColor: "#F8F9FE" }}>
-      {/* ─────────────────────────────────────────────
-          HEADER
-      ───────────────────────────────────────────── */}
+      {/* ... (Header 부분 동일) ... */}
       <div style={CommonStyles.flexBetween}>
         <div>
           <h2 style={{ marginBottom: "5px", color: "#2c3e50" }}>
@@ -181,9 +172,7 @@ const ProductionManagement = () => {
         </div>
       </div>
 
-      {/* ─────────────────────────────────────────────
-          SECTION 1: KPI Cards
-      ───────────────────────────────────────────── */}
+      {/* ... (KPI Cards 부분 동일) ... */}
       <div
         style={{
           display: "grid",
@@ -192,7 +181,7 @@ const ProductionManagement = () => {
           marginBottom: "30px",
         }}
       >
-        {/* KPI 1 */}
+        {/* ... (KPI 1 ~ 4 내용 생략, 기존 코드 그대로 사용) ... */}
         <div style={DashboardStyles.card}>
           <div style={CommonStyles.flexBetween}>
             <div>
@@ -208,7 +197,6 @@ const ProductionManagement = () => {
             </div>
           </div>
         </div>
-        {/* KPI 2 */}
         <div style={DashboardStyles.card}>
           <div>
             <div style={DashboardStyles.kpiIconBox(Colors.primary)}>
@@ -222,7 +210,6 @@ const ProductionManagement = () => {
             </h3>
           </div>
         </div>
-        {/* KPI 3 */}
         <div style={DashboardStyles.card}>
           <div>
             <div style={DashboardStyles.kpiIconBox("#FF9800")}>
@@ -234,7 +221,6 @@ const ProductionManagement = () => {
             <h3 style={{ fontSize: "24px", margin: "5px 0" }}>{avgRate}%</h3>
           </div>
         </div>
-        {/* KPI 4 */}
         <div style={DashboardStyles.card}>
           <div>
             <div style={DashboardStyles.kpiIconBox(Colors.danger)}>
@@ -249,7 +235,7 @@ const ProductionManagement = () => {
       </div>
 
       {/* ─────────────────────────────────────────────
-          SECTION 2: Line Monitoring Table
+          SECTION 2: Line Monitoring Table (★ 여기 수정됨 ★)
       ───────────────────────────────────────────── */}
       <div style={DashboardStyles.card}>
         <div style={{ ...CommonStyles.flexBetween, marginBottom: "20px" }}>
@@ -257,6 +243,7 @@ const ProductionManagement = () => {
             📈 라인별 실시간 가동 현황
           </h3>
           <div style={{ display: "flex", gap: "10px" }}>
+            {/* ... (범례 부분 동일) ... */}
             <div
               style={{
                 display: "flex",
@@ -271,7 +258,7 @@ const ProductionManagement = () => {
                   backgroundColor: Colors.success,
                   marginRight: 5,
                 }}
-              ></div>
+              ></div>{" "}
               가동
             </div>
             <div
@@ -288,7 +275,7 @@ const ProductionManagement = () => {
                   backgroundColor: Colors.secondary,
                   marginRight: 5,
                 }}
-              ></div>
+              ></div>{" "}
               휴식/정지
             </div>
             <div
@@ -305,15 +292,17 @@ const ProductionManagement = () => {
                   backgroundColor: Colors.danger,
                   marginRight: 5,
                 }}
-              ></div>
+              ></div>{" "}
               장애
             </div>
           </div>
         </div>
 
+        {/* ▼▼▼ [수정 포인트] 헤더 배열 수정 ▼▼▼ */}
         <Table
           headers={[
-            "라인명",
+            "", // 1. 첫 번째 칸 비움 (ID용)
+            "라인명", // 2. 여기부터 한 칸씩 밀림
             "책임자 (인원)",
             "작업 시간",
             "타임테이블 (09~17)",
@@ -321,7 +310,15 @@ const ProductionManagement = () => {
             "상태",
           ]}
           data={lines.map((line) => ({
-            id: line.id,
+            // 1. 첫 번째 열: ID (Line-A 등)
+            id: (
+              <div
+                style={{ fontWeight: "bold", fontSize: "14px", color: "#555" }}
+              >
+                {line.id}
+              </div>
+            ),
+            // 2. 두 번째 열: 상세 라인 정보
             lineInfo: (
               <div>
                 <div style={{ fontWeight: "bold", fontSize: "14px" }}>
@@ -472,9 +469,7 @@ const ProductionManagement = () => {
         />
       </div>
 
-      {/* ─────────────────────────────────────────────
-          SECTION 3: Process Master Management (Added)
-      ───────────────────────────────────────────── */}
+      {/* ... (SECTION 3: Process Master Management 기존과 동일) ... */}
       <div style={DashboardStyles.card}>
         <div style={{ ...CommonStyles.flexBetween, marginBottom: "20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
