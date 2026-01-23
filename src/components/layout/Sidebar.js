@@ -17,8 +17,7 @@ import {
 } from "react-icons/fa";
 import { MdDashboard } from "react-icons/md";
 
-import logoImage from "../../assets/logo.png";
-
+// 🎨 MedisOne 테마 컬러
 const THEME_COLOR = "#8C85FF";
 const BG_COLOR = "#FFFFFF";
 const TEXT_COLOR = "#888";
@@ -30,9 +29,15 @@ const Sidebar = () => {
   const [activeMenu, setActiveMenu] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
+
   const { user, logout } = useAuth();
 
-  const toggleSidebar = () => setIsOpen(!isOpen);
+  // [수정 1] 외부 클릭 감지 useEffect 제거함 (이제 메인 화면 클릭해도 안 닫힘)
+
+  const toggleSidebar = () => {
+    setIsOpen(!isOpen);
+    if (!isOpen) setActiveMenu(null);
+  };
 
   const toggleSubMenu = (menuName) => {
     if (!isOpen) {
@@ -51,398 +56,344 @@ const Sidebar = () => {
   };
 
   return (
-    <div style={{ ...styles.sidebar, width: isOpen ? "260px" : "80px" }}>
-      {/* HEADER */}
-      <div style={styles.header}>
-        <div style={styles.logoContainer} onClick={toggleSidebar}>
-          <img
-            src={logoImage}
-            alt="MedisOne Logo"
+    <div
+      style={{
+        ...styles.sidebar,
+        width: isOpen ? "260px" : "80px",
+      }}
+    >
+      {/* ================= HEADER ================= */}
+      <div style={styles.header} onClick={toggleSidebar}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            cursor: "pointer",
+          }}
+        >
+          <div style={styles.logoIcon}>
+            <MdDashboard size={24} color="#fff" />
+          </div>
+          <div
             style={{
-              height: "75px",
-              width: isOpen ? "200px" : "50px",
-              objectFit: "contain",
-              transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-              display: "block",
+              opacity: isOpen ? 1 : 0,
+              width: isOpen ? "auto" : 0,
+              overflow: "hidden",
+              whiteSpace: "nowrap",
+              transition: "opacity 0.2s",
             }}
-          />
+          >
+            <h2 style={styles.logoText}>MedisOne</h2>
+          </div>
         </div>
         {isOpen && (
-          <button style={styles.toggleBtn} onClick={toggleSidebar}>
+          <button style={styles.toggleBtn}>
             <FaAngleDoubleLeft color="#ccc" />
           </button>
         )}
       </div>
 
-      {/* MENU LIST */}
-      <div style={styles.menuContainer}>
-        <ul style={styles.ul}>
-          {/* 단일 메뉴 (대시보드) */}
-          <MenuItem
-            to="/dashboard"
-            icon={<MdDashboard size={20} />}
-            label="Dashboard"
-            isOpen={isOpen}
-            isActive={location.pathname === "/dashboard"}
+      {/* [수정 2] 메뉴 영역을 ul 태그로 감싸고 styles.menuList 적용 
+        flex: 1 속성 덕분에 이 영역이 남은 공간을 다 차지하여
+        프로필을 바닥으로 밀어냄
+      */}
+      <ul style={styles.menuList}>
+        <MenuDropdown
+          title="Material"
+          icon={<FaBoxOpen size={20} />}
+          isOpen={isOpen}
+          isExpanded={activeMenu === "material"}
+          onClick={() => toggleSubMenu("material")}
+        >
+          <SubMenuItem
+            to="/material/inout"
+            label="자재 입출고"
+            currentPath={location.pathname}
           />
-          <div style={styles.divider}></div>
-
-          {/* 그룹 메뉴들 */}
-          <MenuDropdown
-            title="Material"
-            icon={<FaBoxOpen size={20} />}
-            isOpen={isOpen}
-            isExpanded={activeMenu === "material"}
-            onClick={() => toggleSubMenu("material")}
-          >
-            <SubMenuItem
-              to="/material/inout"
-              label="자재 입출고"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/material/history"
-              label="입/출고 이력"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/material/lot"
-              label="LOT 추적"
-              currentPath={location.pathname}
-            />
-          </MenuDropdown>
-
-          <MenuDropdown
-            title="Inventory"
-            icon={<FaWarehouse size={20} />}
-            isOpen={isOpen}
-            isExpanded={activeMenu === "inventory"}
-            onClick={() => toggleSubMenu("inventory")}
-          >
-            <SubMenuItem
-              to="/inventory/current"
-              label="재고 현황"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/inventory/history"
-              label="재고 이력"
-              currentPath={location.pathname}
-            />
-          </MenuDropdown>
-
-          <MenuDropdown
-            title="Production"
-            icon={<FaIndustry size={20} />}
-            isOpen={isOpen}
-            isExpanded={activeMenu === "production"}
-            onClick={() => toggleSubMenu("production")}
-          >
-            <SubMenuItem
-              to="/production/schedule"
-              label="생산 계획"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/production/order"
-              label="작업 지시서"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/production/report"
-              label="생산 실적"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/production/product"
-              label="제품 관리"
-              currentPath={location.pathname}
-            />
-          </MenuDropdown>
-
-          <MenuDropdown
-            title="Process"
-            icon={<FaMicrochip size={20} />}
-            isOpen={isOpen}
-            isExpanded={activeMenu === "process"}
-            onClick={() => toggleSubMenu("process")}
-          >
-            <SubMenuItem
-              to="/process/bonding"
-              label="본딩(Bonding)"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/process/assembly"
-              label="조립(Assembly)"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/process/aging"
-              label="에이징(Aging)"
-              currentPath={location.pathname}
-            />
-          </MenuDropdown>
-
-          <MenuDropdown
-            title="Quality"
-            icon={<FaCogs size={20} />}
-            isOpen={isOpen}
-            isExpanded={activeMenu === "quality"}
-            onClick={() => toggleSubMenu("quality")}
-          >
-            <SubMenuItem
-              to="/equipment"
-              label="설비 모니터링"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/quality/defect"
-              label="불량 등록/현황"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/quality/rate"
-              label="생산 효율"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/quality/calibration"
-              label="캘리브레이션"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/quality/reliability"
-              label="신뢰성 테스트"
-              currentPath={location.pathname}
-            />
-          </MenuDropdown>
-
-          <MenuDropdown
-            title="Traceability"
-            icon={<FaSitemap size={20} />}
-            isOpen={isOpen}
-            isExpanded={activeMenu === "traceability"}
-            onClick={() => toggleSubMenu("traceability")}
-          >
-            <SubMenuItem
-              to="/traceability/dhr"
-              label="이력 추적 (DHR)"
-              currentPath={location.pathname}
-            />
-          </MenuDropdown>
-
-          <MenuDropdown
-            title="Support"
-            icon={<FaUtensils size={20} />}
-            isOpen={isOpen}
-            isExpanded={activeMenu === "support"}
-            onClick={() => toggleSubMenu("support")}
-          >
-            <SubMenuItem
-              to="/support/notice"
-              label="공지사항"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/support/cafeteria"
-              label="식단표"
-              currentPath={location.pathname}
-            />
-          </MenuDropdown>
-
-          <MenuDropdown
-            title="Admin"
-            icon={<FaUserCog size={20} />}
-            isOpen={isOpen}
-            isExpanded={activeMenu === "admin"}
-            onClick={() => toggleSubMenu("admin")}
-          >
-            <SubMenuItem
-              to="/admin/employees"
-              label="사원 관리"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/admin/process"
-              label="공정 관리"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/admin/work-order"
-              label="작업 지시 관리"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/admin/production-order"
-              label="생산 지시 관리"
-              currentPath={location.pathname}
-            />
-          </MenuDropdown>
-        </ul>
-      </div>
-
-      {/* BOTTOM */}
-      <div
-        style={{
-          ...styles.bannerCard,
-          opacity: isOpen ? 1 : 0,
-          height: isOpen ? "auto" : 0,
-          padding: isOpen ? "20px" : 0,
-          margin: isOpen ? "0 20px 20px" : 0,
-          overflow: "hidden",
-          transition: "all 0.3s ease",
-        }}
-      >
-        <div style={styles.bannerIconCircle}>
-          <FaIndustry size={20} color="#fff" />
-        </div>
-        <p
-          style={{ margin: "10px 0 5px", fontWeight: "bold", fontSize: "14px" }}
+          <SubMenuItem
+            to="/material/history"
+            label="입/출고 이력"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/material/lot"
+            label="LOT 추적"
+            currentPath={location.pathname}
+          />
+        </MenuDropdown>
+        <MenuDropdown
+          title="Inventory"
+          icon={<FaWarehouse size={20} />}
+          isOpen={isOpen}
+          isExpanded={activeMenu === "inventory"}
+          onClick={() => toggleSubMenu("inventory")}
         >
-          System Status
-        </p>
-        <p
-          style={{
-            margin: "0 0 10px",
-            fontSize: "11px",
-            color: "#fff",
-            opacity: 0.8,
-          }}
+          <SubMenuItem
+            to="/inventory/current"
+            label="재고 현황"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/inventory/history"
+            label="재고 이력"
+            currentPath={location.pathname}
+          />
+        </MenuDropdown>
+        <MenuDropdown
+          title="Production"
+          icon={<FaIndustry size={20} />}
+          isOpen={isOpen}
+          isExpanded={activeMenu === "production"}
+          onClick={() => toggleSubMenu("production")}
         >
-          All systems operational
-        </p>
-        <button style={styles.bannerBtn}>Check Report</button>
-      </div>
+          <SubMenuItem
+            to="/production/schedule"
+            label="생산 계획"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/production/order"
+            label="작업 지시서"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/production/report"
+            label="생산 실적"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/production/product"
+            label="제품 관리"
+            currentPath={location.pathname}
+          />
+        </MenuDropdown>
+        <MenuDropdown
+          title="Process"
+          icon={<FaMicrochip size={20} />}
+          isOpen={isOpen}
+          isExpanded={activeMenu === "process"}
+          onClick={() => toggleSubMenu("process")}
+        >
+          <SubMenuItem
+            to="/process/bonding"
+            label="본딩(Bonding)"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/process/assembly"
+            label="조립(Assembly)"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/process/aging"
+            label="에이징(Aging)"
+            currentPath={location.pathname}
+          />
+        </MenuDropdown>
+        <MenuDropdown
+          title="Quality"
+          icon={<FaCogs size={20} />}
+          isOpen={isOpen}
+          isExpanded={activeMenu === "quality"}
+          onClick={() => toggleSubMenu("quality")}
+        >
+          <SubMenuItem
+            to="/equipment"
+            label="설비 모니터링"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/quality/defect"
+            label="불량 등록/현황"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/quality/calibration"
+            label="캘리브레이션"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/quality/reliability"
+            label="신뢰성 테스트"
+            currentPath={location.pathname}
+          />
+        </MenuDropdown>
+        <MenuDropdown
+          title="Traceability"
+          icon={<FaSitemap size={20} />}
+          isOpen={isOpen}
+          isExpanded={activeMenu === "traceability"}
+          onClick={() => toggleSubMenu("traceability")}
+        >
+          <SubMenuItem
+            to="/traceability/dhr"
+            label="이력 추적 (DHR)"
+            currentPath={location.pathname}
+          />
+        </MenuDropdown>
+        <MenuDropdown
+          title="Support"
+          icon={<FaUtensils size={20} />}
+          isOpen={isOpen}
+          isExpanded={activeMenu === "support"}
+          onClick={() => toggleSubMenu("support")}
+        >
+          <SubMenuItem
+            to="/support/notice"
+            label="공지사항"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/support/cafeteria"
+            label="식단표"
+            currentPath={location.pathname}
+          />
+        </MenuDropdown>
+        <MenuDropdown
+          title="Admin"
+          icon={<FaUserCog size={20} />}
+          isOpen={isOpen}
+          isExpanded={activeMenu === "admin"}
+          onClick={() => toggleSubMenu("admin")}
+        >
+          <SubMenuItem
+            to="/admin/employees"
+            label="사원 관리"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/admin/process"
+            label="공정 관리"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/admin/work-order"
+            label="작업 지시 관리"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/admin/production-order"
+            label="생산 지시 관리"
+            currentPath={location.pathname}
+          />
+        </MenuDropdown>
+      </ul>
 
+      {/* ================= BOTTOM (Profile) ================= */}
       <div style={styles.profileSection}>
         <div
           style={{
-            ...styles.profileContainer,
-            paddingLeft: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
             justifyContent: isOpen ? "flex-start" : "center",
+            width: "100%",
           }}
         >
-          <div style={styles.avatarWrapper}>
-            <div style={styles.avatar}>
-              <img
-                src="https://via.placeholder.com/40"
-                alt="User"
-                style={{ borderRadius: "50%", width: "100%", height: "100%" }}
-              />
+          <div style={styles.avatar}>
+            <img
+              src="https://via.placeholder.com/40"
+              alt="User"
+              style={{ borderRadius: "50%" }}
+            />
+          </div>
+          {isOpen && (
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              <p
+                style={{
+                  margin: 0,
+                  fontWeight: "bold",
+                  fontSize: "14px",
+                  color: "#333",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {user ? user.name : "Guest User"}
+              </p>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "11px",
+                  color: "#999",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {user ? `${user.dept} / ${user.role}` : "Please Login"}
+              </p>
             </div>
-          </div>
-          <div style={{ ...styles.profileText, opacity: isOpen ? 1 : 0 }}>
-            <p
-              style={{
-                margin: 0,
-                fontWeight: "bold",
-                fontSize: "14px",
-                color: "#333",
-              }}
+          )}
+          {isOpen && (
+            <button
+              onClick={handleLogout}
+              style={styles.logoutBtn}
+              title="로그아웃"
             >
-              {user ? user.name : "Guest User"}
-            </p>
-            <p style={{ margin: 0, fontSize: "11px", color: "#999" }}>
-              {user ? `${user.dept} / ${user.role}` : "Please Login"}
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            style={{
-              ...styles.logoutBtn,
-              opacity: isOpen ? 1 : 0,
-              width: isOpen ? "30px" : 0,
-              pointerEvents: isOpen ? "auto" : "none",
-            }}
-            title="로그아웃"
-          >
-            <FaSignOutAlt size={16} />
-          </button>
+              <FaSignOutAlt size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-// 1. 단일 메뉴 아이템 (예: 대시보드)
-const MenuItem = ({ to, icon, label, isOpen, isActive }) => (
-  <li style={styles.li}>
-    <Link
-      to={to}
-      style={{
-        ...styles.link,
-        color: isActive ? ACTIVE_TEXT_COLOR : TEXT_COLOR,
-        backgroundColor: isActive ? ACTIVE_BG_COLOR : "transparent",
-        fontWeight: isActive ? "700" : "500",
-        borderRight:
-          isActive && !isOpen
-            ? `3px solid ${THEME_COLOR}`
-            : "3px solid transparent",
-      }}
-    >
-      <div style={styles.iconBox}>{icon}</div>
-      <div
-        style={{
-          ...styles.textBox,
-          opacity: isOpen ? 1 : 0,
-          width: isOpen ? "auto" : 0,
-        }}
-      >
-        {label}
-      </div>
-    </Link>
-  </li>
-);
+// --- Sub Components ---
+// MenuDropdown, SubMenuItem 컴포넌트는 기존과 동일
 
-// 2. 그룹 메뉴 헤더 (예: Material, Production 등)
 const MenuDropdown = ({
   title,
   icon,
   isOpen,
   isExpanded,
+  isActive,
   onClick,
   children,
-}) => {
-  return (
-    <li style={styles.li}>
-      <div
-        onClick={onClick}
+}) => (
+  <li style={{ listStyle: "none", marginBottom: "5px" }}>
+    <div
+      onClick={onClick}
+      style={{
+        ...styles.link,
+        justifyContent: isOpen ? "flex-start" : "center",
+        cursor: "pointer",
+        color: isActive ? ACTIVE_TEXT_COLOR : TEXT_COLOR,
+        backgroundColor:
+          isActive && !isExpanded ? ACTIVE_BG_COLOR : "transparent",
+      }}
+    >
+      <span
         style={{
-          ...styles.link,
-          cursor: "pointer",
-          color: TEXT_COLOR,
-          backgroundColor: "transparent",
-          fontWeight: "500",
+          fontSize: "20px",
+          display: "flex",
+          alignItems: "center",
+          minWidth: "20px",
         }}
       >
-        <div style={styles.iconBox}>{icon}</div>
-        <div
-          style={{
-            ...styles.textBox,
-            opacity: isOpen ? 1 : 0,
-            width: isOpen ? "auto" : 0,
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <span>{title}</span>
+        {icon}
+      </span>
+      {isOpen && (
+        <>
           <span
-            style={{ fontSize: "10px", color: "#aaa", marginRight: "10px" }}
+            style={{
+              marginLeft: "15px",
+              flex: 1,
+              fontWeight: isActive ? "700" : "500",
+              whiteSpace: "nowrap",
+            }}
           >
+            {title}
+          </span>
+          <span style={{ fontSize: "10px", color: "#aaa" }}>
             {isExpanded ? <FaChevronUp /> : <FaChevronDown />}
           </span>
-        </div>
-      </div>
+        </>
+      )}
+    </div>
+    {isOpen && isExpanded && <ul style={styles.subUl}>{children}</ul>}
+  </li>
+);
 
-      {isOpen && isExpanded && <ul style={styles.subUl}>{children}</ul>}
-    </li>
-  );
-};
-
-// 3. 서브 메뉴 아이템
 const SubMenuItem = ({ to, label, currentPath }) => {
   const isSubActive = currentPath === to;
   return (
@@ -451,7 +402,6 @@ const SubMenuItem = ({ to, label, currentPath }) => {
         to={to}
         style={{
           ...styles.subLink,
-          // 여기서만 적용 (배경색 + 글자색)
           color: isSubActive ? ACTIVE_TEXT_COLOR : "#888",
           fontWeight: isSubActive ? "700" : "400",
           backgroundColor: isSubActive ? ACTIVE_BG_COLOR : "transparent",
@@ -475,7 +425,7 @@ const styles = {
     height: "100vh",
     backgroundColor: BG_COLOR,
     display: "flex",
-    flexDirection: "column",
+    flexDirection: "column", // 세로 정렬
     transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     boxShadow: "4px 0 15px rgba(0,0,0,0.03)",
     borderRight: "1px solid #f0f0f0",
@@ -486,146 +436,89 @@ const styles = {
   },
   header: {
     height: "80px",
-    minHeight: "80px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    padding: "0 20px",
     borderBottom: "1px solid #f9f9f9",
-    position: "relative",
-    boxSizing: "border-box",
-    padding: 0,
-    margin: 0,
+    flexShrink: 0, // 헤더 크기 고정
   },
-  logoContainer: {
-    width: "100%",
-    height: "100%",
+  logoIcon: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "12px",
+    backgroundColor: THEME_COLOR,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    cursor: "pointer",
-    overflow: "hidden",
-    padding: 0,
+    boxShadow: "0 4px 10px rgba(140, 133, 255, 0.3)",
+    flexShrink: 0,
+  },
+  logoText: {
     margin: 0,
+    color: "#333",
+    fontSize: "20px",
+    fontWeight: "800",
+    fontFamily: "'Nunito', sans-serif",
   },
   toggleBtn: {
     background: "transparent",
     border: "none",
     cursor: "pointer",
-    padding: "10px",
+    padding: "5px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    position: "absolute",
-    right: "10px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    zIndex: 10,
   },
-  menuContainer: {
-    flex: 1,
-    padding: "10px 0",
-    overflowY: "auto",
-    scrollbarWidth: "none",
+  // [수정] 메뉴 리스트 영역 스타일 (Flex 1로 남은 공간 차지)
+  menuList: {
+    flex: 1, // 남은 공간을 모두 차지하여 프로필을 아래로 밈
+    padding: "15px",
+    margin: 0,
+    overflowY: "auto", // 내용이 많으면 스크롤
+    overflowX: "hidden",
+    scrollbarWidth: "none", // 스크롤바 숨김 (Firefox)
+    "&::-webkit-scrollbar": { display: "none" }, // 스크롤바 숨김 (Chrome)
   },
-  ul: { padding: 0, margin: 0 },
-  li: { listStyle: "none", marginBottom: "4px" },
-  divider: { height: "1px", backgroundColor: "#f0f0f0", margin: "10px 0" },
   link: {
     display: "flex",
     alignItems: "center",
-    height: "48px",
+    padding: "12px 15px",
+    borderRadius: "12px",
     textDecoration: "none",
-    transition: "background-color 0.2s, color 0.2s",
-    width: "100%",
-    position: "relative",
-    borderLeft: "3px solid transparent",
-  },
-  iconBox: {
-    width: "80px",
-    minWidth: "80px",
-    height: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  textBox: {
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    transition: "opacity 0.2s ease, width 0.2s ease",
+    transition: "all 0.2s ease-in-out",
+    marginBottom: "2px",
+    "&:hover": { backgroundColor: "#FAFAFA" },
   },
   subUl: {
-    padding: "5px 0 5px 0",
+    padding: "5px 0 5px 20px",
     margin: 0,
-    backgroundColor: "#fafafa",
+    borderLeft: "2px solid #f5f5f5",
+    marginLeft: "25px",
   },
   subLink: {
     display: "flex",
     alignItems: "center",
-    height: "40px",
-    paddingLeft: "80px",
+    padding: "10px 15px",
+    borderRadius: "8px",
     textDecoration: "none",
     fontSize: "13px",
-    transition: "background-color 0.2s",
+    transition: "all 0.2s",
   },
   dot: {
-    width: "5px",
-    height: "5px",
+    width: "6px",
+    height: "6px",
     borderRadius: "50%",
     marginRight: "10px",
     flexShrink: 0,
   },
-  bannerCard: {
-    backgroundColor: THEME_COLOR,
-    borderRadius: "20px",
-    color: "#fff",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    textAlign: "center",
-    boxShadow: "0 8px 20px rgba(140, 133, 255, 0.25)",
-    position: "relative",
-  },
-  bannerIconCircle: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "50%",
-    backgroundColor: "rgba(255,255,255,0.2)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bannerBtn: {
-    backgroundColor: "#fff",
-    color: THEME_COLOR,
-    border: "none",
-    borderRadius: "10px",
-    padding: "8px 16px",
-    fontSize: "12px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    marginTop: "10px",
-    width: "100%",
-  },
+  // [수정] 프로필 영역 스타일 (하단 고정 및 크기 고정)
   profileSection: {
-    height: "70px",
+    padding: "20px",
     borderTop: "1px solid #f0f0f0",
     display: "flex",
     alignItems: "center",
     backgroundColor: "#fff",
-    overflow: "hidden",
-  },
-  profileContainer: {
-    display: "flex",
-    alignItems: "center",
-    width: "100%",
-    gap: "12px",
-  },
-  avatarWrapper: {
-    width: "80px",
-    minWidth: "80px",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
+    flexShrink: 0, // 화면이 줄어들어도 찌그러지지 않음
   },
   avatar: {
     width: "40px",
@@ -636,13 +529,6 @@ const styles = {
     border: "2px solid #fff",
     boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
   },
-  profileText: {
-    flex: 1,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    transition: "opacity 0.2s ease",
-  },
-
   logoutBtn: {
     background: "transparent",
     border: "none",
@@ -653,8 +539,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    transition: "opacity 0.2s",
-    marginRight: "10px",
+    transition: "background 0.2s, color 0.2s",
+    "&:hover": { backgroundColor: "#f5f5f5", color: "#FF4444" },
   },
 };
 
