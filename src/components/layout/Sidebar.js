@@ -27,7 +27,7 @@ const ACTIVE_BG_COLOR = "#F3F1FF";
 
 const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(true);
-  const [activeMenu, setActiveMenu] = useState(null); // 펼쳐진 메뉴 관리
+  const [activeMenu, setActiveMenu] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -59,8 +59,8 @@ const Sidebar = () => {
             src={logoImage}
             alt="MedisOne Logo"
             style={{
-              height: "36px",
-              width: isOpen ? "130px" : "40px",
+              height: "75px",
+              width: isOpen ? "200px" : "50px",
               objectFit: "contain",
               transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
               display: "block",
@@ -365,8 +365,6 @@ const Sidebar = () => {
   );
 };
 
-// --- Sub Components (로직 대폭 단순화) ---
-
 // 1. 단일 메뉴 아이템 (예: 대시보드)
 const MenuItem = ({ to, icon, label, isOpen, isActive }) => (
   <li style={styles.li}>
@@ -374,7 +372,6 @@ const MenuItem = ({ to, icon, label, isOpen, isActive }) => (
       to={to}
       style={{
         ...styles.link,
-        // isActive일 때만 색상 적용 (심플)
         color: isActive ? ACTIVE_TEXT_COLOR : TEXT_COLOR,
         backgroundColor: isActive ? ACTIVE_BG_COLOR : "transparent",
         fontWeight: isActive ? "700" : "500",
@@ -407,10 +404,6 @@ const MenuDropdown = ({
   onClick,
   children,
 }) => {
-  // [중요] isActive prop을 아예 제거했습니다.
-  // 부모 메뉴는 오직 '펼쳐졌느냐(isExpanded)'에 따라 화살표만 바뀝니다.
-  // 색상은 변하지 않으므로, 하위 메뉴 선택 시 부모 색상이 남는 문제가 원천 차단됩니다.
-
   return (
     <li style={styles.li}>
       <div
@@ -418,8 +411,8 @@ const MenuDropdown = ({
         style={{
           ...styles.link,
           cursor: "pointer",
-          color: TEXT_COLOR, // 항상 기본 색상 (하위 메뉴가 선택되어도 부모는 색 안 바뀜)
-          backgroundColor: "transparent", // 항상 투명
+          color: TEXT_COLOR,
+          backgroundColor: "transparent",
           fontWeight: "500",
         }}
       >
@@ -443,13 +436,13 @@ const MenuDropdown = ({
           </span>
         </div>
       </div>
-      {/* 서브메뉴 렌더링 */}
+
       {isOpen && isExpanded && <ul style={styles.subUl}>{children}</ul>}
     </li>
   );
 };
 
-// 3. 서브 메뉴 아이템 (실제 페이지 링크)
+// 3. 서브 메뉴 아이템
 const SubMenuItem = ({ to, label, currentPath }) => {
   const isSubActive = currentPath === to;
   return (
@@ -458,7 +451,7 @@ const SubMenuItem = ({ to, label, currentPath }) => {
         to={to}
         style={{
           ...styles.subLink,
-          // 여기서만 활성화 스타일 적용 (배경색 + 글자색)
+          // 여기서만 적용 (배경색 + 글자색)
           color: isSubActive ? ACTIVE_TEXT_COLOR : "#888",
           fontWeight: isSubActive ? "700" : "400",
           backgroundColor: isSubActive ? ACTIVE_BG_COLOR : "transparent",
@@ -476,7 +469,7 @@ const SubMenuItem = ({ to, label, currentPath }) => {
   );
 };
 
-// --- Styles (기존 유지) ---
+// --- Styles ---
 const styles = {
   sidebar: {
     height: "100vh",
@@ -649,6 +642,7 @@ const styles = {
     whiteSpace: "nowrap",
     transition: "opacity 0.2s ease",
   },
+
   logoutBtn: {
     background: "transparent",
     border: "none",
