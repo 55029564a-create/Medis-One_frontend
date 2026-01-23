@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -13,9 +13,10 @@ import {
   FaWarehouse,
   FaAngleDoubleLeft,
   FaSitemap,
-  FaMicrochip,
 } from "react-icons/fa";
 import { MdDashboard } from "react-icons/md";
+
+import logoImage from "../../assets/logo.png";
 
 // 🎨 MedisOne 테마 컬러
 const THEME_COLOR = "#8C85FF";
@@ -29,16 +30,36 @@ const Sidebar = () => {
   const [activeMenu, setActiveMenu] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const sidebarRef = useRef(null);
 
   const { user, logout } = useAuth();
 
-  // [수정 1] 외부 클릭 감지 useEffect 제거함 (이제 메인 화면 클릭해도 안 닫힘)
+  // --- 1. 외부 클릭 시 사이드바 닫기 ---
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        isOpen &&
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+        setActiveMenu(null);
+      }
+    };
 
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // --- 2. 토글 핸들러 ---
   const toggleSidebar = () => {
     setIsOpen(!isOpen);
     if (!isOpen) setActiveMenu(null);
   };
 
+  // --- 3. 메뉴 드롭다운 토글 ---
   const toggleSubMenu = (menuName) => {
     if (!isOpen) {
       setIsOpen(true);
@@ -48,6 +69,7 @@ const Sidebar = () => {
     }
   };
 
+  // --- 4. 로그아웃 핸들러 ---
   const handleLogout = () => {
     if (window.confirm("로그아웃 하시겠습니까?")) {
       logout();
@@ -57,36 +79,39 @@ const Sidebar = () => {
 
   return (
     <div
+      ref={sidebarRef}
       style={{
         ...styles.sidebar,
         width: isOpen ? "260px" : "80px",
       }}
     >
-      {/* ================= HEADER ================= */}
+      {/* ================= HEADER (로고 & 토글) ================= */}
       <div style={styles.header} onClick={toggleSidebar}>
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "12px",
             cursor: "pointer",
+            flex: 1,
+            overflow: "hidden",
+            // ▼▼▼ [수정] 항상 가운데 정렬로 변경 ▼▼▼
+            justifyContent: "center",
           }}
         >
-          <div style={styles.logoIcon}>
-            <MdDashboard size={24} color="#fff" />
-          </div>
-          <div
+          <img
+            src={logoImage}
+            alt="MedisOne Logo"
             style={{
-              opacity: isOpen ? 1 : 0,
-              width: isOpen ? "auto" : 0,
-              overflow: "hidden",
-              whiteSpace: "nowrap",
-              transition: "opacity 0.2s",
+              height: "75px",
+              objectFit: "contain",
+              flexShrink: 0,
+              transition: "all 0.3s ease",
+              width: isOpen ? "200px" : "50px",
+              marginLeft: 0,
             }}
-          >
-            <h2 style={styles.logoText}>MedisOne</h2>
-          </div>
+          />
         </div>
+
         {isOpen && (
           <button style={styles.toggleBtn}>
             <FaAngleDoubleLeft color="#ccc" />
@@ -94,193 +119,251 @@ const Sidebar = () => {
         )}
       </div>
 
-      {/* [수정 2] 메뉴 영역을 ul 태그로 감싸고 styles.menuList 적용 
-        flex: 1 속성 덕분에 이 영역이 남은 공간을 다 차지하여
-        프로필을 바닥으로 밀어냄
-      */}
-      <ul style={styles.menuList}>
-        <MenuDropdown
-          title="Material"
-          icon={<FaBoxOpen size={20} />}
-          isOpen={isOpen}
-          isExpanded={activeMenu === "material"}
-          onClick={() => toggleSubMenu("material")}
-        >
-          <SubMenuItem
-            to="/material/inout"
-            label="자재 입출고"
-            currentPath={location.pathname}
+      <div style={styles.menuContainer}>
+        <ul style={styles.ul}>
+          {/* 1. 대시보드 */}
+          <MenuItem
+            to="/dashboard"
+            icon={<MdDashboard />}
+            label="Dashboard"
+            isOpen={isOpen}
+            isActive={location.pathname === "/dashboard"}
           />
-          <SubMenuItem
-            to="/material/history"
-            label="입/출고 이력"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/material/lot"
-            label="LOT 추적"
-            currentPath={location.pathname}
-          />
-        </MenuDropdown>
-        <MenuDropdown
-          title="Inventory"
-          icon={<FaWarehouse size={20} />}
-          isOpen={isOpen}
-          isExpanded={activeMenu === "inventory"}
-          onClick={() => toggleSubMenu("inventory")}
-        >
-          <SubMenuItem
-            to="/inventory/current"
-            label="재고 현황"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/inventory/history"
-            label="재고 이력"
-            currentPath={location.pathname}
-          />
-        </MenuDropdown>
-        <MenuDropdown
-          title="Production"
-          icon={<FaIndustry size={20} />}
-          isOpen={isOpen}
-          isExpanded={activeMenu === "production"}
-          onClick={() => toggleSubMenu("production")}
-        >
-          <SubMenuItem
-            to="/production/schedule"
-            label="생산 계획"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/production/order"
-            label="작업 지시서"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/production/report"
-            label="생산 실적"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/production/product"
-            label="제품 관리"
-            currentPath={location.pathname}
-          />
-        </MenuDropdown>
-        <MenuDropdown
-          title="Process"
-          icon={<FaMicrochip size={20} />}
-          isOpen={isOpen}
-          isExpanded={activeMenu === "process"}
-          onClick={() => toggleSubMenu("process")}
-        >
-          <SubMenuItem
-            to="/process/bonding"
-            label="본딩(Bonding)"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/process/assembly"
-            label="조립(Assembly)"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/process/aging"
-            label="에이징(Aging)"
-            currentPath={location.pathname}
-          />
-        </MenuDropdown>
-        <MenuDropdown
-          title="Quality"
-          icon={<FaCogs size={20} />}
-          isOpen={isOpen}
-          isExpanded={activeMenu === "quality"}
-          onClick={() => toggleSubMenu("quality")}
-        >
-          <SubMenuItem
-            to="/equipment"
-            label="설비 모니터링"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/quality/defect"
-            label="불량 등록/현황"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/quality/calibration"
-            label="캘리브레이션"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/quality/reliability"
-            label="신뢰성 테스트"
-            currentPath={location.pathname}
-          />
-        </MenuDropdown>
-        <MenuDropdown
-          title="Traceability"
-          icon={<FaSitemap size={20} />}
-          isOpen={isOpen}
-          isExpanded={activeMenu === "traceability"}
-          onClick={() => toggleSubMenu("traceability")}
-        >
-          <SubMenuItem
-            to="/traceability/dhr"
-            label="이력 추적 (DHR)"
-            currentPath={location.pathname}
-          />
-        </MenuDropdown>
-        <MenuDropdown
-          title="Support"
-          icon={<FaUtensils size={20} />}
-          isOpen={isOpen}
-          isExpanded={activeMenu === "support"}
-          onClick={() => toggleSubMenu("support")}
-        >
-          <SubMenuItem
-            to="/support/notice"
-            label="공지사항"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/support/cafeteria"
-            label="식단표"
-            currentPath={location.pathname}
-          />
-        </MenuDropdown>
-        <MenuDropdown
-          title="Admin"
-          icon={<FaUserCog size={20} />}
-          isOpen={isOpen}
-          isExpanded={activeMenu === "admin"}
-          onClick={() => toggleSubMenu("admin")}
-        >
-          <SubMenuItem
-            to="/admin/employees"
-            label="사원 관리"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/admin/process"
-            label="공정 관리"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/admin/work-order"
-            label="작업 지시 관리"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/admin/production-order"
-            label="생산 지시 관리"
-            currentPath={location.pathname}
-          />
-        </MenuDropdown>
-      </ul>
 
-      {/* ================= BOTTOM (Profile) ================= */}
+          <div style={styles.divider}></div>
+
+          {/* 2. 자재 관리 */}
+          <MenuDropdown
+            title="Material"
+            icon={<FaBoxOpen />}
+            isOpen={isOpen}
+            isExpanded={activeMenu === "material"}
+            isActive={location.pathname.startsWith("/material")}
+            onClick={() => toggleSubMenu("material")}
+          >
+            <SubMenuItem
+              to="/material/inout"
+              label="자재 입출고"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/material/history"
+              label="입/출고 이력"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/material/lot"
+              label="LOT 추적"
+              currentPath={location.pathname}
+            />
+          </MenuDropdown>
+
+          {/* 3. 재고 관리 */}
+          <MenuDropdown
+            title="Inventory"
+            icon={<FaWarehouse />}
+            isOpen={isOpen}
+            isExpanded={activeMenu === "inventory"}
+            isActive={location.pathname.startsWith("/inventory")}
+            onClick={() => toggleSubMenu("inventory")}
+          >
+            <SubMenuItem
+              to="/inventory/current"
+              label="재고 현황"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/inventory/history"
+              label="재고 이력"
+              currentPath={location.pathname}
+            />
+          </MenuDropdown>
+
+          {/* 4. 생산 관리 */}
+          <MenuDropdown
+            title="Production"
+            icon={<FaIndustry />}
+            isOpen={isOpen}
+            isExpanded={activeMenu === "production"}
+            isActive={location.pathname.startsWith("/production")}
+            onClick={() => toggleSubMenu("production")}
+          >
+            <SubMenuItem
+              to="/production/schedule"
+              label="생산 일정/지시"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/production/order"
+              label="작업 지시(현장)"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/production/report"
+              label="생산 실적"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/production/product"
+              label="제품 관리"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/production/assembly"
+              label="조립 공정"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/production/bonding"
+              label="본딩 공정"
+              currentPath={location.pathname}
+            />
+          </MenuDropdown>
+
+          {/* 5. 품질/설비 */}
+          <MenuDropdown
+            title="Quality"
+            icon={<FaCogs />}
+            isOpen={isOpen}
+            isExpanded={activeMenu === "quality"}
+            isActive={
+              location.pathname.startsWith("/quality") ||
+              location.pathname.startsWith("/equipment")
+            }
+            onClick={() => toggleSubMenu("quality")}
+          >
+            <SubMenuItem
+              to="/equipment"
+              label="설비 모니터링"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/quality/defect"
+              label="불량 등록/현황"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/quality/rate"
+              label="생산 효율"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/quality/aging"
+              label="에이징 현황"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/quality/calibration"
+              label="캘리브레이션"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/quality/reliability"
+              label="신뢰성 테스트"
+              currentPath={location.pathname}
+            />
+          </MenuDropdown>
+
+          {/* 6. 이력 추적 */}
+          <MenuDropdown
+            title="Traceability"
+            icon={<FaSitemap />}
+            isOpen={isOpen}
+            isExpanded={activeMenu === "traceability"}
+            isActive={location.pathname.startsWith("/traceability")}
+            onClick={() => toggleSubMenu("traceability")}
+          >
+            <SubMenuItem
+              to="/traceability/dhr"
+              label="이력 추적 (DHR)"
+              currentPath={location.pathname}
+            />
+          </MenuDropdown>
+
+          {/* 7. 지원 업무 */}
+          <MenuDropdown
+            title="Support"
+            icon={<FaUtensils />}
+            isOpen={isOpen}
+            isExpanded={activeMenu === "support"}
+            isActive={location.pathname.startsWith("/support")}
+            onClick={() => toggleSubMenu("support")}
+          >
+            <SubMenuItem
+              to="/support/notice"
+              label="공지사항"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/support/cafeteria"
+              label="식단표"
+              currentPath={location.pathname}
+            />
+          </MenuDropdown>
+
+          {/* 8. 관리자 */}
+          <MenuDropdown
+            title="Admin"
+            icon={<FaUserCog />}
+            isOpen={isOpen}
+            isExpanded={activeMenu === "admin"}
+            isActive={location.pathname.startsWith("/admin")}
+            onClick={() => toggleSubMenu("admin")}
+          >
+            <SubMenuItem
+              to="/admin/employees"
+              label="사원 관리"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/admin/process"
+              label="공정 관리"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/admin/work-order"
+              label="작업 지시 관리"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
+              to="/admin/production-order"
+              label="생산 지시 관리"
+              currentPath={location.pathname}
+            />
+          </MenuDropdown>
+        </ul>
+      </div>
+
+      {/* ================= BOTTOM (Banner & Profile) ================= */}
+
+      {isOpen && (
+        <div style={styles.bannerCard}>
+          <div style={styles.bannerIconCircle}>
+            <FaIndustry size={20} color="#fff" />
+          </div>
+          <p
+            style={{
+              margin: "10px 0 5px",
+              fontWeight: "bold",
+              fontSize: "14px",
+            }}
+          >
+            System Status
+          </p>
+          <p
+            style={{
+              margin: "0 0 10px",
+              fontSize: "11px",
+              color: "#fff",
+              opacity: 0.8,
+            }}
+          >
+            All systems operational
+          </p>
+          <button style={styles.bannerBtn}>Check Report</button>
+        </div>
+      )}
+
       <div style={styles.profileSection}>
         <div
           style={{
@@ -298,6 +381,7 @@ const Sidebar = () => {
               style={{ borderRadius: "50%" }}
             />
           </div>
+
           {isOpen && (
             <div style={{ flex: 1, overflow: "hidden" }}>
               <p
@@ -323,6 +407,7 @@ const Sidebar = () => {
               </p>
             </div>
           )}
+
           {isOpen && (
             <button
               onClick={handleLogout}
@@ -339,7 +424,43 @@ const Sidebar = () => {
 };
 
 // --- Sub Components ---
-// MenuDropdown, SubMenuItem 컴포넌트는 기존과 동일
+
+const MenuItem = ({ to, icon, label, isOpen, isActive }) => (
+  <li style={{ listStyle: "none", marginBottom: "5px" }}>
+    <Link
+      to={to}
+      style={{
+        ...styles.link,
+        justifyContent: isOpen ? "flex-start" : "center",
+        color: isActive ? ACTIVE_TEXT_COLOR : TEXT_COLOR,
+        backgroundColor: isActive ? ACTIVE_BG_COLOR : "transparent",
+        borderRight: isActive && !isOpen ? `3px solid ${THEME_COLOR}` : "none",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "20px",
+          display: "flex",
+          alignItems: "center",
+          minWidth: "20px",
+        }}
+      >
+        {icon}
+      </span>
+      {isOpen && (
+        <span
+          style={{
+            marginLeft: "15px",
+            fontWeight: isActive ? "700" : "500",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
+      )}
+    </Link>
+  </li>
+);
 
 const MenuDropdown = ({
   title,
@@ -396,6 +517,7 @@ const MenuDropdown = ({
 
 const SubMenuItem = ({ to, label, currentPath }) => {
   const isSubActive = currentPath === to;
+
   return (
     <li style={{ listStyle: "none", marginBottom: "2px" }}>
       <Link
@@ -419,13 +541,12 @@ const SubMenuItem = ({ to, label, currentPath }) => {
   );
 };
 
-// --- Styles ---
 const styles = {
   sidebar: {
     height: "100vh",
     backgroundColor: BG_COLOR,
     display: "flex",
-    flexDirection: "column", // 세로 정렬
+    flexDirection: "column",
     transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     boxShadow: "4px 0 15px rgba(0,0,0,0.03)",
     borderRight: "1px solid #f0f0f0",
@@ -441,25 +562,6 @@ const styles = {
     justifyContent: "space-between",
     padding: "0 20px",
     borderBottom: "1px solid #f9f9f9",
-    flexShrink: 0, // 헤더 크기 고정
-  },
-  logoIcon: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "12px",
-    backgroundColor: THEME_COLOR,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    boxShadow: "0 4px 10px rgba(140, 133, 255, 0.3)",
-    flexShrink: 0,
-  },
-  logoText: {
-    margin: 0,
-    color: "#333",
-    fontSize: "20px",
-    fontWeight: "800",
-    fontFamily: "'Nunito', sans-serif",
   },
   toggleBtn: {
     background: "transparent",
@@ -468,17 +570,16 @@ const styles = {
     padding: "5px",
     display: "flex",
     alignItems: "center",
+    marginLeft: "10px",
   },
-  // [수정] 메뉴 리스트 영역 스타일 (Flex 1로 남은 공간 차지)
-  menuList: {
-    flex: 1, // 남은 공간을 모두 차지하여 프로필을 아래로 밈
+  menuContainer: {
+    flex: 1,
     padding: "15px",
-    margin: 0,
-    overflowY: "auto", // 내용이 많으면 스크롤
-    overflowX: "hidden",
-    scrollbarWidth: "none", // 스크롤바 숨김 (Firefox)
-    "&::-webkit-scrollbar": { display: "none" }, // 스크롤바 숨김 (Chrome)
+    overflowY: "auto",
+    scrollbarWidth: "none",
   },
+  ul: { padding: 0, margin: 0 },
+  divider: { height: "1px", backgroundColor: "#f0f0f0", margin: "15px 0" },
   link: {
     display: "flex",
     alignItems: "center",
@@ -487,7 +588,9 @@ const styles = {
     textDecoration: "none",
     transition: "all 0.2s ease-in-out",
     marginBottom: "2px",
-    "&:hover": { backgroundColor: "#FAFAFA" },
+    "&:hover": {
+      backgroundColor: "#FAFAFA",
+    },
   },
   subUl: {
     padding: "5px 0 5px 20px",
@@ -511,14 +614,48 @@ const styles = {
     marginRight: "10px",
     flexShrink: 0,
   },
-  // [수정] 프로필 영역 스타일 (하단 고정 및 크기 고정)
+  bannerCard: {
+    margin: "0 20px 20px",
+    padding: "20px",
+    backgroundColor: THEME_COLOR,
+    borderRadius: "20px",
+    color: "#fff",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
+    boxShadow: "0 8px 20px rgba(140, 133, 255, 0.25)",
+    position: "relative",
+    overflow: "hidden",
+  },
+  bannerIconCircle: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "50%",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bannerBtn: {
+    backgroundColor: "#fff",
+    color: THEME_COLOR,
+    border: "none",
+    borderRadius: "10px",
+    padding: "8px 16px",
+    fontSize: "12px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    marginTop: "10px",
+    width: "100%",
+    transition: "transform 0.1s",
+  },
   profileSection: {
     padding: "20px",
     borderTop: "1px solid #f0f0f0",
     display: "flex",
     alignItems: "center",
     backgroundColor: "#fff",
-    flexShrink: 0, // 화면이 줄어들어도 찌그러지지 않음
   },
   avatar: {
     width: "40px",
@@ -540,7 +677,10 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     transition: "background 0.2s, color 0.2s",
-    "&:hover": { backgroundColor: "#f5f5f5", color: "#FF4444" },
+    "&:hover": {
+      backgroundColor: "#f5f5f5",
+      color: "#FF4444",
+    },
   },
 };
 
