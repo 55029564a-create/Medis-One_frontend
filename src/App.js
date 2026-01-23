@@ -15,7 +15,6 @@ import Layout from "./components/layout/Layout";
 
 // 1. 인증
 const Login = lazy(() => import("./pages/Auth/Login"));
-const MyPage = lazy(() => import("./pages/Auth/MyPage"));
 
 // 2. 대시보드
 const Dashboard = lazy(() => import("./pages/Dashboard/Dashboard"));
@@ -88,7 +87,6 @@ const LoadingScreen = styled.div`
 // 📝 라우트 설정
 const ROUTE_CONFIG = [
   { path: "/dashboard", element: <Dashboard />, name: "대시보드" },
-  { path: "/mypage", element: <MyPage />, name: "마이페이지" },
   // 자재
   { path: "/material/inout", element: <MaterialInout />, name: "자재 입출고" },
   {
@@ -119,7 +117,7 @@ const ROUTE_CONFIG = [
   {
     path: "/production/product",
     element: <ProductMgmt />,
-    name: "품목 관리",
+    name: "제품 관리",
   },
   // 프로세스
   {
