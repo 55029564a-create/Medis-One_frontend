@@ -14,9 +14,10 @@ import {
   FaThLarge,
   FaEllipsisV,
   FaUser,
+  FaTimes,
+  FaCheck,
 } from "react-icons/fa";
 
-// 🎨 테마 컬러
 const THEME = {
   primary: "#8C85FF",
   secondary: "#F3F1FF",
@@ -33,14 +34,28 @@ const THEME = {
 const ProductionSchedule = () => {
   const [currentDate, setCurrentDate] = useState("2026년 1월 3주차");
   const [searchTerm, setSearchTerm] = useState("");
-  // ✅ 뷰 모드 상태 (기본값: list)
+
+  // 뷰 모드 상태 (기본값: 'list' -> 리스트가 먼저 보임)
   const [viewMode, setViewMode] = useState("list");
 
-  // 📅 Mock Data
-  const [schedules] = useState([
+  // 모달 상태
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // 입력 폼 상태
+  const [newPlan, setNewPlan] = useState({
+    date: "",
+    line: "Line-A",
+    product: "",
+    planQty: 0,
+    manager: "",
+    isEmergency: false,
+  });
+
+  // Mock Data
+  const [schedules, setSchedules] = useState([
     {
       id: 1,
-      date: "2026-01-14 (수)",
+      date: "2026-01-14",
       line: "Line-A",
       product: "Zoll X Series (Main Unit)",
       planQty: 50,
@@ -52,7 +67,7 @@ const ProductionSchedule = () => {
     },
     {
       id: 2,
-      date: "2026-01-14 (수)",
+      date: "2026-01-14",
       line: "Line-B",
       product: "Propaq M (Casing)",
       planQty: 200,
@@ -64,7 +79,7 @@ const ProductionSchedule = () => {
     },
     {
       id: 3,
-      date: "2026-01-15 (목)",
+      date: "2026-01-15",
       line: "Line-A",
       product: "32인치 4K 모니터",
       planQty: 100,
@@ -76,7 +91,7 @@ const ProductionSchedule = () => {
     },
     {
       id: 4,
-      date: "2026-01-15 (목)",
+      date: "2026-01-15",
       line: "Line-C",
       product: "전원 어댑터 (12V)",
       planQty: 2000,
@@ -88,7 +103,7 @@ const ProductionSchedule = () => {
     },
     {
       id: 5,
-      date: "2026-01-16 (금)",
+      date: "2026-01-16",
       line: "Line-B",
       product: "Corpuls3 (Sensor Module)",
       planQty: 150,
@@ -100,21 +115,62 @@ const ProductionSchedule = () => {
     },
   ]);
 
-  // 🔍 필터링
+  // 필터링
   const filteredSchedules = schedules.filter(
     (item) =>
       item.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.line.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  // KPI
-  const totalPlan = schedules.reduce((acc, cur) => acc + cur.planQty, 0);
-  const totalDone = schedules.reduce((acc, cur) => acc + cur.doneQty, 0);
-  const progressRate = Math.round((totalDone / totalPlan) * 100) || 0;
+  // KPI 계산
+  const totalPlan = schedules.reduce(
+    (acc, cur) => acc + parseInt(cur.planQty || 0),
+    0,
+  );
+  const totalDone = schedules.reduce(
+    (acc, cur) => acc + parseInt(cur.doneQty || 0),
+    0,
+  );
+  const progressRate =
+    totalPlan === 0 ? 0 : Math.round((totalDone / totalPlan) * 100);
+
+  // --- 핸들러 ---
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setNewPlan({
+      ...newPlan,
+      [name]: type === "checkbox" ? checked : value,
+    });
+  };
+
+  const handleSave = () => {
+    if (!newPlan.date || !newPlan.product || !newPlan.planQty) {
+      alert("필수 항목(날짜, 품목명, 수량)을 입력해주세요.");
+      return;
+    }
+    const newItem = {
+      id: Date.now(),
+      ...newPlan,
+      doneQty: 0,
+      status: "예정",
+      materialStatus: "Checking",
+    };
+    setSchedules([newItem, ...schedules]);
+    setIsModalOpen(false);
+    setNewPlan({
+      date: "",
+      line: "Line-A",
+      product: "",
+      planQty: 0,
+      manager: "",
+      isEmergency: false,
+    });
+    alert("등록되었습니다.");
+  };
 
   return (
     <div style={styles.container}>
-      {/* Header & KPI (생략 없이 유지) */}
+      {/* 1. Header */}
       <div style={styles.header}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <FaCalendarAlt size={24} color={THEME.primary} />
@@ -131,6 +187,7 @@ const ProductionSchedule = () => {
         </div>
       </div>
 
+      {/* 2. KPI Cards */}
       <div style={styles.kpiContainer}>
         <KpiCard
           title="총 계획 수량"
@@ -152,7 +209,7 @@ const ProductionSchedule = () => {
         />
       </div>
 
-      {/* Toolbar */}
+      {/* 3. Toolbar (뷰 전환 버튼 포함) */}
       <div style={styles.toolbar}>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <div style={styles.searchBox}>
@@ -164,8 +221,7 @@ const ProductionSchedule = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
-          {/* ✅ 뷰 모드 토글 버튼 (실제 기능 작동) */}
+          {/* 뷰 모드 전환 버튼 */}
           <div style={styles.toggleContainer}>
             <button
               style={
@@ -192,13 +248,18 @@ const ProductionSchedule = () => {
           <button style={styles.outlineBtn}>
             <FaFileDownload style={{ marginRight: "6px" }} /> 엑셀
           </button>
-          <button style={styles.primaryBtn}>+ 계획 등록</button>
+          <button
+            style={styles.primaryBtn}
+            onClick={() => setIsModalOpen(true)}
+          >
+            + 계획 등록
+          </button>
         </div>
       </div>
 
-      {/* ✅ 뷰 모드에 따라 다른 컴포넌트 렌더링 */}
+      {/* 4. Main Content (조건부 렌더링: 리스트 또는 그리드) */}
       {viewMode === "list" ? (
-        // 1. 리스트 뷰 (테이블 형태)
+        // [A] 리스트 뷰 (기존 테이블 형태)
         <div style={styles.tableContainer}>
           <table style={styles.table}>
             <thead>
@@ -223,25 +284,137 @@ const ProductionSchedule = () => {
           </table>
         </div>
       ) : (
-        // 2. 그리드 뷰 (카드 형태)
+        // [B] 그리드 뷰 (카드 형태)
         <div style={styles.gridContainer}>
           {filteredSchedules.map((item) => (
             <ScheduleCard key={item.id} item={item} />
           ))}
         </div>
       )}
+
+      {/* 5. Modal (등록 팝업) */}
+      {isModalOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h3>📝 신규 생산 계획 등록</h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                style={styles.closeBtn}
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>생산 일자</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={newPlan.date}
+                  onChange={handleInputChange}
+                  style={styles.input}
+                />
+              </div>
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>라인</label>
+                  <select
+                    name="line"
+                    value={newPlan.line}
+                    onChange={handleInputChange}
+                    style={styles.select}
+                  >
+                    <option value="Line-A">Line-A (조립)</option>
+                    <option value="Line-B">Line-B (가공)</option>
+                    <option value="Line-C">Line-C (검사)</option>
+                  </select>
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>긴급 여부</label>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      height: "45px",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      name="isEmergency"
+                      checked={newPlan.isEmergency}
+                      onChange={handleInputChange}
+                      style={{ width: "20px", height: "20px" }}
+                    />
+                    <span
+                      style={{
+                        marginLeft: "8px",
+                        color: newPlan.isEmergency ? THEME.danger : "#666",
+                      }}
+                    >
+                      긴급
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>품목명</label>
+                <input
+                  type="text"
+                  name="product"
+                  value={newPlan.product}
+                  onChange={handleInputChange}
+                  style={styles.input}
+                  placeholder="품목명 입력"
+                />
+              </div>
+              <div style={styles.row}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>수량</label>
+                  <input
+                    type="number"
+                    name="planQty"
+                    value={newPlan.planQty}
+                    onChange={handleInputChange}
+                    style={styles.input}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>담당자</label>
+                  <input
+                    type="text"
+                    name="manager"
+                    value={newPlan.manager}
+                    onChange={handleInputChange}
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                style={styles.cancelBtn}
+              >
+                취소
+              </button>
+              <button onClick={handleSave} style={styles.saveBtn}>
+                <FaCheck style={{ marginRight: "5px" }} /> 저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-// --- Sub Components ---
-
-// 1. 리스트 뷰용 행 컴포넌트
+// [A] 리스트 뷰
 const ScheduleRow = ({ item }) => {
-  const percent = Math.min(
-    Math.round((item.doneQty / item.planQty) * 100),
-    100,
-  );
+  const percent =
+    item.planQty > 0
+      ? Math.min(Math.round((item.doneQty / item.planQty) * 100), 100)
+      : 0;
   return (
     <tr style={styles.tbodyTr}>
       <td style={styles.td}>
@@ -281,12 +454,12 @@ const ScheduleRow = ({ item }) => {
   );
 };
 
-// 2. 그리드 뷰용 카드 컴포넌트 (NEW)
+// [B] 그리드 뷰
 const ScheduleCard = ({ item }) => {
-  const percent = Math.min(
-    Math.round((item.doneQty / item.planQty) * 100),
-    100,
-  );
+  const percent =
+    item.planQty > 0
+      ? Math.min(Math.round((item.doneQty / item.planQty) * 100), 100)
+      : 0;
   return (
     <div style={styles.card}>
       <div
@@ -306,7 +479,6 @@ const ScheduleCard = ({ item }) => {
           <FaEllipsisV />
         </button>
       </div>
-
       <h3 style={{ margin: "0 0 5px 0", fontSize: "16px", color: THEME.text }}>
         {item.product}
       </h3>
@@ -316,7 +488,6 @@ const ScheduleCard = ({ item }) => {
           {item.line}
         </span>
       </p>
-
       <div style={{ marginBottom: "15px" }}>
         <div
           style={{
@@ -345,7 +516,6 @@ const ScheduleCard = ({ item }) => {
           {item.doneQty} / {item.planQty} EA
         </div>
       </div>
-
       <div
         style={{
           display: "flex",
@@ -394,6 +564,8 @@ const StatusBadge = ({ status }) => {
     style = { backgroundColor: `${THEME.success}20`, color: THEME.success };
   if (status === "대기")
     style = { backgroundColor: `${THEME.warning}20`, color: THEME.warning };
+  if (status === "예정")
+    style = { backgroundColor: `${THEME.secondary}`, color: THEME.gray };
   return <span style={{ ...styles.badge, ...style }}>{status}</span>;
 };
 
@@ -455,6 +627,10 @@ const styles = {
     border: "none",
     cursor: "pointer",
     color: THEME.gray,
+    display: "flex",
+    alignItems: "center",
+    padding: "5px",
+    fontSize: "14px",
   },
 
   kpiContainer: { display: "flex", gap: "20px", marginBottom: "30px" },
@@ -508,6 +684,7 @@ const styles = {
     fontSize: "14px",
   },
 
+  // Toggle Buttons
   toggleContainer: {
     display: "flex",
     backgroundColor: THEME.white,
@@ -601,7 +778,7 @@ const styles = {
     ":hover": { transform: "translateY(-5px)" },
   },
 
-  // Components
+  // Badges & Bars
   badge: {
     padding: "5px 10px",
     borderRadius: "20px",
@@ -637,6 +814,90 @@ const styles = {
     padding: "5px",
   },
   emptyState: { padding: "40px", textAlign: "center", color: THEME.gray },
+
+  // Modal
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: "16px",
+    width: "500px",
+    padding: "30px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+  },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "20px",
+    borderBottom: `1px solid ${THEME.border}`,
+    paddingBottom: "15px",
+  },
+  closeBtn: {
+    background: "transparent",
+    border: "none",
+    fontSize: "20px",
+    cursor: "pointer",
+    color: "#999",
+  },
+  modalBody: { display: "flex", flexDirection: "column", gap: "15px" },
+  formGroup: { display: "flex", flexDirection: "column", flex: 1 },
+  label: {
+    fontSize: "13px",
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: "5px",
+  },
+  input: {
+    padding: "10px",
+    borderRadius: "8px",
+    border: `1px solid ${THEME.border}`,
+    fontSize: "14px",
+  },
+  select: {
+    padding: "10px",
+    borderRadius: "8px",
+    border: `1px solid ${THEME.border}`,
+    fontSize: "14px",
+  },
+  row: { display: "flex", gap: "15px" },
+  modalFooter: {
+    marginTop: "25px",
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "10px",
+    paddingTop: "20px",
+    borderTop: `1px solid ${THEME.border}`,
+  },
+  saveBtn: {
+    backgroundColor: THEME.primary,
+    color: "#fff",
+    padding: "10px 20px",
+    borderRadius: "8px",
+    border: "none",
+    fontWeight: "bold",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+  },
+  cancelBtn: {
+    backgroundColor: "#f0f0f0",
+    color: "#333",
+    padding: "10px 20px",
+    borderRadius: "8px",
+    border: "none",
+    cursor: "pointer",
+  },
 };
 
 export default ProductionSchedule;
