@@ -39,7 +39,7 @@ const ProductionSchedule = lazy(
   () => import("./pages/Production/ProductionSchedule"),
 );
 const WorkReport = lazy(() => import("./pages/Production/WorkReport"));
-const ProductManagement = lazy(() => import("./pages/ProductManagement"));
+const ProductMgmt = lazy(() => import("./pages/Production/ProductMgmt"));
 
 // 6. 프로세스
 const ProcessAssembly = lazy(() => import("./pages/Process/ProcessAssembly"));
@@ -118,8 +118,8 @@ const ROUTE_CONFIG = [
   { path: "/production/report", element: <WorkReport />, name: "생산 실적" },
   {
     path: "/production/product",
-    element: <ProductManagement />,
-    name: "품목 관리",
+    element: <ProductMgmt />,
+    name: "제품 관리",
   },
   // 프로세스
   {
