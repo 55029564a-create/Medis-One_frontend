@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -13,12 +13,12 @@ import {
   FaWarehouse,
   FaAngleDoubleLeft,
   FaSitemap,
-  FaMicrochip,
 } from "react-icons/fa";
 import { MdDashboard } from "react-icons/md";
 
 import logoImage from "../../assets/logo.png";
 
+// 🎨 MedisOne 테마 컬러
 const THEME_COLOR = "#8C85FF";
 const BG_COLOR = "#FFFFFF";
 const TEXT_COLOR = "#888";
@@ -30,10 +30,36 @@ const Sidebar = () => {
   const [activeMenu, setActiveMenu] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const sidebarRef = useRef(null);
+
   const { user, logout } = useAuth();
 
-  const toggleSidebar = () => setIsOpen(!isOpen);
+  // --- 1. 외부 클릭 시 사이드바 닫기 ---
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        isOpen &&
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+        setActiveMenu(null);
+      }
+    };
 
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // --- 2. 토글 핸들러 ---
+  const toggleSidebar = () => {
+    setIsOpen(!isOpen);
+    if (!isOpen) setActiveMenu(null);
+  };
+
+  // --- 3. 메뉴 드롭다운 토글 ---
   const toggleSubMenu = (menuName) => {
     if (!isOpen) {
       setIsOpen(true);
@@ -43,6 +69,7 @@ const Sidebar = () => {
     }
   };
 
+  // --- 4. 로그아웃 핸들러 ---
   const handleLogout = () => {
     if (window.confirm("로그아웃 하시겠습니까?")) {
       logout();
@@ -51,48 +78,67 @@ const Sidebar = () => {
   };
 
   return (
-    <div style={{ ...styles.sidebar, width: isOpen ? "260px" : "80px" }}>
-      {/* HEADER */}
-      <div style={styles.header}>
-        <div style={styles.logoContainer} onClick={toggleSidebar}>
+    <div
+      ref={sidebarRef}
+      style={{
+        ...styles.sidebar,
+        width: isOpen ? "260px" : "80px",
+      }}
+    >
+      {/* ================= HEADER (로고 & 토글) ================= */}
+      <div style={styles.header} onClick={toggleSidebar}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            cursor: "pointer",
+            flex: 1,
+            overflow: "hidden",
+            // ▼▼▼ [수정] 항상 가운데 정렬로 변경 ▼▼▼
+            justifyContent: "center",
+          }}
+        >
           <img
             src={logoImage}
             alt="MedisOne Logo"
             style={{
               height: "75px",
-              width: isOpen ? "200px" : "50px",
               objectFit: "contain",
-              transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-              display: "block",
+              flexShrink: 0,
+              transition: "all 0.3s ease",
+              width: isOpen ? "200px" : "50px",
+              marginLeft: 0,
             }}
           />
         </div>
+
         {isOpen && (
-          <button style={styles.toggleBtn} onClick={toggleSidebar}>
+          <button style={styles.toggleBtn}>
             <FaAngleDoubleLeft color="#ccc" />
           </button>
         )}
       </div>
 
-      {/* MENU LIST */}
       <div style={styles.menuContainer}>
         <ul style={styles.ul}>
-          {/* 단일 메뉴 (대시보드) */}
+          {/* 1. 대시보드 */}
           <MenuItem
             to="/dashboard"
-            icon={<MdDashboard size={20} />}
+            icon={<MdDashboard />}
             label="Dashboard"
             isOpen={isOpen}
             isActive={location.pathname === "/dashboard"}
           />
+
           <div style={styles.divider}></div>
 
-          {/* 그룹 메뉴들 */}
+          {/* 2. 자재 관리 */}
           <MenuDropdown
             title="Material"
-            icon={<FaBoxOpen size={20} />}
+            icon={<FaBoxOpen />}
             isOpen={isOpen}
             isExpanded={activeMenu === "material"}
+            isActive={location.pathname.startsWith("/material")}
             onClick={() => toggleSubMenu("material")}
           >
             <SubMenuItem
@@ -112,11 +158,13 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
+          {/* 3. 재고 관리 */}
           <MenuDropdown
             title="Inventory"
-            icon={<FaWarehouse size={20} />}
+            icon={<FaWarehouse />}
             isOpen={isOpen}
             isExpanded={activeMenu === "inventory"}
+            isActive={location.pathname.startsWith("/inventory")}
             onClick={() => toggleSubMenu("inventory")}
           >
             <SubMenuItem
@@ -131,21 +179,23 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
+          {/* 4. 생산 관리 */}
           <MenuDropdown
             title="Production"
-            icon={<FaIndustry size={20} />}
+            icon={<FaIndustry />}
             isOpen={isOpen}
             isExpanded={activeMenu === "production"}
+            isActive={location.pathname.startsWith("/production")}
             onClick={() => toggleSubMenu("production")}
           >
             <SubMenuItem
               to="/production/schedule"
-              label="생산 계획"
+              label="생산 일정/지시"
               currentPath={location.pathname}
             />
             <SubMenuItem
               to="/production/order"
-              label="작업 지시서"
+              label="작업 지시(현장)"
               currentPath={location.pathname}
             />
             <SubMenuItem
@@ -158,37 +208,28 @@ const Sidebar = () => {
               label="제품 관리"
               currentPath={location.pathname}
             />
-          </MenuDropdown>
-
-          <MenuDropdown
-            title="Process"
-            icon={<FaMicrochip size={20} />}
-            isOpen={isOpen}
-            isExpanded={activeMenu === "process"}
-            onClick={() => toggleSubMenu("process")}
-          >
             <SubMenuItem
-              to="/process/bonding"
-              label="본딩(Bonding)"
+              to="/production/assembly"
+              label="조립 공정"
               currentPath={location.pathname}
             />
             <SubMenuItem
-              to="/process/assembly"
-              label="조립(Assembly)"
-              currentPath={location.pathname}
-            />
-            <SubMenuItem
-              to="/process/aging"
-              label="에이징(Aging)"
+              to="/production/bonding"
+              label="본딩 공정"
               currentPath={location.pathname}
             />
           </MenuDropdown>
 
+          {/* 5. 품질/설비 */}
           <MenuDropdown
             title="Quality"
-            icon={<FaCogs size={20} />}
+            icon={<FaCogs />}
             isOpen={isOpen}
             isExpanded={activeMenu === "quality"}
+            isActive={
+              location.pathname.startsWith("/quality") ||
+              location.pathname.startsWith("/equipment")
+            }
             onClick={() => toggleSubMenu("quality")}
           >
             <SubMenuItem
@@ -207,6 +248,11 @@ const Sidebar = () => {
               currentPath={location.pathname}
             />
             <SubMenuItem
+              to="/quality/aging"
+              label="에이징 현황"
+              currentPath={location.pathname}
+            />
+            <SubMenuItem
               to="/quality/calibration"
               label="캘리브레이션"
               currentPath={location.pathname}
@@ -218,11 +264,13 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
+          {/* 6. 이력 추적 */}
           <MenuDropdown
             title="Traceability"
-            icon={<FaSitemap size={20} />}
+            icon={<FaSitemap />}
             isOpen={isOpen}
             isExpanded={activeMenu === "traceability"}
+            isActive={location.pathname.startsWith("/traceability")}
             onClick={() => toggleSubMenu("traceability")}
           >
             <SubMenuItem
@@ -232,11 +280,13 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
+          {/* 7. 지원 업무 */}
           <MenuDropdown
             title="Support"
-            icon={<FaUtensils size={20} />}
+            icon={<FaUtensils />}
             isOpen={isOpen}
             isExpanded={activeMenu === "support"}
+            isActive={location.pathname.startsWith("/support")}
             onClick={() => toggleSubMenu("support")}
           >
             <SubMenuItem
@@ -251,11 +301,13 @@ const Sidebar = () => {
             />
           </MenuDropdown>
 
+          {/* 8. 관리자 */}
           <MenuDropdown
             title="Admin"
-            icon={<FaUserCog size={20} />}
+            icon={<FaUserCog />}
             isOpen={isOpen}
             isExpanded={activeMenu === "admin"}
+            isActive={location.pathname.startsWith("/admin")}
             onClick={() => toggleSubMenu("admin")}
           >
             <SubMenuItem
@@ -282,176 +334,196 @@ const Sidebar = () => {
         </ul>
       </div>
 
-      {/* BOTTOM */}
-      <div
-        style={{
-          ...styles.bannerCard,
-          opacity: isOpen ? 1 : 0,
-          height: isOpen ? "auto" : 0,
-          padding: isOpen ? "20px" : 0,
-          margin: isOpen ? "0 20px 20px" : 0,
-          overflow: "hidden",
-          transition: "all 0.3s ease",
-        }}
-      >
-        <div style={styles.bannerIconCircle}>
-          <FaIndustry size={20} color="#fff" />
+      {/* ================= BOTTOM (Banner & Profile) ================= */}
+
+      {isOpen && (
+        <div style={styles.bannerCard}>
+          <div style={styles.bannerIconCircle}>
+            <FaIndustry size={20} color="#fff" />
+          </div>
+          <p
+            style={{
+              margin: "10px 0 5px",
+              fontWeight: "bold",
+              fontSize: "14px",
+            }}
+          >
+            System Status
+          </p>
+          <p
+            style={{
+              margin: "0 0 10px",
+              fontSize: "11px",
+              color: "#fff",
+              opacity: 0.8,
+            }}
+          >
+            All systems operational
+          </p>
+          <button style={styles.bannerBtn}>Check Report</button>
         </div>
-        <p
-          style={{ margin: "10px 0 5px", fontWeight: "bold", fontSize: "14px" }}
-        >
-          System Status
-        </p>
-        <p
-          style={{
-            margin: "0 0 10px",
-            fontSize: "11px",
-            color: "#fff",
-            opacity: 0.8,
-          }}
-        >
-          All systems operational
-        </p>
-        <button style={styles.bannerBtn}>Check Report</button>
-      </div>
+      )}
 
       <div style={styles.profileSection}>
         <div
           style={{
-            ...styles.profileContainer,
-            paddingLeft: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
             justifyContent: isOpen ? "flex-start" : "center",
+            width: "100%",
           }}
         >
-          <div style={styles.avatarWrapper}>
-            <div style={styles.avatar}>
-              <img
-                src="https://via.placeholder.com/40"
-                alt="User"
-                style={{ borderRadius: "50%", width: "100%", height: "100%" }}
-              />
+          <div style={styles.avatar}>
+            <img
+              src="https://via.placeholder.com/40"
+              alt="User"
+              style={{ borderRadius: "50%" }}
+            />
+          </div>
+
+          {isOpen && (
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              <p
+                style={{
+                  margin: 0,
+                  fontWeight: "bold",
+                  fontSize: "14px",
+                  color: "#333",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {user ? user.name : "Guest User"}
+              </p>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "11px",
+                  color: "#999",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {user ? `${user.dept} / ${user.role}` : "Please Login"}
+              </p>
             </div>
-          </div>
-          <div style={{ ...styles.profileText, opacity: isOpen ? 1 : 0 }}>
-            <p
-              style={{
-                margin: 0,
-                fontWeight: "bold",
-                fontSize: "14px",
-                color: "#333",
-              }}
+          )}
+
+          {isOpen && (
+            <button
+              onClick={handleLogout}
+              style={styles.logoutBtn}
+              title="로그아웃"
             >
-              {user ? user.name : "Guest User"}
-            </p>
-            <p style={{ margin: 0, fontSize: "11px", color: "#999" }}>
-              {user ? `${user.dept} / ${user.role}` : "Please Login"}
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            style={{
-              ...styles.logoutBtn,
-              opacity: isOpen ? 1 : 0,
-              width: isOpen ? "30px" : 0,
-              pointerEvents: isOpen ? "auto" : "none",
-            }}
-            title="로그아웃"
-          >
-            <FaSignOutAlt size={16} />
-          </button>
+              <FaSignOutAlt size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-// 1. 단일 메뉴 아이템 (예: 대시보드)
+// --- Sub Components ---
+
 const MenuItem = ({ to, icon, label, isOpen, isActive }) => (
-  <li style={styles.li}>
+  <li style={{ listStyle: "none", marginBottom: "5px" }}>
     <Link
       to={to}
       style={{
         ...styles.link,
+        justifyContent: isOpen ? "flex-start" : "center",
         color: isActive ? ACTIVE_TEXT_COLOR : TEXT_COLOR,
         backgroundColor: isActive ? ACTIVE_BG_COLOR : "transparent",
-        fontWeight: isActive ? "700" : "500",
-        borderRight:
-          isActive && !isOpen
-            ? `3px solid ${THEME_COLOR}`
-            : "3px solid transparent",
+        borderRight: isActive && !isOpen ? `3px solid ${THEME_COLOR}` : "none",
       }}
     >
-      <div style={styles.iconBox}>{icon}</div>
-      <div
+      <span
         style={{
-          ...styles.textBox,
-          opacity: isOpen ? 1 : 0,
-          width: isOpen ? "auto" : 0,
+          fontSize: "20px",
+          display: "flex",
+          alignItems: "center",
+          minWidth: "20px",
         }}
       >
-        {label}
-      </div>
+        {icon}
+      </span>
+      {isOpen && (
+        <span
+          style={{
+            marginLeft: "15px",
+            fontWeight: isActive ? "700" : "500",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
+      )}
     </Link>
   </li>
 );
 
-// 2. 그룹 메뉴 헤더 (예: Material, Production 등)
 const MenuDropdown = ({
   title,
   icon,
   isOpen,
   isExpanded,
+  isActive,
   onClick,
   children,
-}) => {
-  return (
-    <li style={styles.li}>
-      <div
-        onClick={onClick}
+}) => (
+  <li style={{ listStyle: "none", marginBottom: "5px" }}>
+    <div
+      onClick={onClick}
+      style={{
+        ...styles.link,
+        justifyContent: isOpen ? "flex-start" : "center",
+        cursor: "pointer",
+        color: isActive ? ACTIVE_TEXT_COLOR : TEXT_COLOR,
+        backgroundColor:
+          isActive && !isExpanded ? ACTIVE_BG_COLOR : "transparent",
+      }}
+    >
+      <span
         style={{
-          ...styles.link,
-          cursor: "pointer",
-          color: TEXT_COLOR,
-          backgroundColor: "transparent",
-          fontWeight: "500",
+          fontSize: "20px",
+          display: "flex",
+          alignItems: "center",
+          minWidth: "20px",
         }}
       >
-        <div style={styles.iconBox}>{icon}</div>
-        <div
-          style={{
-            ...styles.textBox,
-            opacity: isOpen ? 1 : 0,
-            width: isOpen ? "auto" : 0,
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <span>{title}</span>
+        {icon}
+      </span>
+      {isOpen && (
+        <>
           <span
-            style={{ fontSize: "10px", color: "#aaa", marginRight: "10px" }}
+            style={{
+              marginLeft: "15px",
+              flex: 1,
+              fontWeight: isActive ? "700" : "500",
+              whiteSpace: "nowrap",
+            }}
           >
+            {title}
+          </span>
+          <span style={{ fontSize: "10px", color: "#aaa" }}>
             {isExpanded ? <FaChevronUp /> : <FaChevronDown />}
           </span>
-        </div>
-      </div>
+        </>
+      )}
+    </div>
+    {isOpen && isExpanded && <ul style={styles.subUl}>{children}</ul>}
+  </li>
+);
 
-      {isOpen && isExpanded && <ul style={styles.subUl}>{children}</ul>}
-    </li>
-  );
-};
-
-// 3. 서브 메뉴 아이템
 const SubMenuItem = ({ to, label, currentPath }) => {
   const isSubActive = currentPath === to;
+
   return (
     <li style={{ listStyle: "none", marginBottom: "2px" }}>
       <Link
         to={to}
         style={{
           ...styles.subLink,
-          // 여기서만 적용 (배경색 + 글자색)
           color: isSubActive ? ACTIVE_TEXT_COLOR : "#888",
           fontWeight: isSubActive ? "700" : "400",
           backgroundColor: isSubActive ? ACTIVE_BG_COLOR : "transparent",
@@ -469,7 +541,6 @@ const SubMenuItem = ({ to, label, currentPath }) => {
   );
 };
 
-// --- Styles ---
 const styles = {
   sidebar: {
     height: "100vh",
@@ -486,95 +557,66 @@ const styles = {
   },
   header: {
     height: "80px",
-    minHeight: "80px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    padding: "0 20px",
     borderBottom: "1px solid #f9f9f9",
-    position: "relative",
-    boxSizing: "border-box",
-    padding: 0,
-    margin: 0,
-  },
-  logoContainer: {
-    width: "100%",
-    height: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    overflow: "hidden",
-    padding: 0,
-    margin: 0,
   },
   toggleBtn: {
     background: "transparent",
     border: "none",
     cursor: "pointer",
-    padding: "10px",
+    padding: "5px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    position: "absolute",
-    right: "10px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    zIndex: 10,
+    marginLeft: "10px",
   },
   menuContainer: {
     flex: 1,
-    padding: "10px 0",
+    padding: "15px",
     overflowY: "auto",
     scrollbarWidth: "none",
   },
   ul: { padding: 0, margin: 0 },
-  li: { listStyle: "none", marginBottom: "4px" },
-  divider: { height: "1px", backgroundColor: "#f0f0f0", margin: "10px 0" },
+  divider: { height: "1px", backgroundColor: "#f0f0f0", margin: "15px 0" },
   link: {
     display: "flex",
     alignItems: "center",
-    height: "48px",
+    padding: "12px 15px",
+    borderRadius: "12px",
     textDecoration: "none",
-    transition: "background-color 0.2s, color 0.2s",
-    width: "100%",
-    position: "relative",
-    borderLeft: "3px solid transparent",
-  },
-  iconBox: {
-    width: "80px",
-    minWidth: "80px",
-    height: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  textBox: {
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    transition: "opacity 0.2s ease, width 0.2s ease",
+    transition: "all 0.2s ease-in-out",
+    marginBottom: "2px",
+    "&:hover": {
+      backgroundColor: "#FAFAFA",
+    },
   },
   subUl: {
-    padding: "5px 0 5px 0",
+    padding: "5px 0 5px 20px",
     margin: 0,
-    backgroundColor: "#fafafa",
+    borderLeft: "2px solid #f5f5f5",
+    marginLeft: "25px",
   },
   subLink: {
     display: "flex",
     alignItems: "center",
-    height: "40px",
-    paddingLeft: "80px",
+    padding: "10px 15px",
+    borderRadius: "8px",
     textDecoration: "none",
     fontSize: "13px",
-    transition: "background-color 0.2s",
+    transition: "all 0.2s",
   },
   dot: {
-    width: "5px",
-    height: "5px",
+    width: "6px",
+    height: "6px",
     borderRadius: "50%",
     marginRight: "10px",
     flexShrink: 0,
   },
   bannerCard: {
+    margin: "0 20px 20px",
+    padding: "20px",
     backgroundColor: THEME_COLOR,
     borderRadius: "20px",
     color: "#fff",
@@ -584,6 +626,7 @@ const styles = {
     textAlign: "center",
     boxShadow: "0 8px 20px rgba(140, 133, 255, 0.25)",
     position: "relative",
+    overflow: "hidden",
   },
   bannerIconCircle: {
     width: "40px",
@@ -605,27 +648,14 @@ const styles = {
     cursor: "pointer",
     marginTop: "10px",
     width: "100%",
+    transition: "transform 0.1s",
   },
   profileSection: {
-    height: "70px",
+    padding: "20px",
     borderTop: "1px solid #f0f0f0",
     display: "flex",
     alignItems: "center",
     backgroundColor: "#fff",
-    overflow: "hidden",
-  },
-  profileContainer: {
-    display: "flex",
-    alignItems: "center",
-    width: "100%",
-    gap: "12px",
-  },
-  avatarWrapper: {
-    width: "80px",
-    minWidth: "80px",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
   },
   avatar: {
     width: "40px",
@@ -636,13 +666,6 @@ const styles = {
     border: "2px solid #fff",
     boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
   },
-  profileText: {
-    flex: 1,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    transition: "opacity 0.2s ease",
-  },
-
   logoutBtn: {
     background: "transparent",
     border: "none",
@@ -653,8 +676,11 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    transition: "opacity 0.2s",
-    marginRight: "10px",
+    transition: "background 0.2s, color 0.2s",
+    "&:hover": {
+      backgroundColor: "#f5f5f5",
+      color: "#FF4444",
+    },
   },
 };
 
