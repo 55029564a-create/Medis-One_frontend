@@ -2,10 +2,10 @@ import axios from "axios";
 
 // 1. Axios 인스턴스 생성 (기본 설정)
 const client = axios.create({
-  // [중요] 백엔드 서버 주소 (localhost:8111)
+  // [중요] 백엔드 서버 주소 (IntelliJ 콘솔에 뜬 포트 번호 확인 필수!)
   baseURL: "http://localhost:8111/api",
 
-  // 요청 타임아웃 (10초) - 너무 짧으면 데이터 로딩 중에 끊길 수 있음
+  // 요청 타임아웃 (10초)
   timeout: 10000,
 
   headers: {
@@ -27,24 +27,19 @@ client.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // (선택사항) 개발 모드일 때 요청 로그 찍기
-    // console.log(`[API Request] ${config.method.toUpperCase()} ${config.url}`);
-
     return config;
   },
   (error) => {
-    // 요청 설정 중에 에러가 난 경우
     return Promise.reject(error);
   },
 );
 
 // ----------------------------------------------------------------------
 
-// 3. [Response Interceptor] 401 에러 핸들링 (핵심 로직)
+// 3. [Response Interceptor] 401 에러 핸들링 (토큰 재발급 로직)
 client.interceptors.response.use(
   (response) => {
-    // 성공적인 응답은 그대로 반환
-    return response;
+    return response; // 성공 시 그대로 반환
   },
   async (error) => {
     const { config, response } = error;
@@ -56,24 +51,20 @@ client.interceptors.response.use(
     }
 
     // B. [핵심] 401 에러 처리 (토큰 만료 시)
-    // config._retry는 재시도 여부를 체크하는 플래그 (무한 루프 방지)
     if (response.status === 401 && !config._retry) {
-      config._retry = true; // "나 한번 재시도 했어" 표시
+      config._retry = true; // 무한 루프 방지 플래그
 
       try {
-        // 1. 저장된 토큰들 가져오기
         const accessToken = localStorage.getItem("accessToken");
         const refreshToken = localStorage.getItem("refreshToken");
 
-        // 토큰이 아예 없으면 로그인 페이지로
         if (!accessToken || !refreshToken) {
           throw new Error("No tokens found");
         }
 
         // 2. 백엔드에 토큰 재발급 요청
-        // 주의: client.post 대신 axios.post를 써서 인터셉터 순환 참조 방지
-        // 백엔드 AuthController가 RequestBody로 TokenDto(accessToken, refreshToken)를 요구함
-        const res = await axios.post("http://localhost:3000/api/auth/refresh", {
+        // [수정 완료] 포트 번호를 3000 -> 8111 (백엔드 포트)로 변경
+        const res = await axios.post("http://localhost:8111/api/auth/refresh", {
           accessToken: accessToken,
           refreshToken: refreshToken,
         });
@@ -84,22 +75,20 @@ client.interceptors.response.use(
         localStorage.setItem("accessToken", newAccessToken);
         localStorage.setItem("refreshToken", newRefreshToken);
 
-        // 4. 실패했던 원래 요청의 헤더를 새 토큰으로 교체
+        // 4. 실패했던 요청의 헤더 업데이트
         config.headers.Authorization = `Bearer ${newAccessToken}`;
 
-        // 5. 원래 요청 재실행 (이 결과가 최종 반환됨)
+        // 5. 실패했던 요청 재실행
         return client(config);
       } catch (refreshError) {
-        // 재발급 실패 (Refresh Token도 만료됨 or 서버 오류)
+        // 재발급 실패 시 로그아웃 처리
         console.error("토큰 재발급 실패:", refreshError);
 
-        // 1. 스토리지 비우기
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("isLoggedIn");
         localStorage.removeItem("userInfo");
 
-        // 2. 로그인 페이지로 강제 이동
         alert("로그인 세션이 만료되었습니다. 다시 로그인해주세요.");
         window.location.href = "/";
 
@@ -107,11 +96,11 @@ client.interceptors.response.use(
       }
     }
 
-    // C. 그 외 에러 (403, 500 등)
+    // C. 그 외 에러 처리
     if (response.status === 403) {
-      alert("접근 권한이 없습니다.");
+      alert("이 작업을 수행할 권한이 없습니다.");
     } else if (response.status === 500) {
-      console.error("서버 에러:", response.data);
+      console.error("서버 내부 오류:", response.data);
     }
 
     return Promise.reject(error);

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import client from "../../api/client";
 import {
   FaFileExcel,
   FaSearch,
@@ -7,9 +8,11 @@ import {
   FaArrowDown,
   FaExchangeAlt,
   FaTrash,
+  FaEye,
+  FaTimes,
 } from "react-icons/fa";
 
-// 🎨 MedisOne 테마 컬러
+// 🎨 테마 컬러
 const COLORS = {
   primary: "#8C85FF",
   bg: "#F5F6FA",
@@ -17,274 +20,425 @@ const COLORS = {
   text: "#333",
   gray: "#666",
   border: "#E0E0E0",
-  success: "#4CAF50", // 입고
-  danger: "#FF5252", // 출고
-  info: "#2196F3", // 반납
-  dark: "#424242", // 폐기
+  success: "#4CAF50",
+  danger: "#FF5252",
+  info: "#2196F3",
+  dark: "#424242",
 };
 
 const MaterialHistory = () => {
-  // 📝 [Mock Data] 의료용 디스플레이 자재 이력
-  const [history] = useState([
-    {
-      id: 1,
-      date: "2026-01-20 09:15",
-      type: "IN",
-      partCode: "PNL-24FHD-MED",
-      item: "24인치 의료용 패널 (High-Bright)",
-      lot: "LOT-260120-A01",
-      qty: 500,
-      location: "자재창고 A-01",
-      worker: "김자재",
-      note: "정기 입고",
-    },
-    {
-      id: 2,
-      date: "2026-01-20 10:30",
-      type: "OUT",
-      partCode: "PCB-MAIN-V2",
-      item: "메인보드 AD Board",
-      lot: "LOT-251215-B05",
-      qty: 200,
-      location: "Line-A (Clean Room)",
-      worker: "박생산",
-      note: "작업지시 WO-260120-01",
-    },
-    {
-      id: 3,
-      date: "2026-01-20 11:45",
-      type: "OUT",
-      partCode: "GLS-EMI-AIR",
-      item: "항공용 EMI 쉴드 글래스",
-      lot: "LOT-260110-C02",
-      qty: 50,
-      location: "Line-B (Assy)",
-      worker: "최조립",
-      note: "긴급 생산 투입",
-    },
-    {
-      id: 4,
-      date: "2026-01-20 13:20",
-      type: "RETURN",
-      partCode: "SCR-M4-10",
-      item: "조립용 M4 나사 Set",
-      lot: "LOT-251120-D01",
-      qty: 1500,
-      location: "자재창고 C-05",
-      worker: "이반장",
-      note: "생산 잔량 반납",
-    },
-    {
-      id: 5,
-      date: "2026-01-19 15:40",
-      type: "DISCARD",
-      partCode: "PNL-24FHD-MED",
-      item: "24인치 의료용 패널",
-      lot: "LOT-251010-F09",
-      qty: 2,
-      location: "폐기창고",
-      worker: "정품질",
-      note: "입고 검사 불량 (Crack)",
-    },
-    {
-      id: 6,
-      date: "2026-01-19 16:00",
-      type: "IN",
-      partCode: "BOX-PKG-MED",
-      item: "전용 포장 박스 (24인치)",
-      lot: "LOT-260119-P01",
-      qty: 1000,
-      location: "자재창고 B-02",
-      worker: "김물류",
-      note: "-",
-    },
-  ]);
-
+  const [history, setHistory] = useState([]);
   const [filterType, setFilterType] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
 
+  // [NEW] 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // 페이지당 10개
+
+  // 모달 상태
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  useEffect(() => {
+    // API 요청
+    client
+      .get("/test/history")
+      .then((res) => {
+        setHistory(res.data);
+      })
+      .catch((err) => {
+        console.error("데이터 수신 실패:", err);
+        // 에러 시 임시 더미 데이터 (테스트용으로 15개 생성)
+        const dummyData = Array.from({ length: 25 }, (_, i) => ({
+          id: `SYS-${i + 1}`,
+          date: `2026-01-26 10:${i < 10 ? "0" + i : i}`,
+          type: i % 2 === 0 ? "IN" : "OUT",
+          partCode: `CODE-${100 + i}`,
+          item: `테스트 자재 ${i + 1}`,
+          lot: `LOT-${202600 + i}`,
+          qty: (i + 1) * 10,
+          location: "A-01",
+          worker: "시스템",
+          note: "페이지네이션 테스트 데이터",
+        }));
+        setHistory(dummyData);
+      });
+  }, []);
+
+  // [NEW] 필터나 검색어가 바뀌면 1페이지로 초기화
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterType, searchTerm]);
+
+  // 1. 필터링 로직
   const filteredHistory = history.filter((item) => {
+    if (!item) return false;
     const typeMatch = filterType === "ALL" ? true : item.type === filterType;
     const searchMatch =
-      item.item.includes(searchTerm) ||
-      item.partCode.includes(searchTerm) ||
-      item.lot.includes(searchTerm);
+      (item.item || "").includes(searchTerm) ||
+      (item.partCode || "").includes(searchTerm) ||
+      (item.lot || "").includes(searchTerm);
     return typeMatch && searchMatch;
   });
 
+  // 2. [NEW] 페이지네이션 로직 (데이터 자르기)
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredHistory.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+
+  // 페이지 변경 핸들러
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  // 요약 계산 (전체 데이터 기준)
+  const summary = {
+    in: history
+      .filter((i) => i.type === "IN")
+      .reduce((acc, cur) => acc + cur.qty, 0),
+    out: history
+      .filter((i) => i.type === "OUT")
+      .reduce((acc, cur) => acc + cur.qty, 0),
+    return: history
+      .filter((i) => i.type === "RETURN")
+      .reduce((acc, cur) => acc + cur.qty, 0),
+    discard: history
+      .filter((i) => i.type === "DISCARD")
+      .reduce((acc, cur) => acc + cur.qty, 0),
+  };
+
+  // 모달 제어
+  const openModal = (item) => {
+    setSelectedItem(item);
+    setIsModalOpen(true);
+  };
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedItem(null);
+  };
+
   return (
-    <div style={styles.container}>
-      {/* 1. 상단 헤더 & 버튼 */}
-      <div style={styles.header}>
-        <div>
-          <h2 style={styles.pageTitle}>
-            📋 자재 입출고 이력 (Material History)
-          </h2>
-          <p style={styles.pageSubtitle}>
-            모든 자재의 이동 경로와 수량 변화를 추적합니다.
-          </p>
-        </div>
-        <button style={styles.excelBtn}>
-          <FaFileExcel /> 엑셀 다운로드
-        </button>
-      </div>
+    <>
+      <style>{`
+        .history-container { padding: 20px; background-color: ${COLORS.bg}; min-height: 100vh; display: flex; flex-direction: column; }
+        .desktop-table { display: table; width: 100%; border-collapse: collapse; }
+        .mobile-card-list { display: none; } 
 
-      {/* 2. 요약 카드 */}
-      <div style={styles.summaryRow}>
-        <SummaryCard
-          label="금일 입고"
-          value="1,500"
-          color={COLORS.success}
-          icon={<FaArrowUp />}
-        />
-        <SummaryCard
-          label="금일 출고"
-          value="250"
-          color={COLORS.danger}
-          icon={<FaArrowDown />}
-        />
-        <SummaryCard
-          label="금일 반납"
-          value="1,500"
-          color={COLORS.info}
-          icon={<FaExchangeAlt />}
-        />
-        <SummaryCard
-          label="금일 폐기"
-          value="2"
-          color={COLORS.dark}
-          icon={<FaTrash />}
-        />
-      </div>
+        @media (max-width: 768px) {
+          .desktop-table { display: none; }
+          .mobile-card-list { display: flex; flex-direction: column; gap: 15px; }
+          .summary-row { flex-direction: column; }
+          .filter-bar { flex-direction: column; align-items: stretch; }
+          .search-box { width: 100%; margin-top: 10px; }
+        }
+      `}</style>
 
-      {/* 3. 메인 콘텐츠 */}
-      <div style={styles.card}>
-        <div style={styles.filterBar}>
-          <div style={styles.filterGroup}>
-            <div style={styles.dateGroup}>
-              <input
-                type="date"
-                style={styles.dateInput}
-                defaultValue="2026-01-01"
-              />
-              <span style={{ color: "#999" }}>~</span>
-              <input
-                type="date"
-                style={styles.dateInput}
-                defaultValue="2026-01-20"
-              />
-            </div>
-            <div style={styles.selectWrapper}>
-              <FaFilter style={styles.filterIcon} />
-              <select
-                style={styles.select}
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-              >
-                <option value="ALL">전체 유형</option>
-                <option value="IN">입고 (In)</option>
-                <option value="OUT">출고 (Out)</option>
-                <option value="RETURN">반납 (Return)</option>
-                <option value="DISCARD">폐기 (Discard)</option>
-              </select>
-            </div>
+      <div className="history-container">
+        {/* 헤더 */}
+        <div style={styles.header}>
+          <div>
+            <h2 style={styles.pageTitle}>📋 자재 입출고 이력</h2>
+            <p style={styles.pageSubtitle}>
+              자재의 이동 경로와 수량 변화를 추적합니다.
+            </p>
           </div>
-          <div style={styles.searchBox}>
-            <FaSearch color="#999" />
-            <input
-              type="text"
-              placeholder="품목명 / 코드 / LOT 검색"
-              style={styles.searchInput}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+          <button style={styles.excelBtn}>
+            <FaFileExcel /> 엑셀 다운로드
+          </button>
         </div>
 
-        {/* 테이블 (가로 스크롤 추가) */}
-        <div style={styles.tableWrapper}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thRow}>
-                <th style={{ ...styles.th, width: "140px" }}>일시</th>
-                <th
-                  style={{ ...styles.th, width: "80px", textAlign: "center" }}
+        {/* 요약 카드 */}
+        <div className="summary-row" style={styles.summaryRow}>
+          <SummaryCard
+            label="총 입고"
+            value={summary.in.toLocaleString()}
+            color={COLORS.success}
+            icon={<FaArrowUp />}
+          />
+          <SummaryCard
+            label="총 출고"
+            value={summary.out.toLocaleString()}
+            color={COLORS.danger}
+            icon={<FaArrowDown />}
+          />
+          <SummaryCard
+            label="총 반납"
+            value={summary.return.toLocaleString()}
+            color={COLORS.info}
+            icon={<FaExchangeAlt />}
+          />
+          <SummaryCard
+            label="총 폐기"
+            value={summary.discard.toLocaleString()}
+            color={COLORS.dark}
+            icon={<FaTrash />}
+          />
+        </div>
+
+        {/* 메인 콘텐츠 */}
+        <div style={styles.card}>
+          {/* 필터 바 */}
+          <div className="filter-bar" style={styles.filterBar}>
+            <div style={styles.filterGroup}>
+              <div style={styles.dateGroup}>
+                <input
+                  type="date"
+                  style={styles.dateInput}
+                  defaultValue="2026-01-01"
+                />
+                <span style={{ color: "#999" }}>~</span>
+                <input
+                  type="date"
+                  style={styles.dateInput}
+                  defaultValue="2026-01-20"
+                />
+              </div>
+              <div style={styles.selectWrapper}>
+                <FaFilter style={styles.filterIcon} />
+                <select
+                  style={styles.select}
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
                 >
-                  구분
-                </th>
-                <th style={{ ...styles.th, minWidth: "200px" }}>
-                  자재코드 / 품목명
-                </th>
-                <th style={{ ...styles.th, width: "140px" }}>LOT ID</th>
-                <th
-                  style={{ ...styles.th, width: "100px", textAlign: "right" }}
-                >
-                  수량
-                </th>
-                <th style={{ ...styles.th, width: "150px" }}>
-                  위치 (Location)
-                </th>
-                <th style={{ ...styles.th, width: "100px" }}>작업자</th>
-                <th style={{ ...styles.th, minWidth: "150px" }}>비고</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredHistory.length === 0 ? (
-                <tr>
-                  <td colSpan="8" style={styles.emptyTd}>
-                    데이터가 없습니다.
-                  </td>
+                  <option value="ALL">전체 유형</option>
+                  <option value="IN">입고</option>
+                  <option value="OUT">출고</option>
+                  <option value="RETURN">반납</option>
+                  <option value="DISCARD">폐기</option>
+                </select>
+              </div>
+            </div>
+            <div className="search-box" style={styles.searchBox}>
+              <FaSearch color="#999" />
+              <input
+                type="text"
+                placeholder="품목명 / 코드 / LOT"
+                style={styles.searchInput}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* 2. PC용 테이블 (currentItems 사용) */}
+          <div style={{ overflowX: "hidden" }}>
+            <table className="desktop-table">
+              <thead>
+                <tr style={styles.thRow}>
+                  <th style={{ ...styles.th, width: "15%" }}>일시</th>
+                  <th
+                    style={{ ...styles.th, width: "10%", textAlign: "center" }}
+                  >
+                    구분
+                  </th>
+                  <th style={{ ...styles.th, width: "25%" }}>자재명 (코드)</th>
+                  <th style={{ ...styles.th, width: "15%" }}>LOT ID</th>
+                  <th
+                    style={{ ...styles.th, width: "10%", textAlign: "right" }}
+                  >
+                    수량
+                  </th>
+                  <th style={{ ...styles.th, width: "10%" }}>작업자</th>
+                  <th
+                    style={{ ...styles.th, width: "10%", textAlign: "center" }}
+                  >
+                    상세
+                  </th>
                 </tr>
-              ) : (
-                filteredHistory.map((item) => (
-                  <tr key={item.id} style={styles.tr}>
-                    <td style={styles.td}>{item.date}</td>
-                    <td style={{ ...styles.td, textAlign: "center" }}>
-                      <TypeBadge type={item.type} />
+              </thead>
+              <tbody>
+                {currentItems.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" style={styles.emptyTd}>
+                      데이터가 없습니다.
                     </td>
-                    <td style={styles.td}>
-                      <div style={styles.partCode}>{item.partCode}</div>
-                      <div style={styles.itemName}>{item.item}</div>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={styles.lotBadge}>{item.lot}</span>
-                    </td>
-                    <td
+                  </tr>
+                ) : (
+                  currentItems.map((item) => (
+                    <tr key={item.id} style={styles.tr}>
+                      <td style={styles.td}>{item.date}</td>
+                      <td style={{ ...styles.td, textAlign: "center" }}>
+                        <TypeBadge type={item.type} />
+                      </td>
+                      <td style={styles.td}>
+                        <div style={styles.itemName}>{item.item}</div>
+                        <div style={styles.partCode}>{item.partCode}</div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={styles.lotBadge}>{item.lot}</span>
+                      </td>
+                      <td
+                        style={{
+                          ...styles.td,
+                          textAlign: "right",
+                          fontWeight: "bold",
+                          color: getQtyColor(item.type),
+                        }}
+                      >
+                        {item.type === "IN" || item.type === "RETURN"
+                          ? "+"
+                          : "-"}
+                        {item.qty.toLocaleString()}
+                      </td>
+                      <td style={styles.td}>{item.worker}</td>
+                      <td style={{ ...styles.td, textAlign: "center" }}>
+                        <button
+                          style={styles.detailBtn}
+                          onClick={() => openModal(item)}
+                        >
+                          <FaEye /> 보기
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 3. 모바일용 카드 리스트 (currentItems 사용) */}
+          <div className="mobile-card-list">
+            {currentItems.length === 0 ? (
+              <div style={styles.emptyTd}>데이터가 없습니다.</div>
+            ) : (
+              currentItems.map((item) => (
+                <div
+                  key={item.id}
+                  style={styles.mobileCard}
+                  onClick={() => openModal(item)}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <span style={styles.dateText}>{item.date}</span>
+                    <TypeBadge type={item.type} />
+                  </div>
+                  <div style={styles.itemName}>{item.item}</div>
+                  <div style={styles.partCode}>{item.partCode}</div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginTop: "10px",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span style={styles.lotBadge}>{item.lot}</span>
+                    <span
                       style={{
-                        ...styles.td,
                         fontWeight: "bold",
-                        textAlign: "right",
+                        fontSize: "16px",
                         color: getQtyColor(item.type),
                       }}
                     >
-                      {item.type === "IN" || item.type === "RETURN" ? "+" : "-"}
+                      {item.type === "IN" || item.type === "RETURN" ? "+" : "-"}{" "}
                       {item.qty.toLocaleString()}
-                    </td>
-                    <td style={styles.td}>{item.location}</td>
-                    <td style={styles.td}>{item.worker}</td>
-                    <td
-                      style={{ ...styles.td, color: "#888", fontSize: "12px" }}
-                    >
-                      {item.note}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
 
-        <div style={styles.pagination}>
-          <button style={styles.pageBtn}>&lt;</button>
-          <button style={{ ...styles.pageBtn, ...styles.activePageBtn }}>
-            1
-          </button>
-          <button style={styles.pageBtn}>2</button>
-          <button style={styles.pageBtn}>3</button>
-          <button style={styles.pageBtn}>&gt;</button>
+          {/* 4. [NEW] 동적 페이지네이션 */}
+          {totalPages > 0 && (
+            <div style={styles.pagination}>
+              {/* 이전 버튼 */}
+              <button
+                style={{
+                  ...styles.pageBtn,
+                  ...(currentPage === 1 ? styles.disabledBtn : {}),
+                }}
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                &lt;
+              </button>
+
+              {/* 페이지 번호 생성 */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                (number) => (
+                  <button
+                    key={number}
+                    style={
+                      currentPage === number
+                        ? { ...styles.pageBtn, ...styles.activePageBtn }
+                        : styles.pageBtn
+                    }
+                    onClick={() => handlePageChange(number)}
+                  >
+                    {number}
+                  </button>
+                ),
+              )}
+
+              {/* 다음 버튼 */}
+              <button
+                style={{
+                  ...styles.pageBtn,
+                  ...(currentPage === totalPages ? styles.disabledBtn : {}),
+                }}
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                &gt;
+              </button>
+            </div>
+          )}
         </div>
       </div>
-    </div>
+
+      {/* 상세 정보 모달 */}
+      {isModalOpen && selectedItem && (
+        <div style={styles.modalOverlay} onClick={closeModal}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3>상세 이력 정보</h3>
+              <button style={styles.closeBtn} onClick={closeModal}>
+                <FaTimes />
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              <ModalRow label="이력 ID" value={selectedItem.id} />
+              <ModalRow label="일시" value={selectedItem.date} />
+              <ModalRow
+                label="구분"
+                value={<TypeBadge type={selectedItem.type} />}
+              />
+              <div style={styles.divider} />
+              <ModalRow label="품목명" value={selectedItem.item} bold />
+              <ModalRow label="자재코드" value={selectedItem.partCode} />
+              <ModalRow label="LOT ID" value={selectedItem.lot} />
+              <ModalRow
+                label="수량"
+                value={`${selectedItem.qty.toLocaleString()} 개`}
+                color={getQtyColor(selectedItem.type)}
+                bold
+              />
+              <div style={styles.divider} />
+              <ModalRow label="보관 위치" value={selectedItem.location} />
+              <ModalRow label="담당자" value={selectedItem.worker} />
+              <div style={styles.noteBox}>
+                <div style={styles.noteLabel}>비고 (Note)</div>
+                <div style={styles.noteText}>
+                  {selectedItem.note || "특이사항 없음"}
+                </div>
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button style={styles.confirmBtn} onClick={closeModal}>
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
@@ -303,30 +457,45 @@ const SummaryCard = ({ label, value, color, icon }) => (
   </div>
 );
 
+const ModalRow = ({ label, value, bold, color }) => (
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      marginBottom: "12px",
+      fontSize: "14px",
+    }}
+  >
+    <span style={{ color: "#888", minWidth: "80px" }}>{label}</span>
+    <span
+      style={{
+        fontWeight: bold ? "bold" : "normal",
+        color: color || "#333",
+        textAlign: "right",
+      }}
+    >
+      {value}
+    </span>
+  </div>
+);
+
 const TypeBadge = ({ type }) => {
-  let label = "";
-  let color = "";
-  switch (type) {
-    case "IN":
-      label = "입고";
-      color = COLORS.success;
-      break;
-    case "OUT":
-      label = "출고";
-      color = COLORS.danger;
-      break;
-    case "RETURN":
-      label = "반납";
-      color = COLORS.info;
-      break;
-    case "DISCARD":
-      label = "폐기";
-      color = COLORS.dark;
-      break;
-    default:
-      label = type;
-      color = COLORS.gray;
+  let label = type,
+    color = COLORS.gray;
+  if (type === "IN") {
+    label = "입고";
+    color = COLORS.success;
+  } else if (type === "OUT") {
+    label = "출고";
+    color = COLORS.danger;
+  } else if (type === "RETURN") {
+    label = "반납";
+    color = COLORS.info;
+  } else if (type === "DISCARD") {
+    label = "폐기";
+    color = COLORS.dark;
   }
+
   return (
     <span
       style={{
@@ -338,7 +507,6 @@ const TypeBadge = ({ type }) => {
         fontWeight: "bold",
         border: `1px solid ${color}30`,
         display: "inline-block",
-        whiteSpace: "nowrap",
       }}
     >
       {label}
@@ -346,22 +514,11 @@ const TypeBadge = ({ type }) => {
   );
 };
 
-const getQtyColor = (type) => {
-  if (type === "IN" || type === "RETURN") return COLORS.success;
-  return COLORS.danger;
-};
+const getQtyColor = (type) =>
+  type === "IN" || type === "RETURN" ? COLORS.success : COLORS.danger;
 
 // --- 스타일 ---
 const styles = {
-  container: {
-    padding: "20px",
-    backgroundColor: COLORS.bg,
-    minHeight: "100%",
-    // 전체 페이지 스크롤 방지 (필요 시)
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-  },
   header: {
     display: "flex",
     justifyContent: "space-between",
@@ -389,18 +546,11 @@ const styles = {
     alignItems: "center",
     gap: "8px",
     fontSize: "13px",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
-    whiteSpace: "nowrap",
   },
-  summaryRow: {
-    display: "flex",
-    gap: "15px",
-    marginBottom: "20px",
-    flexWrap: "wrap",
-  },
+
+  summaryRow: { display: "flex", gap: "15px", marginBottom: "20px" },
   summaryCard: {
     flex: 1,
-    minWidth: "180px", // 최소 너비 보장
     backgroundColor: "white",
     padding: "15px",
     borderRadius: "10px",
@@ -408,6 +558,7 @@ const styles = {
     alignItems: "center",
     gap: "12px",
     boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+    minWidth: "150px",
   },
   iconBox: {
     width: "40px",
@@ -418,13 +569,9 @@ const styles = {
     justifyContent: "center",
     fontSize: "16px",
   },
-  summaryLabel: {
-    fontSize: "12px",
-    color: "#888",
-    marginBottom: "2px",
-    whiteSpace: "nowrap",
-  },
+  summaryLabel: { fontSize: "12px", color: "#888", marginBottom: "2px" },
   summaryValue: { fontSize: "18px", fontWeight: "900" },
+
   card: {
     backgroundColor: "white",
     borderRadius: "12px",
@@ -432,7 +579,6 @@ const styles = {
     boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
     display: "flex",
     flexDirection: "column",
-    overflow: "hidden", // 내부 스크롤을 위해 숨김
   },
   filterBar: {
     display: "flex",
@@ -488,7 +634,6 @@ const styles = {
     backgroundColor: "#F0F2F5",
     borderRadius: "8px",
     padding: "8px 12px",
-    width: "250px",
     minWidth: "200px",
   },
   searchInput: {
@@ -500,13 +645,6 @@ const styles = {
     width: "100%",
   },
 
-  // [핵심] 테이블 스타일 수정
-  tableWrapper: {
-    overflowX: "auto", // 가로 스크롤 활성화
-    width: "100%",
-    paddingBottom: "5px",
-  },
-  table: { width: "100%", borderCollapse: "collapse", minWidth: "1000px" }, // 최소 너비 설정하여 찌그러짐 방지
   thRow: { borderBottom: "1px solid #eee", backgroundColor: "#FAFAFA" },
   th: {
     padding: "12px 10px",
@@ -514,15 +652,15 @@ const styles = {
     fontSize: "12px",
     color: "#666",
     fontWeight: "bold",
-    whiteSpace: "nowrap", // [핵심] 줄바꿈 방지
+    whiteSpace: "nowrap",
   },
-  tr: { borderBottom: "1px solid #f5f5f5", transition: "background 0.2s" },
+  tr: { borderBottom: "1px solid #f5f5f5" },
   td: {
     padding: "12px 10px",
     fontSize: "13px",
     color: "#333",
     verticalAlign: "middle",
-    whiteSpace: "nowrap", // [핵심] 데이터 셀도 줄바꿈 방지
+    whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
@@ -549,6 +687,22 @@ const styles = {
     fontSize: "11px",
     fontFamily: "monospace",
   },
+
+  detailBtn: {
+    border: `1px solid ${COLORS.border}`,
+    backgroundColor: "white",
+    padding: "4px 8px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
+    fontSize: "11px",
+    color: "#555",
+    margin: "0 auto",
+  },
+
+  // 페이지네이션 스타일
   pagination: {
     display: "flex",
     justifyContent: "center",
@@ -570,6 +724,84 @@ const styles = {
     color: "white",
     border: "none",
     fontWeight: "bold",
+  },
+  disabledBtn: {
+    color: "#ccc",
+    cursor: "not-allowed",
+    backgroundColor: "#f9f9f9",
+  },
+
+  mobileCard: {
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: "10px",
+    padding: "15px",
+    backgroundColor: "white",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+    cursor: "pointer",
+  },
+  dateText: { fontSize: "12px", color: "#888" },
+
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: "12px",
+    width: "90%",
+    maxWidth: "400px",
+    padding: "20px",
+    boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+    animation: "fadeIn 0.2s",
+  },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "20px",
+    borderBottom: "1px solid #eee",
+    paddingBottom: "10px",
+  },
+  closeBtn: {
+    border: "none",
+    background: "none",
+    fontSize: "18px",
+    cursor: "pointer",
+    color: "#999",
+  },
+  modalBody: { marginBottom: "20px" },
+  divider: { height: "1px", backgroundColor: "#eee", margin: "10px 0" },
+  noteBox: {
+    backgroundColor: "#F9FAFB",
+    padding: "10px",
+    borderRadius: "8px",
+    marginTop: "10px",
+  },
+  noteLabel: {
+    fontSize: "11px",
+    color: "#888",
+    marginBottom: "4px",
+    fontWeight: "bold",
+  },
+  noteText: { fontSize: "13px", color: "#333", lineHeight: "1.4" },
+  modalFooter: { textAlign: "center" },
+  confirmBtn: {
+    width: "100%",
+    backgroundColor: COLORS.primary,
+    color: "white",
+    border: "none",
+    padding: "12px",
+    borderRadius: "8px",
+    fontWeight: "bold",
+    cursor: "pointer",
   },
 };
 
