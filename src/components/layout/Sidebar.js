@@ -180,11 +180,6 @@ const Sidebar = () => {
             currentPath={location.pathname}
           />
           <SubMenuItem
-            to="/process/assembly"
-            label="조립(Assembly)"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
             to="/process/aging"
             label="에이징(Aging)"
             currentPath={location.pathname}

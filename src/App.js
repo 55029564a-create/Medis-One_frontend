@@ -41,7 +41,6 @@ const WorkReport = lazy(() => import("./pages/Production/WorkReport"));
 const ProductMgmt = lazy(() => import("./pages/Production/ProductMgmt"));
 
 // 6. 프로세스
-const ProcessAssembly = lazy(() => import("./pages/Process/ProcessAssembly"));
 const ProcessBonding = lazy(() => import("./pages/Process/ProcessBonding"));
 const AgingStatus = lazy(() => import("./pages/Process/AgingStatus"));
 
@@ -120,11 +119,6 @@ const ROUTE_CONFIG = [
     name: "제품 관리",
   },
   // 프로세스
-  {
-    path: "/process/assembly",
-    element: <ProcessAssembly />,
-    name: "조립 공정",
-  },
   { path: "/process/bonding", element: <ProcessBonding />, name: "본딩 공정" },
   { path: "/process/aging", element: <AgingStatus />, name: "에이징 현황" },
   // 설비
