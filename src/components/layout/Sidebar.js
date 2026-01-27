@@ -279,7 +279,7 @@ const Sidebar = () => {
         </MenuDropdown>
       </ul>
 
-      {/* ================= BOTTOM (Profile) ================= */}
+      {/* ================= BOTTOM (Profile) - 수정됨 ================= */}
       <div style={styles.profileSection}>
         <div
           style={{
@@ -290,38 +290,25 @@ const Sidebar = () => {
             width: "100%",
           }}
         >
-          <div style={styles.avatar}>
-            <img
-              src="https://via.placeholder.com/40"
-              alt="User"
-              style={{ borderRadius: "50%" }}
-            />
+          {/* [변경] 이미지 대신 이니셜 아바타 사용 */}
+          <div style={styles.avatarCircle}>
+            {user && user.name ? user.name.charAt(0) : "G"}
           </div>
+
           {isOpen && (
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              <p
-                style={{
-                  margin: 0,
-                  fontWeight: "bold",
-                  fontSize: "14px",
-                  color: "#333",
-                  whiteSpace: "nowrap",
-                }}
-              >
+            <div style={styles.userInfo}>
+              <div style={styles.userName}>
                 {user ? user.name : "Guest User"}
-              </p>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "11px",
-                  color: "#999",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {user ? `${user.dept} / ${user.role}` : "Please Login"}
-              </p>
+              </div>
+              <div style={styles.userDept}>
+                {/* user 데이터 구조에 따라 dept 또는 department 사용 */}
+                {user
+                  ? `${user.dept || user.department} | ${user.role}`
+                  : "Please Login"}
+              </div>
             </div>
           )}
+
           {isOpen && (
             <button
               onClick={handleLogout}
@@ -510,23 +497,50 @@ const styles = {
     marginRight: "10px",
     flexShrink: 0,
   },
-  // [수정] 프로필 영역 스타일 (하단 고정 및 크기 고정)
+  // [수정] 프로필 영역 스타일 (아래 코드 스타일 반영)
   profileSection: {
     padding: "20px",
     borderTop: "1px solid #f0f0f0",
     display: "flex",
     alignItems: "center",
     backgroundColor: "#fff",
-    flexShrink: 0, // 화면이 줄어들어도 찌그러지지 않음
+    flexShrink: 0,
   },
-  avatar: {
+  // [추가] 이니셜 아바타 스타일
+  avatarCircle: {
     width: "40px",
     height: "40px",
     borderRadius: "50%",
-    backgroundColor: "#eee",
+    backgroundColor: THEME_COLOR, // 테마 컬러 사용
+    color: "white",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    fontWeight: "bold",
+    fontSize: "16px",
     flexShrink: 0,
-    border: "2px solid #fff",
     boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
+  },
+  // [추가] 유저 정보 컨테이너
+  userInfo: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  // [추가] 이름 스타일
+  userName: {
+    fontWeight: "bold",
+    fontSize: "14px",
+    color: "#333",
+    whiteSpace: "nowrap",
+    marginBottom: "2px",
+  },
+  // [추가] 부서/직급 스타일
+  userDept: {
+    fontSize: "11px",
+    color: "#999",
+    whiteSpace: "nowrap",
   },
   logoutBtn: {
     background: "transparent",

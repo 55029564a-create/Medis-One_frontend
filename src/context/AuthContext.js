@@ -1,69 +1,63 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   // 1. 상태 초기화
   const [user, setUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(true); // 깜빡임 방지용 로딩 상태
+  const [loading, setLoading] = useState(true); // 깜빡임 방지 필수
 
-  // 2. 앱 실행 시(새로고침 시) 로그인 상태 복구
+  // 2. 초기화 (새로고침 시 복구)
   useEffect(() => {
     const initializeAuth = () => {
       try {
         const token = localStorage.getItem("accessToken");
-        const savedUser = localStorage.getItem("userInfo");
+        const savedUser = localStorage.getItem("user"); // 키 이름 통일 ('user')
 
-        // 토큰과 유저 정보가 모두 있어야 진짜 로그인 상태
         if (token && savedUser) {
           setUser(JSON.parse(savedUser));
           setIsLoggedIn(true);
         } else {
-          // 하나라도 없으면 로그아웃 처리 (청소)
           handleLogoutCleanup();
         }
       } catch (error) {
-        console.error("Auth initialization failed:", error);
+        console.error("Auth init failed:", error);
         handleLogoutCleanup();
       } finally {
         setLoading(false); // 로딩 끝
       }
     };
-
     initializeAuth();
   }, []);
 
-  // 3. 로그인 함수 (Login.js에서 호출)
-  // Login.js가 이미 토큰은 localStorage에 저장했으므로, 여기선 상태 업데이트만 담당
+  // 3. 로그인 함수
   const login = (userData) => {
-    // 유저 정보 영구 저장 (새로고침 대비)
-    localStorage.setItem("userInfo", JSON.stringify(userData));
+    // userData 안에 accessToken, name, dept 등이 다 있다고 가정
 
-    // 상태 업데이트
+    // 로컬 스토리지 저장 (여기서 확실하게 저장하는 것이 좋음)
+    localStorage.setItem("accessToken", userData.accessToken);
+    localStorage.setItem("user", JSON.stringify(userData)); // 객체 전체 저장
+
     setUser(userData);
     setIsLoggedIn(true);
   };
 
-  // 4. 로그아웃 함수 (내부/외부 공용)
+  // 4. 로그아웃 (청소)
   const handleLogoutCleanup = () => {
     localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("userInfo");
-
+    localStorage.removeItem("user");
     setUser(null);
     setIsLoggedIn(false);
   };
 
   const logout = () => {
     handleLogoutCleanup();
-    // 필요하다면 메인으로 이동시키는 로직 추가 가능 (보통은 컴포넌트에서 처리)
-    // window.location.href = "/";
   };
 
   return (
     <AuthContext.Provider value={{ isLoggedIn, user, loading, login, logout }}>
-      {/* 로딩 중일 때는 아무것도 렌더링하지 않아 깜빡임 방지 */}
+      {/* 로딩이 끝나야만 자식 컴포넌트를 보여줌 (깜빡임 방지) */}
       {!loading && children}
     </AuthContext.Provider>
   );

@@ -42,7 +42,7 @@ const Login = () => {
     }
   };
 
-  // [핵심 변경] 실제 로그인 API 호출 로직
+  // [수정] 실제 로그인 API 호출 로직
   const handleLogin = async () => {
     if (!employeeId || !password) {
       alert("사원번호와 비밀번호를 모두 입력해주세요.");
@@ -57,30 +57,24 @@ const Login = () => {
         password: password,
       });
 
-      const { accessToken, refreshToken } = response.data;
+      // 2. 응답 데이터 확인 (LoginResDto 구조)
+      // 예상 구조: { accessToken, refreshToken, name, department, role, employeeId }
+      if (response.status === 200) {
+        const userData = response.data;
 
-      // 2. 토큰을 로컬 스토리지에 저장 (나중에 인터셉터가 갖다 씀)
-      localStorage.setItem("accessToken", accessToken);
-      localStorage.setItem("refreshToken", refreshToken);
+        // 3. 토큰 로컬 스토리지 저장 (필요 시 여기서 명시적으로 저장하거나, Context 내부에서 처리)
+        // AuthContext의 login 함수가 내부적으로 localStorage 저장을 수행한다면 이 줄은 생략 가능합니다.
+        // 하지만 명시적으로 두어도 상관없습니다.
+        localStorage.setItem("accessToken", userData.accessToken);
+        localStorage.setItem("refreshToken", userData.refreshToken);
 
-      // 3. 토큰에서 유저 정보 추출 (Role, ID 등)
-      const decoded = parseJwt(accessToken);
+        // 4. 전역 상태 로그인 처리 (백엔드에서 받은 데이터를 통째로 넘김)
+        // ★ 여기서 parseJwt로 디코딩할 필요 없이 바로 넘깁니다.
+        login(userData);
 
-      // 주의: 현재 백엔드 토큰에는 '이름(name)'이나 '부서(dept)' 정보가 없습니다.
-      // 필요하다면 백엔드 TokenProvider에 클레임을 추가하거나,
-      // 로그인 후 내 정보 조회 API(/api/member/me)를 한 번 더 호출해야 합니다.
-      const userInfo = {
-        id: decoded?.sub || employeeId, // 토큰의 sub (memberId PK)
-        employeeNumber: employeeId, // 입력한 사원번호
-        role: decoded?.auth || "USER", // 토큰의 auth (예: ROLE_ADMIN)
-        // name: "이름모름",              // 현재 알 수 없음
-      };
-
-      // 4. 전역 상태 로그인 처리
-      login(userInfo);
-
-      // 5. 페이지 이동
-      navigate("/dashboard");
+        // 5. 페이지 이동
+        navigate("/dashboard");
+      }
     } catch (error) {
       // 에러 처리
       if (error.response && error.response.status === 401) {
