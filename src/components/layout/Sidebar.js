@@ -285,21 +285,20 @@ const Sidebar = () => {
             width: "100%",
           }}
         >
-          {/* [변경] 이미지 대신 이니셜 아바타 사용 */}
+          {/* 이름의 첫 글자를 아바타로 사용 */}
           <div style={styles.avatarCircle}>
-            {user && user.name ? user.name.charAt(0) : "G"}
+            {user?.name ? user.name.charAt(0) : "G"}
           </div>
 
           {isOpen && (
             <div style={styles.userInfo}>
               <div style={styles.userName}>
-                {user ? user.name : "Guest User"}
+                {/* user.name이 있으면 출력, 없으면 '이름 없음' */}
+                {user?.name || "이름 없음"}
               </div>
               <div style={styles.userDept}>
-                {/* user 데이터 구조에 따라 dept 또는 department 사용 */}
-                {user
-                  ? `${user.dept || user.department} | ${user.role}`
-                  : "Please Login"}
+                {/* 백엔드에서 보내준 부서명과 권한 표시 */}
+                {`${user?.dept || "부서미정"} | ${user?.role === "ROLE_ADMIN" ? "관리자" : "사원"}`}
               </div>
             </div>
           )}

@@ -44,44 +44,46 @@ const Login = () => {
 
   // [수정] 실제 로그인 API 호출 로직
   const handleLogin = async () => {
+    // 1. 유효성 검사 (첫 번째 코드의 장점)
     if (!employeeId || !password) {
       alert("사원번호와 비밀번호를 모두 입력해주세요.");
       return;
     }
 
     try {
-      // 1. 백엔드 로그인 API 호출
-      // 백엔드 DTO: { employeeNumber, password }
+      // 2. API 호출
       const response = await client.post("/auth/login", {
         employeeNumber: employeeId,
         password: password,
       });
 
-      // 2. 응답 데이터 확인 (LoginResDto 구조)
-      // 예상 구조: { accessToken, refreshToken, name, department, role, employeeId }
-      if (response.status === 200) {
-        const userData = response.data;
+      const { accessToken, refreshToken } = response.data;
 
-        // 3. 토큰 로컬 스토리지 저장 (필요 시 여기서 명시적으로 저장하거나, Context 내부에서 처리)
-        // AuthContext의 login 함수가 내부적으로 localStorage 저장을 수행한다면 이 줄은 생략 가능합니다.
-        // 하지만 명시적으로 두어도 상관없습니다.
-        localStorage.setItem("accessToken", userData.accessToken);
-        localStorage.setItem("refreshToken", userData.refreshToken);
+      // 3. 토큰 저장 (공통 부분)
+      localStorage.setItem("accessToken", accessToken);
+      localStorage.setItem("refreshToken", refreshToken);
 
-        // 4. 전역 상태 로그인 처리 (백엔드에서 받은 데이터를 통째로 넘김)
-        // ★ 여기서 parseJwt로 디코딩할 필요 없이 바로 넘깁니다.
-        login(userData);
+      // 4. 토큰 디코딩하여 정보 추출 (두 번째 코드 - 백엔드 TokenProvider와 일치)
+      const decoded = parseJwt(accessToken);
 
-        // 5. 페이지 이동
-        navigate("/dashboard");
-      }
+      const userInfo = {
+        id: decoded?.sub, // 사원 PK
+        employeeNumber: decoded?.empNum, // 토큰 내 "empNum"
+        name: decoded?.name, // 토큰 내 "name"
+        dept: decoded?.dept, // 토큰 내 "dept"
+        role: decoded?.auth, // 토큰 내 "auth"
+      };
+
+      // 5. 추출된 정보를 전역 상태에 저장
+      login(userInfo);
+
+      navigate("/dashboard");
     } catch (error) {
-      // 에러 처리
+      // 6. 상세 에러 처리 (첫 번째 코드의 장점)
       if (error.response && error.response.status === 401) {
         alert("로그인 실패: 사원번호 또는 비밀번호가 일치하지 않습니다.");
       } else {
-        alert("로그인 중 오류가 발생했습니다. 서버 상태를 확인해주세요.");
-        console.error("Login Error:", error);
+        alert("서버 연결에 실패했습니다.");
       }
     }
   };
