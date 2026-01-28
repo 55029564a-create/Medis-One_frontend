@@ -36,7 +36,6 @@ export const AuthProvider = ({ children }) => {
     // userData 안에 accessToken, name, dept 등이 다 있다고 가정
 
     // 로컬 스토리지 저장 (여기서 확실하게 저장하는 것이 좋음)
-    localStorage.setItem("accessToken", userData.accessToken);
     localStorage.setItem("user", JSON.stringify(userData)); // 객체 전체 저장
 
     setUser(userData);

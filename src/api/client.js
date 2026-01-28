@@ -51,10 +51,7 @@ client.interceptors.response.use(
     }
 
     // B. [핵심] 401 에러 처리 (토큰 만료 시)
-    if (
-      (response.status === 401 || response.status === 403) &&
-      !config._retry
-    ) {
+    if (response.status === 401 && !config._retry) {
       config._retry = true; // 무한 루프 방지 플래그
 
       try {
@@ -68,7 +65,7 @@ client.interceptors.response.use(
         // 2. 백엔드에 토큰 재발급 요청
         // [수정 완료] 포트 번호를 3000 -> 8111 (백엔드 포트)로 변경
         const res = await axios.post("http://localhost:8111/api/auth/refresh", {
-          accessToken: accessToken ? accessToken : "",
+          accessToken: accessToken,
           refreshToken: refreshToken,
         });
 
