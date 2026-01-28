@@ -1,394 +1,308 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Barcode from "react-barcode";
-import {
-  FaBarcode,
-  FaPlay,
-  FaStop,
-  FaTruck,
-  FaHistory,
-  FaTrashAlt,
-} from "react-icons/fa";
+import { QRCodeSVG } from "qrcode.react";
+import { FaPrint, FaTag, FaRedo } from "react-icons/fa";
 
-// 🎨 스타일 정의
+// 🎨 스타일 정의 (작성자님이 만드신 예쁜 디자인 그대로 유지!)
 const styles = {
   container: {
-    padding: "30px",
-    backgroundColor: "#F5F6FA",
-    minHeight: "100vh",
-    display: "flex",
-    gap: "20px",
-    flexDirection: "row", // 좌우 배치
-  },
-  // 왼쪽: 명령어 바코드 출력용 패널 (벽에 붙이는 용도)
-  leftPanel: {
-    flex: 1,
-    backgroundColor: "#fff",
     padding: "20px",
-    borderRadius: "15px",
-    boxShadow: "0 4px 10px rgba(0,0,0,0.05)",
+    backgroundColor: "#F5F6FA", // 배경만 살짝 구분되게 변경
+    borderRadius: "12px",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+    maxWidth: "380px", // 일반적인 라벨지 폭
+    margin: "0 auto",
     display: "flex",
     flexDirection: "column",
-    alignItems: "center",
+    gap: "15px",
   },
-  // 오른쪽: 실제 스캔 및 로그 패널
-  rightPanel: {
-    flex: 1.5,
-    display: "flex",
-    flexDirection: "column",
-    gap: "20px",
-  },
-  card: {
-    backgroundColor: "#fff",
-    padding: "20px",
-    borderRadius: "15px",
-    boxShadow: "0 4px 10px rgba(0,0,0,0.05)",
-  },
-  sectionTitle: {
-    fontSize: "18px",
-    fontWeight: "bold",
-    marginBottom: "15px",
-    color: "#333",
-    borderBottom: "2px solid #8C85FF",
-    paddingBottom: "10px",
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-  },
-  // 명령어 바코드 카드
-  cmdCard: {
-    border: "1px solid #ddd",
-    borderRadius: "10px",
-    padding: "10px",
-    marginBottom: "15px",
-    textAlign: "center",
-    width: "100%",
-    backgroundColor: "#FAFAFA",
-  },
-  cmdLabel: {
-    fontSize: "16px",
-    fontWeight: "bold",
-    marginTop: "5px",
-    color: "#555",
-  },
-  // 스캐너 인풋
-  scanInput: {
-    width: "100%",
-    padding: "15px",
-    fontSize: "18px",
-    borderRadius: "8px",
-    border: "2px solid #8C85FF",
-    outline: "none",
-    fontWeight: "bold",
-    color: "#333",
-  },
-  // 로그 리스트
-  logItem: {
+  // 인쇄될 라벨 영역 (A4나 라벨지에 찍힐 실제 모양)
+  labelArea: {
+    border: "2px solid #000",
+    borderRadius: "6px",
     padding: "12px",
-    borderBottom: "1px solid #eee",
+    backgroundColor: "#fff",
+    display: "flex",
+    flexDirection: "column",
+    gap: "5px",
+    position: "relative",
+    width: "100%",
+    boxSizing: "border-box",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    borderBottom: "2px solid #000",
+    paddingBottom: "5px",
+    marginBottom: "5px",
+  },
+  title: { fontSize: "20px", fontWeight: "900", color: "#000", lineHeight: 1 },
+  subTitle: {
+    fontSize: "10px",
+    fontWeight: "bold",
+    color: "#555",
+    marginTop: "2px",
+  },
+  // 정보 그리드 (2열)
+  gridInfo: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "6px",
+    fontSize: "11px",
+  },
+  infoItem: {
+    display: "flex",
+    flexDirection: "column",
+  },
+  label: { fontSize: "9px", color: "#666", fontWeight: "bold" },
+  value: { fontSize: "12px", fontWeight: "700", color: "#000" },
+  // LOT 번호 박스
+  lotBox: {
+    marginTop: "8px",
+    border: "2px solid #000",
+    padding: "6px",
+    textAlign: "center",
+    backgroundColor: "#f5f5f5",
+    borderRadius: "4px",
+  },
+  lotValue: {
+    fontSize: "15px",
+    fontWeight: "900",
+    color: "#000",
+    letterSpacing: "1px",
+    fontFamily: "monospace",
+  },
+  // 코드 섹션
+  codeSection: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    fontSize: "14px",
+    marginTop: "10px",
+    paddingTop: "10px",
+    borderTop: "1px dashed #999",
   },
-  statusBadge: {
-    padding: "4px 8px",
-    borderRadius: "6px",
-    fontSize: "12px",
+  scanText: {
+    fontSize: "8px",
+    marginTop: "2px",
+    color: "#444",
     fontWeight: "bold",
+    textAlign: "center",
+  },
+  // 버튼 그룹 (새로 추가)
+  btnGroup: {
+    display: "flex",
+    gap: "10px",
+  },
+  printBtn: {
+    flex: 2,
+    padding: "12px",
+    backgroundColor: "#333", // 인쇄 버튼
     color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "16px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+  },
+  generateBtn: {
+    flex: 1,
+    padding: "12px",
+    backgroundColor: "#8C85FF", // 생성 버튼
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "16px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
 };
 
-const BarcodeSystem = () => {
-  // --- 상태 관리 ---
-  const [scannedData, setScannedData] = useState(""); // 현재 입력중인 값
-  const [currentLot, setCurrentLot] = useState(null); // 현재 선택된 LOT 번호
-  const [scanLogs, setScanLogs] = useState([]); // 스캔 이력 로그
-  const inputRef = useRef(null); // 입력창 포커스용
+const BarcodeLabel = () => {
+  // 상태 관리 (data prop 대신 내부 state 사용)
+  const [labelData, setLabelData] = useState(null);
+  const printRef = useRef();
 
-  // --- 1. 명령어 바코드 정의 (현장 부착용) ---
-  // 이 코드들을 바코드로 변환해서 작업자가 찍습니다.
-  const COMMANDS = [
-    {
-      code: "CMD-START",
-      label: "생산 시작 (START)",
-      color: "#4CAF50",
-      icon: <FaPlay />,
-    },
-    {
-      code: "CMD-END",
-      label: "생산 종료 (FINISH)",
-      color: "#FF5252",
-      icon: <FaStop />,
-    },
-    {
-      code: "CMD-SHIP",
-      label: "제품 출고 (SHIP)",
-      color: "#2196F3",
-      icon: <FaTruck />,
-    },
-  ];
+  // 🏭 [로직 이식] 중복 없는 LOT 번호 생성기
+  const generateNewLot = () => {
+    const now = new Date();
 
-  // --- 2. 스캔 처리 로직 (핵심 기능) ---
-  const handleScan = (code) => {
-    const timestamp = new Date().toLocaleString();
-    let newLog = {
-      time: timestamp,
-      type: "INFO",
-      message: "",
-      lot: currentLot,
-    };
+    // 1. 날짜 (6자리)
+    const yy = String(now.getFullYear()).slice(2);
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const dateCode = `${yy}${mm}${dd}`;
 
-    // (1) LOT 번호 인식 (보통 LOT로 시작한다고 가정)
-    if (code.startsWith("LOT-")) {
-      setCurrentLot(code);
-      newLog = {
-        ...newLog,
-        type: "SET_LOT",
-        message: `제품 인식됨: ${code}`,
-        lot: code,
-      };
-      speakText("제품이 인식되었습니다.");
-    }
-    // (2) 명령어: 생산 시작
-    else if (code === "CMD-START") {
-      if (!currentLot) {
-        alert("먼저 제품(LOT) 바코드를 스캔해주세요!");
-        return;
-      }
-      newLog = {
-        ...newLog,
-        type: "START",
-        message: "생산 공정 시작 (Time Check)",
-        color: "#4CAF50",
-      };
-      // TODO: 백엔드 API 전송 -> /api/production/start
-      console.log(`[API 전송] LOT: ${currentLot}, Status: START`);
-      speakText("생산을 시작합니다.");
-    }
-    // (3) 명령어: 생산 종료
-    else if (code === "CMD-END") {
-      if (!currentLot) {
-        alert("작업 중인 제품이 없습니다.");
-        return;
-      }
-      newLog = {
-        ...newLog,
-        type: "END",
-        message: "생산 공정 완료 (Quality Check)",
-        color: "#FF5252",
-      };
-      // TODO: 백엔드 API 전송 -> /api/production/end
-      console.log(`[API 전송] LOT: ${currentLot}, Status: END`);
-      speakText("생산이 종료되었습니다.");
-      setCurrentLot(null); // 작업 끝났으니 초기화
-    }
-    // (4) 명령어: 출고
-    else if (code === "CMD-SHIP") {
-      if (!currentLot) {
-        // 출고는 LOT 찍고 바로 출고 찍는 경우가 많음
-        alert("출고할 제품(LOT)을 먼저 스캔해주세요.");
-        return;
-      }
-      newLog = {
-        ...newLog,
-        type: "SHIP",
-        message: "제품 출고 처리 완료 (Inventory -1)",
-        color: "#2196F3",
-      };
-      // TODO: 백엔드 API 전송 -> /api/inventory/ship
-      console.log(`[API 전송] LOT: ${currentLot}, Status: SHIP`);
-      speakText("정상 출고되었습니다.");
-      setCurrentLot(null);
-    }
-    // (5) 알 수 없는 코드
-    else {
-      newLog = {
-        type: "ERROR",
-        message: `알 수 없는 바코드: ${code}`,
-        color: "#999",
-      };
-      speakText("등록되지 않은 바코드입니다.");
-    }
+    // 2. 라인/제품 (3자리) - 고정값 또는 선택값
+    const lineCode = "A";
+    const prodCode = "01";
+    const fixedCode = `${lineCode}${prodCode}`; // A01
 
-    // 로그 추가 (최신순)
-    setScanLogs((prev) => [newLog, ...prev]);
-    setScannedData(""); // 입력창 초기화
+    // 3. 난수 (4자리) - 중복 방지용
+    const uniqueCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+
+    // 최종 LOT 번호
+    const fullLotNo = `${dateCode}${fixedCode}${uniqueCode}`;
+
+    // 데이터 갱신
+    setLabelData({
+      lotNo: fullLotNo,
+      dateCode: dateCode,
+      partNo: "PNL-24FHD-MED",
+      name: "24' Medical Display (AG)",
+      line: "Line-A (Clean Room)",
+      manager: "Manager.Kim",
+    });
   };
 
-  // --- TTS (음성 안내) 기능 ---
-  const speakText = (text) => {
-    if ("speechSynthesis" in window) {
-      const msg = new SpeechSynthesisUtterance(text);
-      msg.lang = "ko-KR";
-      msg.rate = 1.2; // 약간 빠르게
-      window.speechSynthesis.speak(msg);
-    }
-  };
-
-  // --- 키보드 이벤트 핸들러 (스캐너는 엔터키를 입력함) ---
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      if (scannedData.trim() !== "") {
-        handleScan(scannedData);
-      }
-    }
-  };
-
-  // 화면 켜지면 인풋에 자동 포커스 (스캐너 대기)
+  // 초기 로드 시 한 번 생성
   useEffect(() => {
-    inputRef.current?.focus();
+    generateNewLot();
   }, []);
+
+  // 인쇄 기능
+  const handlePrint = () => {
+    window.print();
+  };
+
+  if (!labelData) return <div>Loading...</div>;
+
+  // 추적 URL
+  const trackingUrl = `http://192.168.0.85:3000/mobile/tracking/${labelData.lotNo}`;
 
   return (
     <div style={styles.container}>
-      {/* [왼쪽] 명령어 바코드 생성 패널 (출력해서 벽에 붙이는 용도) */}
-      <div style={styles.leftPanel}>
-        <div style={styles.sectionTitle}>
-          <FaBarcode /> 공정 명령어 바코드
-        </div>
-        <p
-          style={{
-            fontSize: "13px",
-            color: "#666",
-            marginBottom: "20px",
-            textAlign: "center",
-          }}
-        >
-          이 바코드들을 출력하여 작업대에 부착하세요.
-          <br />
-          (스캐너로 찍으면 해당 기능이 실행됩니다)
-        </p>
+      {/* 상단 타이틀 */}
+      <div
+        style={{
+          ...styles.title,
+          fontSize: "16px",
+          fontWeight: "bold",
+          color: "#8C85FF",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+        }}
+      >
+        <FaTag /> 제품 라벨 발행 시스템
+      </div>
 
-        {COMMANDS.map((cmd) => (
-          <div key={cmd.code} style={styles.cmdCard}>
-            <div
-              style={{
-                color: cmd.color,
-                fontSize: "24px",
-                marginBottom: "5px",
-              }}
-            >
-              {cmd.icon}
+      {/* 🖨️ 인쇄 영역 (작성자님 디자인 적용) */}
+      <div id="printable-label" style={styles.labelArea} ref={printRef}>
+        {/* 헤더 */}
+        <div style={styles.header}>
+          <div>
+            <div style={styles.title}>MedisOne</div>
+            <div style={styles.subTitle}>Medical Solutions Inc.</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={styles.label}>Production Line</div>
+            <div style={{ fontWeight: "bold", fontSize: "11px" }}>
+              {labelData.line}
             </div>
-            {/* 바코드 생성 라이브러리 활용 */}
+          </div>
+        </div>
+
+        {/* 정보 그리드 */}
+        <div style={styles.gridInfo}>
+          <div style={styles.infoItem}>
+            <span style={styles.label}>Part No (자재코드)</span>
+            <span style={styles.value}>{labelData.partNo}</span>
+          </div>
+          <div style={styles.infoItem}>
+            <span style={styles.label}>Manager (담당자)</span>
+            <span style={styles.value}>{labelData.manager}</span>
+          </div>
+          <div style={{ ...styles.infoItem, gridColumn: "span 2" }}>
+            <span style={styles.label}>Description (품명)</span>
+            <span style={styles.value}>{labelData.name}</span>
+          </div>
+        </div>
+
+        {/* LOT 번호 박스 */}
+        <div style={styles.lotBox}>
+          <div style={styles.label}>LOT NO (Serial)</div>
+          <div style={styles.lotValue}>{labelData.lotNo}</div>
+        </div>
+
+        {/* 코드 섹션 */}
+        <div style={styles.codeSection}>
+          {/* 바코드 */}
+          <div style={{ textAlign: "center", flex: 1 }}>
             <Barcode
-              value={cmd.code}
-              width={2}
-              height={50}
-              fontSize={14}
+              value={labelData.lotNo}
+              format="CODE128"
+              width={1.4}
+              height={35}
+              fontSize={10}
+              margin={0}
               displayValue={false}
             />
-            <div style={{ ...styles.cmdLabel, color: cmd.color }}>
-              {cmd.label}
-            </div>
-            <div style={{ fontSize: "12px", color: "#999" }}>{cmd.code}</div>
+            <div style={styles.scanText}>SCANNER ONLY</div>
           </div>
-        ))}
-      </div>
 
-      {/* [오른쪽] 스캔 콘솔 (실제 기능 작동) */}
-      <div style={styles.rightPanel}>
-        {/* 1. 스캐너 입력창 */}
-        <div style={styles.card}>
-          <div style={styles.sectionTitle}>
-            <FaBarcode /> 실시간 스캔 콘솔
-          </div>
           <div
             style={{
-              marginBottom: "10px",
-              fontSize: "14px",
-              fontWeight: "bold",
+              width: "1px",
+              height: "40px",
+              background: "#ccc",
+              margin: "0 10px",
             }}
-          >
-            현재 작업 LOT:{" "}
-            {currentLot ? (
-              <span style={{ color: "#8C85FF", fontSize: "18px" }}>
-                {" "}
-                {currentLot}
-              </span>
-            ) : (
-              <span style={{ color: "#ccc" }}>
-                {" "}
-                대기중... (LOT를 스캔하세요)
-              </span>
-            )}
-          </div>
-          <input
-            ref={inputRef}
-            type="text"
-            value={scannedData}
-            onChange={(e) => setScannedData(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="스캐너로 바코드를 찍으세요..."
-            style={styles.scanInput}
-            autoFocus
-          />
-          <p style={{ fontSize: "12px", color: "#888", marginTop: "10px" }}>
-            * USB 바코드 스캐너는 키보드와 동일하게 작동합니다. 이곳에 커서를
-            두세요.
-          </p>
-        </div>
+          ></div>
 
-        {/* 2. 스캔 이력 (로그) */}
-        <div style={{ ...styles.card, flex: 1, overflowY: "auto" }}>
-          <div
-            style={{ ...styles.sectionTitle, borderBottom: "1px solid #eee" }}
-          >
-            <FaHistory /> 작업 이력 로그
-            <button
-              onClick={() => setScanLogs([])}
-              style={{
-                marginLeft: "auto",
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-                color: "#999",
-              }}
-            >
-              <FaTrashAlt /> 초기화
-            </button>
+          {/* QR코드 */}
+          <div style={{ textAlign: "center" }}>
+            <QRCodeSVG
+              value={trackingUrl}
+              size={60}
+              level={"M"}
+              includeMargin={false}
+            />
+            <div style={styles.scanText}>MOBILE INFO</div>
           </div>
-
-          {scanLogs.length === 0 ? (
-            <div
-              style={{ textAlign: "center", color: "#ccc", marginTop: "50px" }}
-            >
-              이력이 없습니다.
-            </div>
-          ) : (
-            scanLogs.map((log, index) => (
-              <div key={index} style={styles.logItem}>
-                <div>
-                  <div style={{ fontSize: "11px", color: "#999" }}>
-                    {log.time}
-                  </div>
-                  <div style={{ fontWeight: "bold", color: "#333" }}>
-                    {log.message}
-                  </div>
-                  {log.lot && (
-                    <div style={{ fontSize: "12px", color: "#8C85FF" }}>
-                      LOT: {log.lot}
-                    </div>
-                  )}
-                </div>
-                {log.color && (
-                  <span
-                    style={{
-                      ...styles.statusBadge,
-                      backgroundColor: log.color,
-                    }}
-                  >
-                    {log.type}
-                  </span>
-                )}
-              </div>
-            ))
-          )}
         </div>
       </div>
+
+      {/* 하단 버튼 그룹 */}
+      <div style={styles.btnGroup}>
+        <button
+          onClick={generateNewLot}
+          style={styles.generateBtn}
+          title="새로운 번호 생성"
+        >
+          <FaRedo /> 번호 갱신
+        </button>
+        <button onClick={handlePrint} style={styles.printBtn}>
+          <FaPrint /> 라벨 출력
+        </button>
+      </div>
+
+      {/* 인쇄 전용 CSS */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #printable-label, #printable-label * { visibility: visible; }
+          
+          #printable-label {
+            position: absolute;
+            left: 0; top: 0;
+            width: 100%; margin: 0;
+            border: 1px solid #000;
+          }
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          @page { size: auto; margin: 5mm; }
+        }
+      `}</style>
     </div>
   );
 };
 
-export default BarcodeSystem;
+export default BarcodeLabel;

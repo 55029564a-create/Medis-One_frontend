@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  FaSearch,
-  FaFileExcel,
-  FaArrowDown,
-  FaArrowUp,
+  getMaterialInfo,
+  registerMaterialInOut,
+  getRecentHistory,
+} from "../../api/materialApi";
+import {
   FaBox,
   FaBarcode,
   FaTruckLoading,
@@ -11,15 +13,18 @@ import {
   FaCheckCircle,
   FaSyncAlt,
   FaHistory,
+  FaUserTie,
+  FaCaretDown,
+  FaLayerGroup,
 } from "react-icons/fa";
 
-// 🎨 MedisOne 디자인 시스템
+// 🎨 디자인 시스템
 const COLORS = {
   primary: "#8C85FF",
   secondary: "#F3F1FF",
-  success: "#00C851", // 입고
-  danger: "#FF4444", // 출고
-  warning: "#FFBB33",
+  success: "#00C851",
+  danger: "#FF4444",
+  info: "#33B5E5",
   text: "#333",
   subText: "#888",
   border: "#E0E0E0",
@@ -28,234 +33,153 @@ const COLORS = {
   cardShadow: "0 2px 8px rgba(0,0,0,0.05)",
 };
 
+// 🧑‍💼 담당자 더미 데이터
+const DUMMY_MANAGERS = [
+  { name: "김철수", id: "10001" },
+  { name: "이영희", id: "10002" },
+  { name: "박민수", id: "10003" },
+];
+
 const MaterialInout = () => {
-  // --- 1. 상태 관리 ---
+  const navigate = useNavigate();
+  const lotInputRef = useRef(null);
+
+  // --- 상태 관리 ---
   const [inputs, setInputs] = useState({
     type: "IN",
     item: "",
     lot: "",
     vendor: "",
     qty: "",
+    currentQty: 0,
+    manager: "",
   });
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("ALL");
+  const [dbStatus, setDbStatus] = useState("IDLE");
+  const [recentList, setRecentList] = useState([]);
+  const [showManagerList, setShowManagerList] = useState(false);
+  const [filteredManagers, setFilteredManagers] = useState(DUMMY_MANAGERS);
 
-  // 💾 풍부한 더미 데이터 (12개)
-  const [history, setHistory] = useState([
-    {
-      id: 12,
-      time: "15:20",
-      date: "2026-01-19",
-      type: "IN",
-      item: "27인치 LCD 패널",
-      lot: "LOT-260119-001",
-      change: 500,
-      prevStock: 1000,
-      stock: 1500,
-      worker: "김자재",
-      vendor: "LG Display",
-    },
-    {
-      id: 11,
-      time: "14:45",
-      date: "2026-01-19",
-      type: "OUT",
-      item: "나사 (M4)",
-      lot: "LOT-260110-003",
-      change: 2000,
-      prevStock: 10000,
-      stock: 8000,
-      worker: "박생산",
-      vendor: "라인투입",
-    },
-    {
-      id: 10,
-      time: "13:30",
-      date: "2026-01-19",
-      type: "IN",
-      item: "전원 케이블",
-      lot: "LOT-260119-002",
-      change: 300,
-      prevStock: 50,
-      stock: 350,
-      worker: "이물류",
-      vendor: "성진전선",
-    },
-    {
-      id: 9,
-      time: "11:00",
-      date: "2026-01-19",
-      type: "OUT",
-      item: "메인보드 PCB",
-      lot: "LOT-260115-088",
-      change: 50,
-      prevStock: 200,
-      stock: 150,
-      worker: "최조립",
-      vendor: "라인투입",
-    },
-    {
-      id: 8,
-      time: "09:15",
-      date: "2026-01-19",
-      type: "IN",
-      item: "ABS 수지 (White)",
-      lot: "LOT-260119-005",
-      change: 1000,
-      prevStock: 500,
-      stock: 1500,
-      worker: "김자재",
-      vendor: "한화솔루션",
-    },
-    {
-      id: 7,
-      time: "17:40",
-      date: "2026-01-18",
-      type: "IN",
-      item: "포장 박스 (Large)",
-      lot: "LOT-260118-012",
-      change: 500,
-      prevStock: 100,
-      stock: 600,
-      worker: "이물류",
-      vendor: "대영포장",
-    },
-    {
-      id: 6,
-      time: "16:20",
-      date: "2026-01-18",
-      type: "OUT",
-      item: "27인치 LCD 패널",
-      lot: "LOT-260115-001",
-      change: 100,
-      prevStock: 1100,
-      stock: 1000,
-      worker: "박생산",
-      vendor: "라인투입",
-    },
-    {
-      id: 5,
-      time: "14:10",
-      date: "2026-01-18",
-      type: "IN",
-      item: "LED 모듈",
-      lot: "LOT-260118-003",
-      change: 2000,
-      prevStock: 0,
-      stock: 2000,
-      worker: "김자재",
-      vendor: "서울반도체",
-    },
-    {
-      id: 4,
-      time: "10:00",
-      date: "2026-01-18",
-      type: "OUT",
-      item: "나사 (M4)",
-      lot: "LOT-260110-003",
-      change: 500,
-      prevStock: 10500,
-      stock: 10000,
-      worker: "정수진",
-      vendor: "라인투입",
-    },
-    {
-      id: 3,
-      time: "09:30",
-      date: "2026-01-17",
-      type: "IN",
-      item: "방열판 (Alu)",
-      lot: "LOT-260117-001",
-      change: 300,
-      prevStock: 150,
-      stock: 450,
-      worker: "이물류",
-      vendor: "알루코",
-    },
-    {
-      id: 2,
-      time: "15:00",
-      date: "2026-01-17",
-      type: "OUT",
-      item: "전원 케이블",
-      lot: "LOT-260112-009",
-      change: 20,
-      prevStock: 70,
-      stock: 50,
-      worker: "최조립",
-      vendor: "AS센터",
-    },
-    {
-      id: 1,
-      time: "11:20",
-      date: "2026-01-16",
-      type: "IN",
-      item: "실리콘 구리스",
-      lot: "LOT-260116-004",
-      change: 50,
-      prevStock: 10,
-      stock: 60,
-      worker: "김자재",
-      vendor: "다우코닝",
-    },
-  ]);
+  // 초기 로드
+  useEffect(() => {
+    fetchRecentHistory();
+    lotInputRef.current?.focus();
+  }, []);
 
-  // --- 2. 로직 ---
-  const generateLotId = () => {
-    const today = new Date().toISOString().slice(2, 10).replace(/-/g, "");
-    const random = Math.floor(Math.random() * 999)
-      .toString()
-      .padStart(3, "0");
-    setInputs({ ...inputs, lot: `LOT-${today}-${random}` });
+  // --- 로직: 최근 내역 불러오기 ---
+  const fetchRecentHistory = async () => {
+    const data = await getRecentHistory();
+    if (data === null) {
+      setDbStatus("ERROR");
+      setRecentList([]);
+    } else {
+      setDbStatus("SUCCESS");
+      setRecentList(data.slice(0, 5));
+    }
   };
 
-  const handleRegister = () => {
-    if (!inputs.item || !inputs.qty || !inputs.lot)
-      return alert("필수 정보를 입력하세요.");
-
-    const qtyNum = Number(inputs.qty);
-    const currentStock = Math.floor(Math.random() * 500) + 100; // 가상 재고
-    const finalStock =
-      inputs.type === "IN" ? currentStock + qtyNum : currentStock - qtyNum;
-
-    const newItem = {
-      id: history.length + 1,
-      time: new Date().toLocaleTimeString("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      date: new Date().toISOString().split("T")[0],
-      type: inputs.type,
-      item: inputs.item,
-      lot: inputs.lot,
-      change: qtyNum,
-      prevStock: currentStock,
-      stock: finalStock,
-      worker: "관리자",
-      vendor: inputs.vendor || (inputs.type === "IN" ? "미지정" : "라인투입"),
-    };
-
-    setHistory([newItem, ...history]);
-    setInputs({ type: "IN", item: "", lot: "", vendor: "", qty: "" });
-    alert("정상적으로 처리되었습니다.");
+  // --- 로직: 바코드 스캔 ---
+  const handleScan = async (e) => {
+    if (e.key === "Enter" && inputs.lot) {
+      try {
+        const data = await getMaterialInfo(inputs.lot);
+        setInputs((prev) => ({
+          ...prev,
+          item: data.materialName,
+          vendor:
+            data.company || (prev.type === "IN" ? "기본입고처" : "생산 1라인"),
+          currentQty: data.currentQty || 0,
+          qty: "",
+        }));
+        document.getElementById("qtyInput").focus();
+      } catch (error) {
+        alert("등록되지 않은 바코드입니다.");
+        setInputs((prev) => ({ ...prev, item: "❌ 정보 없음" }));
+      }
+    }
   };
 
-  // 통계
-  const todayIn = history
-    .filter((h) => h.type === "IN")
-    .reduce((acc, cur) => acc + cur.change, 0);
-  const todayOut = history
-    .filter((h) => h.type === "OUT")
-    .reduce((acc, cur) => acc + cur.change, 0);
+  // --- 로직: 담당자 ---
+  const handleManagerChange = (e) => {
+    const text = e.target.value;
+    setInputs({ ...inputs, manager: text });
+    const filtered = DUMMY_MANAGERS.filter(
+      (m) => m.name.includes(text) || m.id.includes(text),
+    );
+    setFilteredManagers(filtered);
+    setShowManagerList(true);
+  };
 
-  // 필터링
-  const filteredData = history.filter((item) => {
-    const matchesSearch =
-      item.item.includes(searchTerm) || item.lot.includes(searchTerm);
-    const matchesType = filterType === "ALL" ? true : item.type === filterType;
-    return matchesSearch && matchesType;
-  });
+  const selectManager = (manager) => {
+    setInputs({ ...inputs, manager: `${manager.name} (${manager.id})` });
+    setShowManagerList(false);
+  };
+
+  // --- 로직: 등록 ---
+  const handleRegister = async () => {
+    if (!inputs.item || !inputs.qty || !inputs.lot || !inputs.manager) {
+      return alert("필수 정보를 모두 입력해주세요.");
+    }
+    try {
+      await registerMaterialInOut({
+        type: inputs.type,
+        lotId: inputs.lot,
+        quantity: Number(inputs.qty),
+        company: inputs.vendor,
+        worker: inputs.manager,
+      });
+
+      alert("처리가 완료되었습니다.");
+      setInputs((prev) => ({
+        ...prev,
+        item: "",
+        lot: "",
+        vendor: "",
+        qty: "",
+        currentQty: 0,
+      }));
+      fetchRecentHistory();
+      lotInputRef.current.focus();
+    } catch (error) {
+      alert("오류 발생");
+    }
+  };
+
+  // 통계용
+  const todayIn = recentList.filter(
+    (h) => h.type === "IN" || h.type === "입고",
+  ).length;
+  const todayOut = recentList.filter(
+    (h) => h.type === "OUT" || h.type === "출고",
+  ).length;
+  const totalStock = 12500;
+
+  // 리스트 가공 (상태 메시지 처리)
+  let displayList = [...recentList];
+
+  if (dbStatus === "ERROR") {
+    displayList = [
+      {
+        type: "OUT",
+        date: new Date().toISOString(),
+        matName: "❌ DB 연결 실패 (서버 점검)",
+        lotNum: "ERR-500",
+        changeQty: 0,
+        worker: "시스템 (00000)",
+      },
+    ];
+  } else if (dbStatus === "SUCCESS" && recentList.length === 0) {
+    displayList = [
+      {
+        type: "IN",
+        date: new Date().toISOString(),
+        matName: "✅ DB 연결됨 (데이터 없음)",
+        lotNum: "INFO-200",
+        changeQty: 0,
+        worker: "관리자 (99999)",
+      },
+    ];
+  }
 
   return (
     <div style={styles.container}>
@@ -267,129 +191,210 @@ const MaterialInout = () => {
             자재 입/출고 관리
           </h2>
         </div>
-        <p
-          style={{ margin: "5px 0 0", fontSize: "13px", color: COLORS.subText }}
+        <button
+          onClick={() => navigate("/material/history")}
+          style={styles.historyBtn}
         >
-          정확한 재고 관리를 위해 일련번호(Lot ID)를 필수로 입력해주세요.
-        </p>
+          <FaHistory /> 전체 내역 보기
+        </button>
       </div>
 
-      {/* 1. 상단 통계 카드 */}
+      {/* 통계 카드 */}
       <div style={styles.statsGrid}>
         <StatCard
-          title="금일 총 입고"
+          title="금일 입고 건수"
           value={todayIn}
-          unit="EA"
+          unit="건"
           icon={<FaTruckLoading />}
           color={COLORS.success}
         />
         <StatCard
-          title="금일 총 출고"
+          title="금일 출고 건수"
           value={todayOut}
-          unit="EA"
+          unit="건"
           icon={<FaDolly />}
           color={COLORS.danger}
         />
         <StatCard
-          title="재고 회전율"
-          value="98.5"
-          unit="%"
-          icon={<FaSyncAlt />}
-          color={COLORS.primary}
+          title="현재 총 재고량"
+          value={totalStock.toLocaleString()}
+          unit="EA"
+          icon={<FaLayerGroup />}
+          color={COLORS.info}
         />
       </div>
 
-      {/* 2. 신규 등록 폼 (칼각 2줄 레이아웃) */}
+      {/* 등록 폼 */}
       <div style={styles.inputSection}>
         <div style={styles.sectionHeader}>
-          <h3 style={{ margin: 0, fontSize: "16px", color: COLORS.text }}>
-            📋 신규 등록
-          </h3>
-          <span style={{ fontSize: "12px", color: COLORS.danger }}>
-            * 모든 항목을 정확히 입력해주세요.
-          </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <h3 style={{ margin: 0, fontSize: "16px", color: COLORS.text }}>
+              📋 스캔 등록 작업
+            </h3>
+            <span style={{ fontSize: "12px", color: COLORS.subText }}>
+              * 바코드 스캔 후 정보를 확인하세요.
+            </span>
+          </div>
+          {/* 토글 버튼 */}
+          <div style={styles.toggleGroup}>
+            <button
+              style={{
+                ...styles.toggleBtn,
+                backgroundColor:
+                  inputs.type === "IN" ? COLORS.success : "#f0f0f0",
+                color: inputs.type === "IN" ? "#fff" : "#999",
+              }}
+              onClick={() => setInputs({ ...inputs, type: "IN" })}
+            >
+              입고 (IN)
+            </button>
+            <button
+              style={{
+                ...styles.toggleBtn,
+                backgroundColor:
+                  inputs.type === "OUT" ? COLORS.danger : "#f0f0f0",
+                color: inputs.type === "OUT" ? "#fff" : "#999",
+              }}
+              onClick={() => setInputs({ ...inputs, type: "OUT" })}
+            >
+              출고 (OUT)
+            </button>
+          </div>
         </div>
 
-        {/* ★ 여기가 핵심: CSS Grid로 완벽한 2줄 맞춤 ★ */}
         <div style={styles.formGrid}>
-          {/* [1행 1열] 구분 (작은 사이즈) */}
+          {/* 담당자 검색 */}
           <div style={styles.gridCell}>
-            <label style={styles.label}>구분</label>
-            <select
-              style={styles.fixedInput}
-              value={inputs.type}
-              onChange={(e) => setInputs({ ...inputs, type: e.target.value })}
-            >
-              <option value="IN">입고 (In)</option>
-              <option value="OUT">출고 (Out)</option>
-            </select>
+            <label style={styles.label}>담당자 (이름/사번)</label>
+            <div style={{ position: "relative", width: "100%" }}>
+              <div style={styles.inputWrapper}>
+                <FaUserTie style={styles.inputIcon} />
+                <input
+                  style={styles.fixedInputWithIcon}
+                  placeholder="담당자 검색..."
+                  value={inputs.manager}
+                  onChange={handleManagerChange}
+                  onFocus={() => setShowManagerList(true)}
+                  onBlur={() =>
+                    setTimeout(() => setShowManagerList(false), 200)
+                  }
+                />
+                <FaCaretDown
+                  style={{
+                    position: "absolute",
+                    right: 10,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "#aaa",
+                  }}
+                />
+              </div>
+              {showManagerList && (
+                <div style={styles.dropdownList}>
+                  {filteredManagers.map((mgr) => (
+                    <div
+                      key={mgr.id}
+                      style={styles.dropdownItem}
+                      onClick={() => selectManager(mgr)}
+                    >
+                      <span style={{ fontWeight: "bold" }}>{mgr.name}</span>
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          color: "#888",
+                          marginLeft: "5px",
+                        }}
+                      >
+                        ({mgr.id})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* [1행 2열] 품목명 (큰 사이즈) */}
+          {/* 일련번호 스캔 */}
           <div style={styles.gridCell}>
-            <label style={styles.label}>품목명</label>
+            <label style={styles.label}>일련번호 (Lot ID)</label>
             <div style={styles.inputWrapper}>
-              <FaBox style={styles.inputIcon} />
+              <FaBarcode style={styles.inputIcon} />
               <input
-                style={styles.fixedInputWithIcon}
-                placeholder="품목명 검색..."
-                value={inputs.item}
-                onChange={(e) => setInputs({ ...inputs, item: e.target.value })}
+                ref={lotInputRef}
+                style={{
+                  ...styles.fixedInputWithIcon,
+                  borderColor: COLORS.primary,
+                }}
+                placeholder="바코드 스캔..."
+                value={inputs.lot}
+                onChange={(e) => setInputs({ ...inputs, lot: e.target.value })}
+                onKeyDown={handleScan}
               />
             </div>
           </div>
 
-          {/* [1행 3열] 일련번호 (중간 사이즈 + 버튼) */}
+          {/* 품목명 (자동) */}
           <div style={styles.gridCell}>
-            <label style={styles.label}>일련번호 (Lot ID)</label>
-            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
-              <div style={{ position: "relative", flex: 1 }}>
-                <FaBarcode style={styles.inputIcon} />
-                <input
-                  style={{ ...styles.fixedInputWithIcon, width: "100%" }}
-                  placeholder="Lot No 입력"
-                  value={inputs.lot}
-                  onChange={(e) =>
-                    setInputs({ ...inputs, lot: e.target.value })
-                  }
-                />
-              </div>
-              <button style={styles.fixedBtnOutline} onClick={generateLotId}>
-                번호생성
-              </button>
-            </div>
-          </div>
-
-          {/* [2행 1열] 수량 (작은 사이즈) */}
-          <div style={styles.gridCell}>
-            <label style={styles.label}>수량</label>
+            <label style={styles.label}>품목명 (자동)</label>
             <input
-              type="number"
-              style={styles.fixedInput}
-              placeholder="0"
-              value={inputs.qty}
-              onChange={(e) => setInputs({ ...inputs, qty: e.target.value })}
+              style={{
+                ...styles.fixedInput,
+                backgroundColor: "#eee",
+                fontWeight: "bold",
+                color: "#333",
+              }}
+              placeholder="스캔 시 입력됨"
+              value={inputs.item}
+              readOnly
             />
           </div>
 
-          {/* [2행 2열] 거래처 (큰 사이즈) */}
+          {/* 수량 */}
           <div style={styles.gridCell}>
-            <label style={styles.label}>거래처 / 위치</label>
+            <label style={styles.label}>
+              {inputs.type === "IN" ? "입고 수량" : "출고 수량"}
+            </label>
+            <input
+              id="qtyInput"
+              type="number"
+              style={styles.fixedInput}
+              placeholder={
+                inputs.currentQty ? `현재: ${inputs.currentQty}` : "0"
+              }
+              value={inputs.qty}
+              onChange={(e) => setInputs({ ...inputs, qty: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && handleRegister()}
+            />
+          </div>
+
+          {/* 거래처/공정 */}
+          <div style={styles.gridCell}>
+            <label style={styles.label}>
+              {inputs.type === "IN" ? "공급 업체 (Vendor)" : "투입 공정 / 라인"}
+            </label>
             <input
               style={styles.fixedInput}
               placeholder={
-                inputs.type === "IN" ? "공급업체 입력" : "투입 라인 입력"
+                inputs.type === "IN" ? "예: 삼성전기" : "예: 조립 1라인"
               }
               value={inputs.vendor}
               onChange={(e) => setInputs({ ...inputs, vendor: e.target.value })}
             />
           </div>
 
-          {/* [2행 3열] 등록 버튼 (꽉 차게) */}
+          {/* 등록 버튼 */}
           <div style={{ ...styles.gridCell, justifyContent: "flex-end" }}>
-            <label style={styles.label}>&nbsp;</label> {/* 줄맞춤용 빈 라벨 */}
-            <button style={styles.fixedBtnSolid} onClick={handleRegister}>
-              <FaCheckCircle /> 처리 완료
+            <label style={styles.label}>&nbsp;</label>
+            <button
+              style={{
+                ...styles.fixedBtnSolid,
+                backgroundColor:
+                  inputs.type === "IN" ? COLORS.success : COLORS.danger,
+              }}
+              onClick={handleRegister}
+            >
+              <FaCheckCircle />{" "}
+              {inputs.type === "IN" ? "입고 확정" : "출고 확정"}
             </button>
           </div>
         </div>
@@ -398,139 +403,104 @@ const MaterialInout = () => {
       {/* 3. 리스트 영역 */}
       <div style={styles.listSection}>
         <div style={styles.toolbar}>
-          <div style={styles.tabs}>
-            <TabButton
-              label="전체 내역"
-              active={filterType === "ALL"}
-              onClick={() => setFilterType("ALL")}
-            />
-            <TabButton
-              label="입고"
-              active={filterType === "IN"}
-              onClick={() => setFilterType("IN")}
-              color={COLORS.success}
-            />
-            <TabButton
-              label="출고"
-              active={filterType === "OUT"}
-              onClick={() => setFilterType("OUT")}
-              color={COLORS.danger}
-            />
-          </div>
-          <div style={styles.searchBox}>
-            <FaSearch color={COLORS.subText} style={{ minWidth: "14px" }} />
-            <input
-              placeholder="품목명, Lot No, 담당자 검색"
-              style={styles.searchInput}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+          <h4
+            style={{
+              margin: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <FaSyncAlt /> 최근 처리 내역 (5건)
+          </h4>
         </div>
 
         <div style={styles.tableHeader}>
           <div style={{ flex: 0.6 }}>구분</div>
-          <div style={{ flex: 1 }}>일시</div>
-          <div style={{ flex: 1.5 }}>품목명 / Lot No</div>
-          <div style={{ flex: 1.2, textAlign: "center" }}>거래처</div>
-          <div style={{ flex: 2, textAlign: "center" }}>
-            재고 변동 (Before → After)
-          </div>
+          <div style={{ flex: 1.2 }}>일시</div>
+          <div style={{ flex: 2 }}>자재명 (Lot No)</div>
+          {/* ✅ 수량 변동만 심플하게 표시 */}
+          <div style={{ flex: 1.5, textAlign: "center" }}>처리 수량</div>
           <div style={{ flex: 0.8, textAlign: "center" }}>담당자</div>
         </div>
 
         <div style={styles.listBody}>
-          {filteredData.map((item) => (
-            <div key={item.id} style={styles.row}>
-              <div style={{ flex: 0.6 }}>
-                <span
-                  style={{
-                    ...styles.typeBadge,
-                    color: item.type === "IN" ? COLORS.success : COLORS.danger,
-                    backgroundColor: item.type === "IN" ? "#E8F5E9" : "#FFEBEE",
-                  }}
-                >
-                  {item.type === "IN" ? "입고" : "출고"}
-                </span>
-              </div>
-              <div style={{ flex: 1, fontSize: "12px", color: COLORS.subText }}>
-                <div>{item.date}</div>
-                <div style={{ fontWeight: "bold", color: "#555" }}>
-                  {item.time}
-                </div>
-              </div>
-              <div style={{ flex: 1.5 }}>
-                <div style={{ fontWeight: "bold", color: COLORS.text }}>
-                  {item.item}
+          {displayList.map((item, idx) => {
+            const type =
+              item.type === "IN" ||
+              item.type === "INBOUND" ||
+              item.type === "입고"
+                ? "IN"
+                : "OUT";
+            const date = item.date
+              ? item.date.replace("T", " ").substring(5, 16)
+              : "-";
+            const workerName = (item.empName || item.worker || "시스템")
+              .split("(")[0]
+              .trim();
+            const qty = Number(
+              item.changeQty || item.quantity || 0,
+            ).toLocaleString();
+
+            return (
+              <div key={idx} style={styles.row}>
+                <div style={{ flex: 0.6 }}>
+                  <span
+                    style={{
+                      ...styles.typeBadge,
+                      color: type === "IN" ? COLORS.success : COLORS.danger,
+                      backgroundColor: type === "IN" ? "#E8F5E9" : "#FFEBEE",
+                    }}
+                  >
+                    {type === "IN" ? "입고" : "출고"}
+                  </span>
                 </div>
                 <div
-                  style={{
-                    fontSize: "11px",
-                    color: "#888",
-                    fontFamily: "monospace",
-                  }}
+                  style={{ flex: 1.2, fontSize: "12px", color: COLORS.subText }}
                 >
-                  {item.lot}
+                  {date}
+                </div>
+                <div style={{ flex: 2 }}>
+                  <div style={{ fontWeight: "bold", color: COLORS.text }}>
+                    {item.matName || item.materialName}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "#888",
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {item.lotNum || item.lotId}
+                  </div>
+                </div>
+
+                {/* ✅ 심플해진 수량 부분 */}
+                <div style={{ flex: 1.5, textAlign: "center" }}>
+                  <span
+                    style={{
+                      fontWeight: "bold",
+                      fontSize: "15px",
+                      color: type === "IN" ? COLORS.success : COLORS.danger,
+                    }}
+                  >
+                    {type === "IN" ? "+" : "-"} {qty}
+                  </span>
+                </div>
+
+                <div style={{ flex: 0.8, textAlign: "center" }}>
+                  <span style={styles.workerBadge}>{workerName}</span>
                 </div>
               </div>
-              <div
-                style={{
-                  flex: 1.2,
-                  textAlign: "center",
-                  fontSize: "13px",
-                  color: "#555",
-                }}
-              >
-                {item.vendor}
-              </div>
-              <div
-                style={{
-                  flex: 2,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  fontSize: "13px",
-                }}
-              >
-                <span style={{ color: "#999" }}>
-                  {item.prevStock.toLocaleString()}
-                </span>
-                <span style={{ fontSize: "10px", color: "#ccc" }}>▶</span>
-                <span
-                  style={{
-                    fontWeight: "bold",
-                    color: item.type === "IN" ? COLORS.success : COLORS.danger,
-                  }}
-                >
-                  {item.type === "IN" ? "+" : "-"}
-                  {item.change.toLocaleString()}
-                </span>
-                <span style={{ fontSize: "10px", color: "#ccc" }}>▶</span>
-                <span
-                  style={{
-                    fontWeight: "bold",
-                    color: COLORS.text,
-                    backgroundColor: "#f0f0f0",
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                  }}
-                >
-                  {item.stock.toLocaleString()}
-                </span>
-              </div>
-              <div style={{ flex: 0.8, textAlign: "center" }}>
-                <span style={styles.workerBadge}>{item.worker}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
   );
 };
 
-// --- 서브 컴포넌트 ---
+// --- 서브 컴포넌트 & 스타일 ---
 const StatCard = ({ title, value, unit, icon, color }) => (
   <div style={styles.statCard}>
     <div
@@ -545,45 +515,40 @@ const StatCard = ({ title, value, unit, icon, color }) => (
     <div>
       <div style={{ fontSize: "12px", color: COLORS.subText }}>{title}</div>
       <div style={{ fontSize: "18px", fontWeight: "bold", color: COLORS.text }}>
-        {value.toLocaleString()}{" "}
+        {value}{" "}
         <span style={{ fontSize: "12px", fontWeight: "normal" }}>{unit}</span>
       </div>
     </div>
   </div>
 );
 
-const TabButton = ({ label, active, onClick, color = COLORS.primary }) => (
-  <button
-    onClick={onClick}
-    style={{
-      padding: "6px 14px",
-      borderRadius: "20px",
-      border: active ? `1px solid ${color}` : "1px solid #ddd",
-      backgroundColor: active ? color : "#fff",
-      color: active ? "#fff" : "#666",
-      fontSize: "12px",
-      fontWeight: "bold",
-      cursor: "pointer",
-      transition: "all 0.2s",
-    }}
-  >
-    {label}
-  </button>
-);
-
-// --- 스타일 ---
 const styles = {
   container: {
     padding: "30px",
     backgroundColor: COLORS.bg,
     minHeight: "100vh",
   },
-  header: { marginBottom: "20px" },
-
-  // 통계
+  header: {
+    marginBottom: "20px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  historyBtn: {
+    padding: "8px 15px",
+    backgroundColor: "#fff",
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "5px",
+    fontWeight: "bold",
+    color: "#555",
+  },
   statsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
+    gridTemplateColumns: "1fr 1fr 1fr",
     gap: "15px",
     marginBottom: "20px",
   },
@@ -606,7 +571,6 @@ const styles = {
     fontSize: "20px",
   },
 
-  // 입력 폼
   inputSection: {
     backgroundColor: COLORS.white,
     borderRadius: "12px",
@@ -615,20 +579,36 @@ const styles = {
     marginBottom: "20px",
   },
   sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: "20px",
     paddingBottom: "10px",
     borderBottom: "1px solid #f0f0f0",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
 
-  // ★ 2줄 맞춤 그리드 시스템
+  toggleGroup: {
+    display: "flex",
+    width: "200px",
+    height: "36px",
+    borderRadius: "18px",
+    overflow: "hidden",
+    border: "1px solid #ddd",
+  },
+  toggleBtn: {
+    flex: 1,
+    border: "none",
+    cursor: "pointer",
+    fontWeight: "bold",
+    fontSize: "13px",
+    transition: "0.2s",
+  },
+
   formGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 2fr 1.5fr", // 3열 배치 (비율 조정)
-    rowGap: "15px", // 위아래 간격
-    columnGap: "20px", // 좌우 간격
+    gridTemplateColumns: "1fr 2fr 1.5fr",
+    rowGap: "15px",
+    columnGap: "20px",
   },
   gridCell: {
     display: "flex",
@@ -638,7 +618,6 @@ const styles = {
   },
   label: { fontSize: "12px", fontWeight: "bold", color: "#666" },
 
-  // 고정 사이즈 인풋 (높이 42px로 통일)
   fixedInput: {
     width: "100%",
     height: "42px",
@@ -661,24 +640,11 @@ const styles = {
     outline: "none",
     boxSizing: "border-box",
   },
-  fixedBtnOutline: {
-    height: "42px",
-    padding: "0 15px",
-    borderRadius: "8px",
-    border: `1px solid ${COLORS.primary}`,
-    backgroundColor: "#fff",
-    color: COLORS.primary,
-    fontSize: "12px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
   fixedBtnSolid: {
     width: "100%",
     height: "42px",
     borderRadius: "8px",
     border: "none",
-    backgroundColor: COLORS.primary,
     color: "#fff",
     fontSize: "13px",
     fontWeight: "bold",
@@ -698,7 +664,28 @@ const styles = {
     color: "#aaa",
   },
 
-  // 리스트
+  dropdownList: {
+    position: "absolute",
+    top: "45px",
+    left: 0,
+    width: "100%",
+    backgroundColor: "#fff",
+    border: "1px solid #ddd",
+    borderRadius: "8px",
+    boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+    zIndex: 10,
+    maxHeight: "150px",
+    overflowY: "auto",
+  },
+  dropdownItem: {
+    padding: "10px",
+    fontSize: "13px",
+    borderBottom: "1px solid #f5f5f5",
+    cursor: "pointer",
+    transition: "0.1s",
+    ":hover": { backgroundColor: "#f5f5f5" },
+  },
+
   listSection: {
     backgroundColor: COLORS.white,
     borderRadius: "12px",
@@ -706,27 +693,10 @@ const styles = {
     boxShadow: COLORS.cardShadow,
   },
   toolbar: {
+    marginBottom: "15px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "15px",
-  },
-  tabs: { display: "flex", gap: "8px" },
-  searchBox: {
-    display: "flex",
-    alignItems: "center",
-    backgroundColor: "#F5F6FA",
-    borderRadius: "20px",
-    padding: "6px 15px",
-    width: "250px",
-  },
-  searchInput: {
-    border: "none",
-    background: "transparent",
-    outline: "none",
-    marginLeft: "8px",
-    fontSize: "13px",
-    width: "100%",
   },
   tableHeader: {
     display: "flex",
@@ -745,7 +715,6 @@ const styles = {
     padding: "12px 15px",
     borderBottom: "1px solid #f0f0f0",
     transition: "background-color 0.2s",
-    ":hover": { backgroundColor: "#F9FAFB" },
   },
   typeBadge: {
     display: "inline-flex",

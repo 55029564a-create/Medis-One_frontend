@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
 import client from "../../api/client";
+// getMaterialHistory 함수 위치 확인 필수
+import { getMaterialHistory } from "../../api/materialApi";
+
 import {
   FaFileExcel,
   FaSearch,
@@ -10,6 +13,8 @@ import {
   FaTrash,
   FaEye,
   FaTimes,
+  FaExclamationCircle,
+  FaCheckCircle,
 } from "react-icons/fa";
 
 // 🎨 테마 컬러
@@ -31,84 +36,127 @@ const MaterialHistory = () => {
   const [filterType, setFilterType] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // [NEW] 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // 페이지당 10개
+  const itemsPerPage = 10;
 
-  // 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
-  useEffect(() => {
-    // API 요청
-    client
-      .get("/test/history")
-      .then((res) => {
-        setHistory(res.data);
-      })
-      .catch((err) => {
-        console.error("데이터 수신 실패:", err);
-        // 에러 시 임시 더미 데이터 (테스트용으로 15개 생성)
-        const dummyData = Array.from({ length: 25 }, (_, i) => ({
-          id: `SYS-${i + 1}`,
-          date: `2026-01-26 10:${i < 10 ? "0" + i : i}`,
-          type: i % 2 === 0 ? "IN" : "OUT",
-          partCode: `CODE-${100 + i}`,
-          item: `테스트 자재 ${i + 1}`,
-          lot: `LOT-${202600 + i}`,
-          qty: (i + 1) * 10,
-          location: "A-01",
+  // 🔄 [핵심 수정] 데이터 로드 로직
+  const fetchData = async () => {
+    try {
+      const data = await getMaterialHistory(searchTerm);
+
+      // 1. [연결 성공] 데이터가 있을 때
+      if (data && data.length > 0) {
+        const mappedData = data.map((item, index) => {
+          let typeCode = "ETC";
+          if (item.type === "입고") typeCode = "IN";
+          else if (item.type === "출고") typeCode = "OUT";
+
+          return {
+            id: `HIST-${index}`,
+            date: item.date
+              ? item.date.replace("T", " ").substring(0, 16)
+              : "-",
+            type: typeCode,
+            partCode: "-",
+            item: item.matName,
+            lot: item.lotNum,
+            qty: item.changeQty,
+            location: item.company || "-",
+            worker: item.empName || "시스템",
+            note: `이전: ${item.prevQty} → 현재: ${item.currentQty}`,
+          };
+        });
+        setHistory(mappedData);
+      }
+      // 2. [연결 성공] 하지만 데이터가 0개일 때 (요청하신 부분!)
+      else {
+        setHistory([
+          {
+            id: "INFO-EMPTY",
+            date: "-",
+            type: "INFO", // 파란색 배지용
+            partCode: "-",
+            item: "✅ DB 연결 성공 (데이터 없음)", // 자재명에 표시
+            lot: "-",
+            qty: 0,
+            location: "-",
+            worker: "시스템",
+            note: "DB 연결은 성공했으나 조회된 내역이 없습니다.",
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error("데이터 로드 실패", error);
+
+      // 3. [연결 실패] 에러 발생 시 (요청하신 부분!)
+      setHistory([
+        {
+          id: "ERROR",
+          date: "-",
+          type: "ERROR", // 빨간색 배지용
+          partCode: "ERR-500",
+          item: "❌ DB 연결 실패", // 자재명에 표시
+          lot: "-",
+          qty: 0,
+          location: "-",
           worker: "시스템",
-          note: "페이지네이션 테스트 데이터",
-        }));
-        setHistory(dummyData);
-      });
+          note: "API 주소나 서버 상태를 확인하세요.",
+        },
+      ]);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // [NEW] 필터나 검색어가 바뀌면 1페이지로 초기화
   useEffect(() => {
     setCurrentPage(1);
   }, [filterType, searchTerm]);
 
-  // 1. 필터링 로직
+  const handleSearch = () => {
+    fetchData();
+  };
+
+  // 필터링 (안내 메시지들은 필터링 무시하고 무조건 표시)
   const filteredHistory = history.filter((item) => {
+    if (item.id === "ERROR" || item.id === "INFO-EMPTY") return true;
+
     if (!item) return false;
     const typeMatch = filterType === "ALL" ? true : item.type === filterType;
-    const searchMatch =
-      (item.item || "").includes(searchTerm) ||
-      (item.partCode || "").includes(searchTerm) ||
-      (item.lot || "").includes(searchTerm);
-    return typeMatch && searchMatch;
+    return typeMatch;
   });
 
-  // 2. [NEW] 페이지네이션 로직 (데이터 자르기)
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredHistory.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
 
-  // 페이지 변경 핸들러
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
-  };
+  const handlePageChange = (pageNumber) => setCurrentPage(pageNumber);
 
-  // 요약 계산 (전체 데이터 기준)
+  // 요약 계산 (안내 메시지는 제외)
+  const validHistory = history.filter(
+    (i) => i.id !== "ERROR" && i.id !== "INFO-EMPTY",
+  );
   const summary = {
-    in: history
+    in: validHistory
       .filter((i) => i.type === "IN")
       .reduce((acc, cur) => acc + cur.qty, 0),
-    out: history
+    out: validHistory
       .filter((i) => i.type === "OUT")
       .reduce((acc, cur) => acc + cur.qty, 0),
-    return: history
+    return: validHistory
       .filter((i) => i.type === "RETURN")
       .reduce((acc, cur) => acc + cur.qty, 0),
-    discard: history
+    discard: validHistory
       .filter((i) => i.type === "DISCARD")
       .reduce((acc, cur) => acc + cur.qty, 0),
   };
 
-  // 모달 제어
   const openModal = (item) => {
     setSelectedItem(item);
     setIsModalOpen(true);
@@ -181,19 +229,6 @@ const MaterialHistory = () => {
           {/* 필터 바 */}
           <div className="filter-bar" style={styles.filterBar}>
             <div style={styles.filterGroup}>
-              <div style={styles.dateGroup}>
-                <input
-                  type="date"
-                  style={styles.dateInput}
-                  defaultValue="2026-01-01"
-                />
-                <span style={{ color: "#999" }}>~</span>
-                <input
-                  type="date"
-                  style={styles.dateInput}
-                  defaultValue="2026-01-20"
-                />
-              </div>
               <div style={styles.selectWrapper}>
                 <FaFilter style={styles.filterIcon} />
                 <select
@@ -204,8 +239,6 @@ const MaterialHistory = () => {
                   <option value="ALL">전체 유형</option>
                   <option value="IN">입고</option>
                   <option value="OUT">출고</option>
-                  <option value="RETURN">반납</option>
-                  <option value="DISCARD">폐기</option>
                 </select>
               </div>
             </div>
@@ -213,15 +246,19 @@ const MaterialHistory = () => {
               <FaSearch color="#999" />
               <input
                 type="text"
-                placeholder="품목명 / 코드 / LOT"
+                placeholder="품목명 / LOT 번호 검색"
                 style={styles.searchInput}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
+              <button onClick={handleSearch} style={styles.searchBtn}>
+                검색
+              </button>
             </div>
           </div>
 
-          {/* 2. PC용 테이블 (currentItems 사용) */}
+          {/* 2. PC용 테이블 */}
           <div style={{ overflowX: "hidden" }}>
             <table className="desktop-table">
               <thead>
@@ -232,123 +269,142 @@ const MaterialHistory = () => {
                   >
                     구분
                   </th>
-                  <th style={{ ...styles.th, width: "25%" }}>자재명 (코드)</th>
+                  <th style={{ ...styles.th, width: "20%" }}>자재명</th>
                   <th style={{ ...styles.th, width: "15%" }}>LOT ID</th>
                   <th
                     style={{ ...styles.th, width: "10%", textAlign: "right" }}
                   >
                     수량
                   </th>
+                  <th style={{ ...styles.th, width: "15%" }}>업체/위치</th>
                   <th style={{ ...styles.th, width: "10%" }}>작업자</th>
                   <th
-                    style={{ ...styles.th, width: "10%", textAlign: "center" }}
+                    style={{ ...styles.th, width: "5%", textAlign: "center" }}
                   >
-                    상세
+                    {" "}
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {currentItems.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" style={styles.emptyTd}>
-                      데이터가 없습니다.
+                {currentItems.map((item) => (
+                  <tr key={item.id} style={styles.tr}>
+                    <td style={styles.td}>{item.date}</td>
+                    <td style={{ ...styles.td, textAlign: "center" }}>
+                      <TypeBadge type={item.type} />
+                    </td>
+                    <td style={styles.td}>
+                      {/* 상태에 따라 색상 변경 */}
+                      <div
+                        style={
+                          item.id === "ERROR"
+                            ? { ...styles.itemName, color: COLORS.danger }
+                            : item.id === "INFO-EMPTY"
+                              ? { ...styles.itemName, color: COLORS.info }
+                              : styles.itemName
+                        }
+                      >
+                        {item.id === "ERROR" && (
+                          <FaExclamationCircle style={{ marginRight: 6 }} />
+                        )}
+                        {item.id === "INFO-EMPTY" && (
+                          <FaCheckCircle style={{ marginRight: 6 }} />
+                        )}
+                        {item.item}
+                      </div>
+                    </td>
+                    <td style={styles.td}>
+                      <span style={styles.lotBadge}>{item.lot}</span>
+                    </td>
+                    <td
+                      style={{
+                        ...styles.td,
+                        textAlign: "right",
+                        fontWeight: "bold",
+                        color: getQtyColor(item.type),
+                      }}
+                    >
+                      {item.type === "IN"
+                        ? "+"
+                        : item.type === "OUT"
+                          ? "-"
+                          : ""}
+                      {item.qty.toLocaleString()}
+                    </td>
+                    <td style={styles.td}>{item.location}</td>
+                    <td style={styles.td}>{item.worker}</td>
+                    <td style={{ ...styles.td, textAlign: "center" }}>
+                      <button
+                        style={styles.detailBtn}
+                        onClick={() => openModal(item)}
+                      >
+                        <FaEye />
+                      </button>
                     </td>
                   </tr>
-                ) : (
-                  currentItems.map((item) => (
-                    <tr key={item.id} style={styles.tr}>
-                      <td style={styles.td}>{item.date}</td>
-                      <td style={{ ...styles.td, textAlign: "center" }}>
-                        <TypeBadge type={item.type} />
-                      </td>
-                      <td style={styles.td}>
-                        <div style={styles.itemName}>{item.item}</div>
-                        <div style={styles.partCode}>{item.partCode}</div>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={styles.lotBadge}>{item.lot}</span>
-                      </td>
-                      <td
-                        style={{
-                          ...styles.td,
-                          textAlign: "right",
-                          fontWeight: "bold",
-                          color: getQtyColor(item.type),
-                        }}
-                      >
-                        {item.type === "IN" || item.type === "RETURN"
-                          ? "+"
-                          : "-"}
-                        {item.qty.toLocaleString()}
-                      </td>
-                      <td style={styles.td}>{item.worker}</td>
-                      <td style={{ ...styles.td, textAlign: "center" }}>
-                        <button
-                          style={styles.detailBtn}
-                          onClick={() => openModal(item)}
-                        >
-                          <FaEye /> 보기
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
 
-          {/* 3. 모바일용 카드 리스트 (currentItems 사용) */}
+          {/* 3. 모바일용 카드 리스트 */}
           <div className="mobile-card-list">
-            {currentItems.length === 0 ? (
-              <div style={styles.emptyTd}>데이터가 없습니다.</div>
-            ) : (
-              currentItems.map((item) => (
+            {currentItems.map((item) => (
+              <div
+                key={item.id}
+                style={styles.mobileCard}
+                onClick={() => openModal(item)}
+              >
                 <div
-                  key={item.id}
-                  style={styles.mobileCard}
-                  onClick={() => openModal(item)}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "8px",
+                  }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    <span style={styles.dateText}>{item.date}</span>
-                    <TypeBadge type={item.type} />
-                  </div>
-                  <div style={styles.itemName}>{item.item}</div>
-                  <div style={styles.partCode}>{item.partCode}</div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginTop: "10px",
-                      alignItems: "center",
-                    }}
-                  >
-                    <span style={styles.lotBadge}>{item.lot}</span>
-                    <span
-                      style={{
-                        fontWeight: "bold",
-                        fontSize: "16px",
-                        color: getQtyColor(item.type),
-                      }}
-                    >
-                      {item.type === "IN" || item.type === "RETURN" ? "+" : "-"}{" "}
-                      {item.qty.toLocaleString()}
-                    </span>
-                  </div>
+                  <span style={styles.dateText}>{item.date}</span>
+                  <TypeBadge type={item.type} />
                 </div>
-              ))
-            )}
+                <div
+                  style={
+                    item.id === "ERROR"
+                      ? { ...styles.itemName, color: COLORS.danger }
+                      : item.id === "INFO-EMPTY"
+                        ? { ...styles.itemName, color: COLORS.info }
+                        : styles.itemName
+                  }
+                >
+                  {item.item}
+                </div>
+                <div style={{ fontSize: "12px", color: "#666" }}>
+                  {item.location}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginTop: "10px",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={styles.lotBadge}>{item.lot}</span>
+                  <span
+                    style={{
+                      fontWeight: "bold",
+                      fontSize: "16px",
+                      color: getQtyColor(item.type),
+                    }}
+                  >
+                    {item.type === "IN" ? "+" : item.type === "OUT" ? "-" : ""}{" "}
+                    {item.qty.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* 4. [NEW] 동적 페이지네이션 */}
+          {/* 4. 페이지네이션 */}
           {totalPages > 0 && (
             <div style={styles.pagination}>
-              {/* 이전 버튼 */}
               <button
                 style={{
                   ...styles.pageBtn,
@@ -359,8 +415,6 @@ const MaterialHistory = () => {
               >
                 &lt;
               </button>
-
-              {/* 페이지 번호 생성 */}
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                 (number) => (
                   <button
@@ -376,8 +430,6 @@ const MaterialHistory = () => {
                   </button>
                 ),
               )}
-
-              {/* 다음 버튼 */}
               <button
                 style={{
                   ...styles.pageBtn,
@@ -404,15 +456,24 @@ const MaterialHistory = () => {
               </button>
             </div>
             <div style={styles.modalBody}>
-              <ModalRow label="이력 ID" value={selectedItem.id} />
               <ModalRow label="일시" value={selectedItem.date} />
               <ModalRow
                 label="구분"
                 value={<TypeBadge type={selectedItem.type} />}
               />
               <div style={styles.divider} />
-              <ModalRow label="품목명" value={selectedItem.item} bold />
-              <ModalRow label="자재코드" value={selectedItem.partCode} />
+              <ModalRow
+                label="품목명"
+                value={selectedItem.item}
+                bold
+                color={
+                  selectedItem.id === "ERROR"
+                    ? COLORS.danger
+                    : selectedItem.id === "INFO-EMPTY"
+                      ? COLORS.info
+                      : null
+                }
+              />
               <ModalRow label="LOT ID" value={selectedItem.lot} />
               <ModalRow
                 label="수량"
@@ -421,13 +482,11 @@ const MaterialHistory = () => {
                 bold
               />
               <div style={styles.divider} />
-              <ModalRow label="보관 위치" value={selectedItem.location} />
-              <ModalRow label="담당자" value={selectedItem.worker} />
+              <ModalRow label="업체/위치" value={selectedItem.location} />
+              <ModalRow label="작업자" value={selectedItem.worker} />
               <div style={styles.noteBox}>
-                <div style={styles.noteLabel}>비고 (Note)</div>
-                <div style={styles.noteText}>
-                  {selectedItem.note || "특이사항 없음"}
-                </div>
+                <div style={styles.noteLabel}>재고 변동 내역</div>
+                <div style={styles.noteText}>{selectedItem.note}</div>
               </div>
             </div>
             <div style={styles.modalFooter}>
@@ -488,13 +547,13 @@ const TypeBadge = ({ type }) => {
   } else if (type === "OUT") {
     label = "출고";
     color = COLORS.danger;
-  } else if (type === "RETURN") {
-    label = "반납";
+  } else if (type === "ERROR") {
+    label = "연결 오류";
+    color = COLORS.danger;
+  } else if (type === "INFO") {
+    label = "상태 확인";
     color = COLORS.info;
-  } else if (type === "DISCARD") {
-    label = "폐기";
-    color = COLORS.dark;
-  }
+  } // [NEW] 성공/빈값용
 
   return (
     <span
@@ -515,9 +574,9 @@ const TypeBadge = ({ type }) => {
 };
 
 const getQtyColor = (type) =>
-  type === "IN" || type === "RETURN" ? COLORS.success : COLORS.danger;
+  type === "IN" ? COLORS.success : type === "OUT" ? COLORS.danger : COLORS.gray;
 
-// --- 스타일 ---
+// --- 스타일 (기존 유지) ---
 const styles = {
   header: {
     display: "flex",
@@ -547,7 +606,6 @@ const styles = {
     gap: "8px",
     fontSize: "13px",
   },
-
   summaryRow: { display: "flex", gap: "15px", marginBottom: "20px" },
   summaryCard: {
     flex: 1,
@@ -571,7 +629,6 @@ const styles = {
   },
   summaryLabel: { fontSize: "12px", color: "#888", marginBottom: "2px" },
   summaryValue: { fontSize: "18px", fontWeight: "900" },
-
   card: {
     backgroundColor: "white",
     borderRadius: "12px",
@@ -593,22 +650,6 @@ const styles = {
     gap: "10px",
     alignItems: "center",
     flexWrap: "wrap",
-  },
-  dateGroup: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    backgroundColor: "#F9FAFB",
-    padding: "5px 10px",
-    borderRadius: "8px",
-    border: `1px solid ${COLORS.border}`,
-  },
-  dateInput: {
-    border: "none",
-    background: "transparent",
-    fontSize: "13px",
-    color: "#555",
-    outline: "none",
   },
   selectWrapper: { position: "relative" },
   filterIcon: {
@@ -644,7 +685,16 @@ const styles = {
     fontSize: "13px",
     width: "100%",
   },
-
+  searchBtn: {
+    backgroundColor: COLORS.primary,
+    color: "white",
+    border: "none",
+    padding: "4px 10px",
+    borderRadius: "4px",
+    fontSize: "12px",
+    cursor: "pointer",
+    marginLeft: "10px",
+  },
   thRow: { borderBottom: "1px solid #eee", backgroundColor: "#FAFAFA" },
   th: {
     padding: "12px 10px",
@@ -670,8 +720,6 @@ const styles = {
     color: "#999",
     fontSize: "14px",
   },
-
-  partCode: { fontSize: "11px", color: "#888", marginBottom: "2px" },
   itemName: {
     fontSize: "13px",
     fontWeight: "bold",
@@ -687,7 +735,6 @@ const styles = {
     fontSize: "11px",
     fontFamily: "monospace",
   },
-
   detailBtn: {
     border: `1px solid ${COLORS.border}`,
     backgroundColor: "white",
@@ -701,8 +748,6 @@ const styles = {
     color: "#555",
     margin: "0 auto",
   },
-
-  // 페이지네이션 스타일
   pagination: {
     display: "flex",
     justifyContent: "center",
@@ -730,7 +775,6 @@ const styles = {
     cursor: "not-allowed",
     backgroundColor: "#f9f9f9",
   },
-
   mobileCard: {
     border: `1px solid ${COLORS.border}`,
     borderRadius: "10px",
@@ -740,7 +784,6 @@ const styles = {
     cursor: "pointer",
   },
   dateText: { fontSize: "12px", color: "#888" },
-
   modalOverlay: {
     position: "fixed",
     top: 0,
