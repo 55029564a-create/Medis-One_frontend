@@ -9,7 +9,6 @@ import PrivateRoute from "./components/route/PrivateRoute";
 
 // [레이아웃]
 import Layout from "./components/layout/Layout";
-
 // ===================== [페이지 Lazy Import] =====================
 // 초기 로딩 속도 개선을 위해 React.lazy 적용
 
@@ -45,8 +44,8 @@ const ProcessBonding = lazy(() => import("./pages/Process/ProcessBonding"));
 const AgingStatus = lazy(() => import("./pages/Process/AgingStatus"));
 
 // 7. 설비 관리
-const MachineList = lazy(() => import("./pages/Equipment/MachineList"));
-const MachineDetail = lazy(() => import("./pages/Equipment/MachineDetail"));
+const EquipmentList = lazy(() => import("./pages/Equipment/EquipmentList"));
+const EquipmentDetail = lazy(() => import("./pages/Equipment/EquipmentDetail"));
 
 // 8. 품질 관리
 const QualityDefect = lazy(() => import("./pages/Quality/QualityDefect"));
@@ -122,7 +121,7 @@ const ROUTE_CONFIG = [
   { path: "/process/bonding", element: <ProcessBonding />, name: "본딩 공정" },
   { path: "/process/aging", element: <AgingStatus />, name: "에이징 현황" },
   // 설비
-  { path: "/equipment", element: <MachineList />, name: "설비 모니터링" },
+  { path: "/equipment", element: <EquipmentList />, name: "설비 모니터링" },
   // 품질
   { path: "/quality/defect", element: <QualityDefect />, name: "불량 관리" },
   { path: "/quality/rate", element: <ProductionRate />, name: "생산 효율" },
@@ -223,9 +222,12 @@ const KeepAliveManager = () => {
         if (config) {
           pageElement = config.element;
         }
-        // 2. 동적 페이지 매칭
+        // 2. 동적 페이지 매칭 (설비 상세) -> 🔥 여기를 수정하세요!
         else if (tab.path.startsWith("/equipment/detail/")) {
-          pageElement = <MachineDetail />;
+          // URL에서 ID 추출 (예: /equipment/detail/EQ-10 -> EQ-10)
+          const machineId = tab.path.split("/").pop();
+          // 추출한 ID를 props로 전달
+          pageElement = <EquipmentDetail machineId={machineId} />;
         }
 
         if (!pageElement) return null;
@@ -239,7 +241,6 @@ const KeepAliveManager = () => {
               overflow: "auto",
             }}
           >
-            {/* Suspense는 각 탭별로 독립적으로 동작하도록 배치 가능 */}
             <Suspense fallback={<LoadingScreen>Loading Tab...</LoadingScreen>}>
               {pageElement}
             </Suspense>
