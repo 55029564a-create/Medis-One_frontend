@@ -115,11 +115,6 @@ const Sidebar = () => {
             label="입/출고 이력"
             currentPath={location.pathname}
           />
-          <SubMenuItem
-            to="/material/lot"
-            label="LOT 추적"
-            currentPath={location.pathname}
-          />
         </MenuDropdown>
         <MenuDropdown
           title="Inventory"
@@ -157,16 +152,6 @@ const Sidebar = () => {
             currentPath={location.pathname}
           />
           <SubMenuItem
-            to="/production/order"
-            label="작업 지시서"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/production/report"
-            label="생산 실적"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
             to="/production/product"
             label="제품 관리"
             currentPath={location.pathname}
@@ -180,13 +165,19 @@ const Sidebar = () => {
           onClick={() => toggleSubMenu("process")}
         >
           <SubMenuItem
-            to="/process/bonding"
-            label="본딩(Bonding)"
+            to="/process/order"
+            label="작업 지시서"
             currentPath={location.pathname}
           />
           <SubMenuItem
-            to="/process/aging"
-            label="에이징(Aging)"
+            to="/process/report"
+            label="생산 보고"
+            currentPath={location.pathname}
+          />
+
+          <SubMenuItem
+            to="/equipment"
+            label="설비 모니터링"
             currentPath={location.pathname}
           />
         </MenuDropdown>
@@ -198,18 +189,23 @@ const Sidebar = () => {
           onClick={() => toggleSubMenu("quality")}
         >
           <SubMenuItem
-            to="/equipment"
-            label="설비 모니터링"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
             to="/quality/defect"
-            label="불량 등록/현황"
+            label="불량 관리"
             currentPath={location.pathname}
           />
           <SubMenuItem
             to="/quality/calibration"
             label="캘리브레이션"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/quality/bonding"
+            label="본딩(Bonding)"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/quality/aging"
+            label="에이징(Aging)"
             currentPath={location.pathname}
           />
           <SubMenuItem
@@ -225,6 +221,11 @@ const Sidebar = () => {
           isExpanded={activeMenu === "traceability"}
           onClick={() => toggleSubMenu("traceability")}
         >
+          <SubMenuItem
+            to="/traceability/lot"
+            label="LOT 추적"
+            currentPath={location.pathname}
+          />
           <SubMenuItem
             to="/traceability/dhr"
             label="이력 추적 (DHR)"

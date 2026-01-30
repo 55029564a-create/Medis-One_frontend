@@ -21,7 +21,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard/Dashboard"));
 // 3. 자재 관리
 const MaterialInout = lazy(() => import("./pages/Material/MaterialInout"));
 const MaterialHistory = lazy(() => import("./pages/Material/MaterialHistory"));
-const LotTracking = lazy(() => import("./pages/Material/LotTracking"));
+const LotTracking = lazy(() => import("./pages/Traceability/LotTracking"));
 
 // 4. 재고 관리
 const InventoryCurrent = lazy(
@@ -33,16 +33,16 @@ const InventoryHistory = lazy(
 
 // 5. 생산 관리
 const BomManagement = lazy(() => import("./pages/Production/BomManagement"));
-const WorkOrder = lazy(() => import("./pages/Production/WorkOrder"));
+const WorkOrder = lazy(() => import("./pages/Process/WorkOrder"));
 const ProductionSchedule = lazy(
   () => import("./pages/Production/ProductionSchedule"),
 );
-const WorkReport = lazy(() => import("./pages/Production/WorkReport"));
+const WorkReport = lazy(() => import("./pages/Process/WorkReport"));
 const ProductMgmt = lazy(() => import("./pages/Production/ProductMgmt"));
 
 // 6. 프로세스
-const ProcessBonding = lazy(() => import("./pages/Process/ProcessBonding"));
-const AgingStatus = lazy(() => import("./pages/Process/AgingStatus"));
+const ProcessBonding = lazy(() => import("./pages/Quality/ProcessBonding"));
+const AgingStatus = lazy(() => import("./pages/Quality/AgingStatus"));
 
 // 7. 설비 관리
 const EquipmentList = lazy(() => import("./pages/Equipment/EquipmentList"));
@@ -93,7 +93,6 @@ const ROUTE_CONFIG = [
     element: <MaterialHistory />,
     name: "입/출고 이력",
   },
-  { path: "/material/lot", element: <LotTracking />, name: "LOT 추적" },
   // 재고
   {
     path: "/inventory/current",
@@ -107,26 +106,26 @@ const ROUTE_CONFIG = [
   },
   // 생산
   { path: "/production/bom", element: <BomManagement />, name: "BOM 관리" },
-  { path: "/production/order", element: <WorkOrder />, name: "작업 지시" },
   {
     path: "/production/schedule",
     element: <ProductionSchedule />,
     name: "생산 일정",
   },
-  { path: "/production/report", element: <WorkReport />, name: "생산 실적" },
   {
     path: "/production/product",
     element: <ProductMgmt />,
     name: "제품 관리",
   },
   // 프로세스
-  { path: "/process/bonding", element: <ProcessBonding />, name: "본딩 공정" },
-  { path: "/process/aging", element: <AgingStatus />, name: "에이징 현황" },
+  { path: "/process/order", element: <WorkOrder />, name: "작업 지시서" },
+  { path: "/process/report", element: <WorkReport />, name: "생산 보고" },
   // 설비
   { path: "/equipment", element: <EquipmentList />, name: "설비 모니터링" },
   // 품질
   { path: "/quality/defect", element: <QualityDefect />, name: "불량 관리" },
   { path: "/quality/rate", element: <ProductionRate />, name: "생산 효율" },
+  { path: "/quality/bonding", element: <ProcessBonding />, name: "본딩 공정" },
+  { path: "/quality/aging", element: <AgingStatus />, name: "에이징 현황" },
   {
     path: "/quality/calibration",
     element: <CalibrationReport />,
@@ -138,6 +137,7 @@ const ROUTE_CONFIG = [
     name: "신뢰성 테스트",
   },
   // 추적
+  { path: "/traceability/lot", element: <LotTracking />, name: "LOT 추적" },
   {
     path: "/traceability/dhr",
     element: <DeviceHistory />,
