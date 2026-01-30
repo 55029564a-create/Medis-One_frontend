@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import {
   FaSearch,
   FaPlus,
@@ -23,46 +24,47 @@ const COLORS = {
   white: "#FFFFFF",
 };
 
-// 1. 초기 데이터 (Mock Data)
-const initialOrders = [
-  {
-    id: "WO-260116-01",
-    date: "2026-01-16",
-    deadline: "2026-01-20",
-    process: "Line-A (조립)",
-    worker: "김철수",
-    targetQty: 500,
-    instruction: "27인치 패널 조립 시 베젤 유격 0.5mm 이내로 관리할 것.",
-    requirements: "정전기 방지 장갑 필수 착용.",
-    status: "Proceeding", // Proceeding, Pending, Done
-  },
-  {
-    id: "WO-260115-02",
-    date: "2026-01-15",
-    deadline: "2026-01-18",
-    process: "Line-B (포장)",
-    worker: "이영희",
-    targetQty: 1000,
-    instruction: "박스 테이핑 시 로고 위치 정중앙 맞춤 확인.",
-    requirements: "오전 10시까지 500개 우선 출하 필요.",
-    status: "Done",
-  },
-  {
-    id: "WO-260114-03",
-    date: "2026-01-14",
-    deadline: "2026-01-19",
-    process: "Line-C (검사)",
-    worker: "박민수",
-    targetQty: 300,
-    instruction: "전원부 커넥터 체결 상태 전수 검사 진행.",
-    requirements: "불량 발생 시 즉시 사진 촬영 후 보고.",
-    status: "Proceeding",
-  },
-];
+// // 1. 초기 데이터 (Mock Data)
+// const initialOrders = [
+//   {
+//     id: "WO-260116-01",
+//     date: "2026-01-16",
+//     deadline: "2026-01-20",
+//     process: "Line-A (조립)",
+//     worker: "김철수",
+//     targetQty: 500,
+//     instruction: "27인치 패널 조립 시 베젤 유격 0.5mm 이내로 관리할 것.",
+//     requirements: "정전기 방지 장갑 필수 착용.",
+//     status: "Proceeding", // Proceeding, Pending, Done
+//   },
+//   {
+//     id: "WO-260115-02",
+//     date: "2026-01-15",
+//     deadline: "2026-01-18",
+//     process: "Line-B (포장)",
+//     worker: "이영희",
+//     targetQty: 1000,
+//     instruction: "박스 테이핑 시 로고 위치 정중앙 맞춤 확인.",
+//     requirements: "오전 10시까지 500개 우선 출하 필요.",
+//     status: "Done",
+//   },
+//   {
+//     id: "WO-260114-03",
+//     date: "2026-01-14",
+//     deadline: "2026-01-19",
+//     process: "Line-C (검사)",
+//     worker: "박민수",
+//     targetQty: 300,
+//     instruction: "전원부 커넥터 체결 상태 전수 검사 진행.",
+//     requirements: "불량 발생 시 즉시 사진 촬영 후 보고.",
+//     status: "Proceeding",
+//   },
+// ];
 
 const WorkOrderMgmt = () => {
   // --- 상태 관리 ---
-  const [orders, setOrders] = useState(initialOrders);
+  const [orders, setOrders] = useState([]); // 백엔드에서 받아온 목록 저장
+  const [loading, setLoading] = useState(false);
 
   // 필터 상태
   const [filterDateStart, setFilterDateStart] = useState("2026-01-01");
@@ -73,67 +75,110 @@ const WorkOrderMgmt = () => {
   // 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [currentOrder, setCurrentOrder] = useState(null);
+  const [currentOrder, setCurrentOrder] = useState({
+    productId: 1, // 기본 제품 ID (선택 기능 미구현 시 고정)
+    productProcessId: 1, // 기본 공정 ID (조립:1, 포장:2, 검사:3 예시)
+    targetQty: 0,
+    deadline: "",
+    worker: "",
+    instruction: "",
+    requirements: "",
+  });
 
-  // --- 핸들러 ---
+  // --- API 통신 핸들러 ---
 
-  // 1. 데이터 필터링 로직
+  // 1. 목록 조회 (GET)
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("accessToken"); // 혹은 "token" (로그인 시 저장한 키 이름)
+      console.log("보내기 직전 토큰:", token); // 확인용 로그
+      const response = await axios.get(
+        "http://localhost:8111/api/production/orders",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`, // 신분증 제출
+          },
+        },
+      );
+
+      console.log("받아온 전체 데이터:", response.data);
+
+      setOrders(response.data);
+    } catch (error) {
+      console.error("데이터 로딩 실패:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  // 2. 필터링 로직 (프론트엔드에서 처리)
   const filteredOrders = orders.filter((order) => {
+    // 백엔드 날짜 필드(createdAt 또는 deadline)에 맞춰 조정 필요
+    const orderDate = order.createdAt ? order.createdAt.slice(0, 10) : "";
     const isDateInRange =
-      order.date >= filterDateStart && order.date <= filterDateEnd;
+      orderDate >= filterDateStart && orderDate <= filterDateEnd;
     const isWorkerMatch =
       filterWorker === "ALL" || order.worker === filterWorker;
     const isSearchMatch =
-      order.instruction.includes(searchTerm) ||
-      order.id.includes(searchTerm) ||
-      order.process.includes(searchTerm);
+      order.instruction?.includes(searchTerm) ||
+      order.code?.includes(searchTerm) ||
+      order.productName?.includes(searchTerm);
 
     return isDateInRange && isWorkerMatch && isSearchMatch;
   });
 
-  // 2. 모달 열기 (신규)
+  // 3. 모달 열기 (신규)
   const handleAddNew = () => {
-    const newId = `WO-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${orders.length + 1}`;
     setCurrentOrder({
-      id: newId,
-      date: new Date().toISOString().slice(0, 10),
-      deadline: "",
-      process: "Line-A (조립)",
+      productId: 1,
+      productProcessId: 1,
+      targetQty: 0,
+      deadline: new Date().toISOString().slice(0, 10),
       worker: "",
-      targetQty: "",
       instruction: "",
       requirements: "",
-      status: "Pending",
     });
     setIsEditMode(false);
     setIsModalOpen(true);
   };
 
-  // 3. 모달 열기 (수정)
-  const handleEdit = (order) => {
-    setCurrentOrder({ ...order });
-    setIsEditMode(true);
-    setIsModalOpen(true);
-  };
+  // 4. 저장 (POST)
+  const handleSave = async () => {
+    console.log("서버로 전송할 currentOrder:", currentOrder);
 
-  // 4. 저장 (신규/수정)
-  const handleSave = () => {
     if (
       !currentOrder.worker ||
       !currentOrder.targetQty ||
-      !currentOrder.instruction
+      !currentOrder.deadline
     ) {
       return alert("필수 정보를 모두 입력해주세요.");
     }
 
-    if (isEditMode) {
-      setOrders(
-        orders.map((od) => (od.id === currentOrder.id ? currentOrder : od)),
+    try {
+      const token = localStorage.getItem("accessToken");
+      const response = await axios.post(
+        "http://localhost:8111/api/production/orders",
+        currentOrder,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`, // 신분증 제출
+          },
+        },
       );
-    } else {
-      setOrders([currentOrder, ...orders]);
+      if (response.status === 200) {
+        alert("작업 지시가 성공적으로 등록되었습니다.");
+        setIsModalOpen(false);
+        fetchOrders(); // 목록 새로고침
+      }
+    } catch (error) {
+      console.error("저장 실패:", error);
+      alert("권한이 없거나 서버 저장 중 오류가 발생했습니다.");
     }
-    setIsModalOpen(false);
   };
 
   // 5. 삭제
@@ -144,11 +189,22 @@ const WorkOrderMgmt = () => {
     }
   };
 
-  // 입력값 변경
+  // 입력값 변경 핸들러
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setCurrentOrder({ ...currentOrder, [name]: value });
+    // 숫자형 데이터 변환 처리
+    const val =
+      name === "targetQty" ||
+      name === "productProcessId" ||
+      name === "productId"
+        ? Number(value)
+        : value;
+    setCurrentOrder({ ...currentOrder, [name]: val });
   };
+
+  const uniqueWorkers = [
+    ...new Set(orders.map((order) => order.worker)),
+  ].filter(Boolean);
 
   return (
     <div style={styles.container}>
@@ -165,7 +221,7 @@ const WorkOrderMgmt = () => {
               fontSize: "14px",
             }}
           >
-            관리자 전용 생산 공정 작업 지시 및 배포
+            관리자 전용 생산 공정 작업 지시 및 배포 (연동 모드)
           </p>
         </div>
         <button style={styles.addButton} onClick={handleAddNew}>
@@ -204,9 +260,12 @@ const WorkOrderMgmt = () => {
               onChange={(e) => setFilterWorker(e.target.value)}
             >
               <option value="ALL">전체 작업자</option>
-              <option value="김철수">김철수</option>
-              <option value="이영희">이영희</option>
-              <option value="박민수">박민수</option>
+              {/* 🔥 동적으로 작업자 목록 생성 */}
+              {uniqueWorkers.map((workerName, index) => (
+                <option key={index} value={workerName}>
+                  {workerName}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -214,7 +273,7 @@ const WorkOrderMgmt = () => {
         <div style={styles.searchBox}>
           <FaSearch color={COLORS.subText} />
           <input
-            placeholder="지시사항, 공정명 검색..."
+            placeholder="지시사항, 코드 검색..."
             style={styles.searchInput}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -224,31 +283,30 @@ const WorkOrderMgmt = () => {
 
       {/* Work Order List */}
       <div style={styles.listContainer}>
-        {/* Header Row */}
         <div style={styles.listHeader}>
-          <div style={{ width: "10%" }}>지시일자</div>
-          <div style={{ width: "10%" }}>공정</div>
+          <div style={{ width: "15%" }}>지시코드</div>
+          <div style={{ width: "10%" }}>공정(ID)</div>
           <div style={{ width: "10%" }}>작업자</div>
-          <div style={{ width: "30%" }}>지시사항 (요약)</div>
+          <div style={{ width: "30%" }}>지시사항</div>
           <div style={{ width: "10%" }}>목표량</div>
           <div style={{ width: "10%" }}>마감기한</div>
-          <div style={{ width: "10%", textAlign: "center" }}>상태</div>
-          <div style={{ width: "10%", textAlign: "right" }}>관리</div>
+          <div style={{ width: "15%", textAlign: "center" }}>상태</div>
         </div>
 
-        {/* Data Rows */}
         {filteredOrders.length > 0 ? (
           filteredOrders.map((order) => (
-            <div
-              key={order.id}
-              style={styles.cardRow}
-              onClick={() => handleEdit(order)}
-            >
-              <div style={{ width: "10%", fontSize: "13px", color: "#666" }}>
-                {order.date}
+            <div key={order.id} style={styles.cardRow}>
+              <div
+                style={{ width: "15%", fontWeight: "bold", fontSize: "13px" }}
+              >
+                {order.code}
               </div>
-              <div style={{ width: "10%", fontWeight: "bold" }}>
-                {order.process.split(" ")[0]}
+              <div style={{ width: "10%" }}>
+                {order.productProcessId === 1
+                  ? "조립"
+                  : order.productProcessId === 2
+                    ? "포장"
+                    : "검사"}
               </div>
               <div
                 style={{
@@ -273,28 +331,27 @@ const WorkOrderMgmt = () => {
                   color: COLORS.primary,
                 }}
               >
-                {order.targetQty.toLocaleString()} EA
+                {order.targetQty?.toLocaleString()} EA
               </div>
               <div
                 style={{ width: "10%", fontSize: "13px", color: COLORS.danger }}
               >
-                ~ {order.deadline}
+                {order.deadline}
               </div>
-              <div style={{ width: "10%", textAlign: "center" }}>
+              <div style={{ width: "15%", textAlign: "center" }}>
                 <span
                   style={
-                    order.status === "Done"
-                      ? styles.badgeDone
+                    order.status === "WAIT"
+                      ? styles.badgeWait
                       : styles.badgeProceeding
                   }
                 >
-                  {order.status === "Done" ? "완료" : "진행중"}
+                  {order.status === "WAIT"
+                    ? "대기중"
+                    : order.status === "IN_PROGRESS"
+                      ? "진행중"
+                      : "완료"}
                 </span>
-              </div>
-              <div style={{ width: "10%", textAlign: "right" }}>
-                <button style={styles.iconButton}>
-                  <FaEdit color="#999" />
-                </button>
               </div>
             </div>
           ))
@@ -305,37 +362,35 @@ const WorkOrderMgmt = () => {
               color="#ddd"
               style={{ marginBottom: 10 }}
             />
-            <p>해당 조건의 작업 지시가 없습니다.</p>
+            <p>
+              {loading
+                ? "데이터를 불러오는 중입니다..."
+                : "해당 조건의 작업 지시가 없습니다."}
+            </p>
           </div>
         )}
       </div>
 
-      {/* Modal (작성/수정) */}
-      {isModalOpen && currentOrder && (
+      {/* Modal (작성 전용 - 백엔드 createOrder 연결) */}
+      {isModalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h3>
-                {isEditMode ? "🛠️ 작업 지시 수정" : "📝 새 작업 지시 작성"}
-              </h3>
-              <div style={{ fontSize: "12px", color: "#888" }}>
-                ID: {currentOrder.id}
-              </div>
+              <h3>📝 새 작업 지시 작성</h3>
             </div>
 
             <div style={styles.modalBody}>
-              {/* Row 1 */}
               <div style={styles.formRow}>
                 <InputGroup label="공정 선택">
                   <select
-                    name="process"
-                    value={currentOrder.process}
+                    name="productProcessId"
+                    value={currentOrder.productProcessId}
                     onChange={handleInputChange}
                     style={styles.input}
                   >
-                    <option>Line-A (조립)</option>
-                    <option>Line-B (포장)</option>
-                    <option>Line-C (검사)</option>
+                    <option value={1}>Line-A (조립)</option>
+                    <option value={2}>Line-B (포장)</option>
+                    <option value={3}>Line-C (검사)</option>
                   </select>
                 </InputGroup>
                 <InputGroup label="담당 작업자">
@@ -394,7 +449,6 @@ const WorkOrderMgmt = () => {
                     ...styles.textarea,
                     height: "60px",
                     backgroundColor: "#FFF5F5",
-                    borderColor: "#FEB2B2",
                   }}
                   placeholder="안전 수칙, 품질 중점 관리 항목 등"
                 />
