@@ -1,13 +1,6 @@
 import client from "./client";
 
-// ==========================================================
-// 🏭 자재 관리 통합 API
-// ==========================================================
-
-/**
- * 1. [스캔] 자재 정보 조회 (QR/바코드 스캔 시)
- * - 사용처: MaterialInout.js
- */
+// 1. 자재 정보 조회 (QR/바코드)
 export const getMaterialInfo = async (lotId) => {
   try {
     const response = await client.get(`/material/${lotId}`);
@@ -18,11 +11,9 @@ export const getMaterialInfo = async (lotId) => {
   }
 };
 
-/**
- * 2. [등록] 입고 및 출고 등록 (수량 입력 후 저장)
- * - 사용처: MaterialInout.js
- */
+// 2. 입출고 등록
 export const registerMaterialInOut = async (data) => {
+  // data.type에 따라 /material/inbound 또는 /material/outbound로 전송
   const endpoint =
     data.type === "IN" ? "/material/inbound" : "/material/outbound";
   try {
@@ -34,10 +25,7 @@ export const registerMaterialInOut = async (data) => {
   }
 };
 
-/**
- * 3. [전체 이력] 자재 입출고 이력 조회 (검색 기능 포함)
- * - 사용처: MaterialHistory.js (여기가 에러난 부분!)
- */
+// 3. 전체 이력 조회
 export const getMaterialHistory = async (keyword) => {
   try {
     const response = await client.get("/material/find-history", {
@@ -50,11 +38,18 @@ export const getMaterialHistory = async (keyword) => {
   }
 };
 
-/**
- * 4. [최근 내역] 입출고 페이지 하단용 간단 내역
- * - 사용처: MaterialInout.js (하단 리스트)
- * - 그냥 getMaterialHistory를 재사용하되 키워드 없이 호출
- */
+// 4. 최근 내역 조회 (입출고 페이지 하단용)
 export const getRecentHistory = async () => {
   return await getMaterialHistory(null);
+};
+
+// 5. [추가] 사원 목록 조회 (담당자 선택용)
+export const getEmployeeList = async () => {
+  try {
+    const response = await client.get("/employee"); // 백엔드 엔드포인트 확인 필요
+    return response.data;
+  } catch (error) {
+    console.error("사원 목록 조회 실패:", error);
+    return [];
+  }
 };

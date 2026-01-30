@@ -147,6 +147,11 @@ const Sidebar = () => {
           onClick={() => toggleSubMenu("production")}
         >
           <SubMenuItem
+            to="/production/bom"
+            label="BOM 관리"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
             to="/production/schedule"
             label="생산 계획"
             currentPath={location.pathname}

@@ -32,6 +32,7 @@ const InventoryHistory = lazy(
 );
 
 // 5. 생산 관리
+const BomManagement = lazy(() => import("./pages/Production/BomManagement"));
 const WorkOrder = lazy(() => import("./pages/Production/WorkOrder"));
 const ProductionSchedule = lazy(
   () => import("./pages/Production/ProductionSchedule"),
@@ -105,6 +106,7 @@ const ROUTE_CONFIG = [
     name: "재고 이력",
   },
   // 생산
+  { path: "/production/bom", element: <BomManagement />, name: "BOM 관리" },
   { path: "/production/order", element: <WorkOrder />, name: "작업 지시" },
   {
     path: "/production/schedule",

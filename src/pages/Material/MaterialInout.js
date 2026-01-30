@@ -16,9 +16,12 @@ import {
   FaUserTie,
   FaCaretDown,
   FaLayerGroup,
+  FaSearch, // 추가
+  FaIndustry, // 추가
+  FaCogs, // 추가
 } from "react-icons/fa";
 
-// 🎨 디자인 시스템
+// 🎨 디자인 시스템 (기존 유지)
 const COLORS = {
   primary: "#8C85FF",
   secondary: "#F3F1FF",
@@ -40,6 +43,45 @@ const DUMMY_MANAGERS = [
   { name: "박민수", id: "10003" },
 ];
 
+// 🏢 공급업체 데이터 (입고용 - 검색 대상)
+const DUMMY_VENDORS = [
+  { name: "삼성전기", id: "V-101" },
+  { name: "LG화학", id: "V-102" },
+  { name: "SK하이닉스", id: "V-103" },
+  { name: "포스코퓨처엠", id: "V-104" },
+  { name: "3M Korea", id: "V-105" },
+];
+
+// 🏭 공정라인 데이터 (출고용 - 계층 구조)
+const PROCESS_LINES = [
+  {
+    lineName: "생산 1라인",
+    lineId: "L-01",
+    processes: [
+      { name: "표면 처리", id: "P-01" },
+      { name: "광학 본딩", id: "P-02" },
+      { name: "BLU 조립", id: "P-03" },
+    ],
+  },
+  {
+    lineName: "생산 2라인",
+    lineId: "L-02",
+    processes: [
+      { name: "하우징 조립", id: "P-04" },
+      { name: "배선/납땜", id: "P-05" },
+    ],
+  },
+  {
+    lineName: "QC/테스트",
+    lineId: "L-QC",
+    processes: [
+      { name: "에이징", id: "P-06" },
+      { name: "진동/낙하", id: "P-07" },
+      { name: "최종 검사", id: "P-08" },
+    ],
+  },
+];
+
 const MaterialInout = () => {
   const navigate = useNavigate();
   const lotInputRef = useRef(null);
@@ -49,7 +91,7 @@ const MaterialInout = () => {
     type: "IN",
     item: "",
     lot: "",
-    vendor: "",
+    vendor: "", // 입고: 업체명, 출고: "라인 > 공정" 조합 문자열
     qty: "",
     currentQty: 0,
     manager: "",
@@ -57,8 +99,18 @@ const MaterialInout = () => {
 
   const [dbStatus, setDbStatus] = useState("IDLE");
   const [recentList, setRecentList] = useState([]);
+
+  // 담당자 드롭다운 상태
   const [showManagerList, setShowManagerList] = useState(false);
   const [filteredManagers, setFilteredManagers] = useState(DUMMY_MANAGERS);
+
+  // [추가] 업체 검색 및 라인 선택 상태
+  const [showVendorList, setShowVendorList] = useState(false);
+  const [filteredVendors, setFilteredVendors] = useState(DUMMY_VENDORS);
+
+  const [selectedLine, setSelectedLine] = useState(""); // 라인 선택값
+  const [selectedProcess, setSelectedProcess] = useState(""); // 공정 선택값
+  const [availableProcesses, setAvailableProcesses] = useState([]); // 선택된 라인의 하위 공정들
 
   // 초기 로드
   useEffect(() => {
@@ -86,8 +138,8 @@ const MaterialInout = () => {
         setInputs((prev) => ({
           ...prev,
           item: data.materialName,
-          vendor:
-            data.company || (prev.type === "IN" ? "기본입고처" : "생산 1라인"),
+          // 스캔 시 기존 벤더 정보가 없으면 기본값 (단, 사용자 입력 중이면 유지)
+          vendor: prev.vendor || data.company || "",
           currentQty: data.currentQty || 0,
           qty: "",
         }));
@@ -115,11 +167,68 @@ const MaterialInout = () => {
     setShowManagerList(false);
   };
 
+  // --- [추가] 로직: 공급업체(IN) 검색 ---
+  const handleVendorChange = (e) => {
+    const text = e.target.value;
+    setInputs({ ...inputs, vendor: text });
+    const filtered = DUMMY_VENDORS.filter(
+      (v) =>
+        v.name.includes(text) ||
+        v.id.toLowerCase().includes(text.toLowerCase()),
+    );
+    setFilteredVendors(filtered);
+    setShowVendorList(true);
+  };
+
+  const selectVendor = (vendor) => {
+    setInputs({ ...inputs, vendor: vendor.name });
+    setShowVendorList(false);
+  };
+
+  // --- [추가] 로직: 라인 선택(OUT) ---
+  const handleLineSelect = (e) => {
+    const lineId = e.target.value;
+    const lineObj = PROCESS_LINES.find((l) => l.lineId === lineId);
+
+    setSelectedLine(lineId);
+    if (lineObj) {
+      setAvailableProcesses(lineObj.processes);
+      setSelectedProcess(""); // 라인 변경 시 공정 초기화
+      setInputs((prev) => ({ ...prev, vendor: "" }));
+    } else {
+      setAvailableProcesses([]);
+      setSelectedProcess("");
+    }
+  };
+
+  // --- [추가] 로직: 공정 선택(OUT) ---
+  const handleProcessSelect = (e) => {
+    const processId = e.target.value;
+    setSelectedProcess(processId);
+
+    // 라인명과 공정명을 합쳐서 기존 vendor 필드에 저장 (DB 구조 유지)
+    const lineObj = PROCESS_LINES.find((l) => l.lineId === selectedLine);
+    const processObj = lineObj?.processes.find((p) => p.id === processId);
+
+    if (lineObj && processObj) {
+      setInputs((prev) => ({
+        ...prev,
+        vendor: `${lineObj.lineName} > ${processObj.name}`,
+      }));
+    }
+  };
+
   // --- 로직: 등록 ---
   const handleRegister = async () => {
     if (!inputs.item || !inputs.qty || !inputs.lot || !inputs.manager) {
       return alert("필수 정보를 모두 입력해주세요.");
     }
+
+    // OUT 모드인데 라인/공정 미선택 시 방어
+    if (inputs.type === "OUT" && (!selectedLine || !selectedProcess)) {
+      return alert("출고 라인과 공정을 모두 선택해주세요.");
+    }
+
     try {
       await registerMaterialInOut({
         type: inputs.type,
@@ -130,6 +239,7 @@ const MaterialInout = () => {
       });
 
       alert("처리가 완료되었습니다.");
+      // 입력 초기화
       setInputs((prev) => ({
         ...prev,
         item: "",
@@ -138,6 +248,10 @@ const MaterialInout = () => {
         qty: "",
         currentQty: 0,
       }));
+      // 선택값 초기화
+      setSelectedLine("");
+      setSelectedProcess("");
+
       fetchRecentHistory();
       lotInputRef.current.focus();
     } catch (error) {
@@ -154,7 +268,7 @@ const MaterialInout = () => {
   ).length;
   const totalStock = 12500;
 
-  // 리스트 가공 (상태 메시지 처리)
+  // 리스트 가공 (니가 말한 그 로직 절대 수정 안함)
   let displayList = [...recentList];
 
   if (dbStatus === "ERROR") {
@@ -173,7 +287,7 @@ const MaterialInout = () => {
       {
         type: "IN",
         date: new Date().toISOString(),
-        matName: "✅ DB 연결됨 (데이터 없음)",
+        matName: "✅ DB 연결됨 (데이터 없음)", // 팀원 확인용 메시지 유지
         lotNum: "INFO-200",
         changeQty: 0,
         worker: "관리자 (99999)",
@@ -232,7 +346,10 @@ const MaterialInout = () => {
               📋 스캔 등록 작업
             </h3>
             <span style={{ fontSize: "12px", color: COLORS.subText }}>
-              * 바코드 스캔 후 정보를 확인하세요.
+              *{" "}
+              {inputs.type === "IN"
+                ? "입고처를 입력하거나 선택하세요."
+                : "투입될 라인과 공정을 선택하세요."}
             </span>
           </div>
           {/* 토글 버튼 */}
@@ -244,7 +361,11 @@ const MaterialInout = () => {
                   inputs.type === "IN" ? COLORS.success : "#f0f0f0",
                 color: inputs.type === "IN" ? "#fff" : "#999",
               }}
-              onClick={() => setInputs({ ...inputs, type: "IN" })}
+              onClick={() => {
+                setInputs({ ...inputs, type: "IN", vendor: "" });
+                setSelectedLine("");
+                setSelectedProcess("");
+              }}
             >
               입고 (IN)
             </button>
@@ -255,7 +376,11 @@ const MaterialInout = () => {
                   inputs.type === "OUT" ? COLORS.danger : "#f0f0f0",
                 color: inputs.type === "OUT" ? "#fff" : "#999",
               }}
-              onClick={() => setInputs({ ...inputs, type: "OUT" })}
+              onClick={() => {
+                setInputs({ ...inputs, type: "OUT", vendor: "" });
+                setSelectedLine("");
+                setSelectedProcess("");
+              }}
             >
               출고 (OUT)
             </button>
@@ -271,7 +396,7 @@ const MaterialInout = () => {
                 <FaUserTie style={styles.inputIcon} />
                 <input
                   style={styles.fixedInputWithIcon}
-                  placeholder="담당자 검색..."
+                  placeholder="담당자 검색"
                   value={inputs.manager}
                   onChange={handleManagerChange}
                   onFocus={() => setShowManagerList(true)}
@@ -325,7 +450,7 @@ const MaterialInout = () => {
                   ...styles.fixedInputWithIcon,
                   borderColor: COLORS.primary,
                 }}
-                placeholder="바코드 스캔..."
+                placeholder="바코드 스캔"
                 value={inputs.lot}
                 onChange={(e) => setInputs({ ...inputs, lot: e.target.value })}
                 onKeyDown={handleScan}
@@ -367,19 +492,124 @@ const MaterialInout = () => {
             />
           </div>
 
-          {/* 거래처/공정 */}
+          {/* [변경 포인트] 거래처/공정 입력란 */}
+          {/* 여기가 기존 그리드의 중간 셀입니다. layout 안 깨지게 이 칸 내부에서만 분기합니다. */}
           <div style={styles.gridCell}>
             <label style={styles.label}>
               {inputs.type === "IN" ? "공급 업체 (Vendor)" : "투입 공정 / 라인"}
             </label>
-            <input
-              style={styles.fixedInput}
-              placeholder={
-                inputs.type === "IN" ? "예: 삼성전기" : "예: 조립 1라인"
-              }
-              value={inputs.vendor}
-              onChange={(e) => setInputs({ ...inputs, vendor: e.target.value })}
-            />
+
+            {inputs.type === "IN" ? (
+              // [IN] 기존처럼 입력창 + 드롭다운
+              <div style={{ position: "relative", width: "100%" }}>
+                <div style={styles.inputWrapper}>
+                  {/* 아이콘 변경 */}
+                  <FaSearch style={styles.inputIcon} />
+                  <input
+                    style={styles.fixedInputWithIcon}
+                    placeholder="업체 검색/입력"
+                    value={inputs.vendor}
+                    onChange={handleVendorChange}
+                    onFocus={() => setShowVendorList(true)}
+                    onBlur={() =>
+                      setTimeout(() => setShowVendorList(false), 200)
+                    }
+                  />
+                  <FaCaretDown
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#aaa",
+                    }}
+                  />
+                </div>
+                {showVendorList && (
+                  <div style={styles.dropdownList}>
+                    {filteredVendors.length > 0 ? (
+                      filteredVendors.map((v) => (
+                        <div
+                          key={v.id}
+                          style={styles.dropdownItem}
+                          onClick={() => selectVendor(v)}
+                        >
+                          <span style={{ fontWeight: "bold" }}>{v.name}</span>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              color: "#888",
+                              marginLeft: "5px",
+                            }}
+                          >
+                            ({v.id})
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ ...styles.dropdownItem, color: "#999" }}>
+                        결과 없음
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              // [OUT] 말씀하신 대로 두 칸으로 나눕니다.
+              <div style={{ display: "flex", gap: "10px", width: "100%" }}>
+                <div style={{ position: "relative", flex: 1 }}>
+                  <FaIndustry style={styles.inputIcon} />
+                  <select
+                    style={styles.fixedSelectWithIcon}
+                    value={selectedLine}
+                    onChange={handleLineSelect}
+                  >
+                    <option value="">라인 선택</option>
+                    {PROCESS_LINES.map((line) => (
+                      <option key={line.lineId} value={line.lineId}>
+                        {line.lineName}
+                      </option>
+                    ))}
+                  </select>
+                  <FaCaretDown
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#aaa",
+                      pointerEvents: "none",
+                    }}
+                  />
+                </div>
+                <div style={{ position: "relative", flex: 1 }}>
+                  <FaCogs style={styles.inputIcon} />
+                  <select
+                    style={styles.fixedSelectWithIcon}
+                    value={selectedProcess}
+                    onChange={handleProcessSelect}
+                    disabled={!selectedLine}
+                  >
+                    <option value="">공정 선택</option>
+                    {availableProcesses.map((proc) => (
+                      <option key={proc.id} value={proc.id}>
+                        {proc.name}
+                      </option>
+                    ))}
+                  </select>
+                  <FaCaretDown
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#aaa",
+                      pointerEvents: "none",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 등록 버튼 */}
@@ -639,6 +869,19 @@ const styles = {
     fontSize: "13px",
     outline: "none",
     boxSizing: "border-box",
+  },
+  // [NEW] Select 박스용 스타일 (아이콘 포함)
+  fixedSelectWithIcon: {
+    width: "100%",
+    height: "42px",
+    padding: "0 12px 0 35px",
+    borderRadius: "8px",
+    border: "1px solid #ddd",
+    backgroundColor: "#F9FAFB",
+    fontSize: "13px",
+    outline: "none",
+    boxSizing: "border-box",
+    appearance: "none", // 기본 화살표 제거 (커스텀 아이콘 사용을 위해)
   },
   fixedBtnSolid: {
     width: "100%",
