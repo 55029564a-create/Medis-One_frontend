@@ -298,7 +298,7 @@ const Sidebar = () => {
               </div>
               <div style={styles.userDept}>
                 {/* 백엔드에서 보내준 부서명과 권한 표시 */}
-                {`${user?.dept || "부서미정"} | ${user?.role === "ROLE_ADMIN" ? "관리자" : "사원"}`}
+                {`${user?.dept || "부서미정"} | ${user?.role === "ADMIN" ? "관리자" : "사원"}`}
               </div>
             </div>
           )}
