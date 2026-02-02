@@ -171,19 +171,20 @@ const MaterialInout = () => {
   const handleManagerChange = (e) => {
     const text = e.target.value;
     setInputs({ ...inputs, manager: text });
-    // 이름이나 사번으로 필터링
+
+    // [수정] m.employeeNumber -> m.employeeNum
     const filtered = managerList.filter(
       (m) =>
-        m.name.includes(text) ||
-        String(m.employeeNumber || m.id).includes(text),
+        m.name.includes(text) || String(m.employeeNum || m.id).includes(text),
     );
     setFilteredManagers(filtered);
     setShowManagerList(true);
   };
 
   const selectManager = (manager) => {
-    // EmployeeInfoResDto 구조에 따라 employeeNumber 또는 id 사용
-    const code = manager.employeeNumber || manager.id;
+    // [수정] manager.employeeNumber -> manager.employeeNum
+    // (DTO에 id가 없으니 employeeNum을 우선 사용)
+    const code = manager.employeeNum || "Unknown";
     const label = `${manager.name} (${code})`;
     setInputs({ ...inputs, manager: label });
     setShowManagerList(false);
@@ -573,15 +574,17 @@ const MaterialInout = () => {
                 <FaCaretDown style={styles.arrowIcon} />
                 {showManagerList && (
                   <div style={styles.dropdownList}>
-                    {filteredManagers.map((mgr) => (
+                    {filteredManagers.map((mgr, idx) => (
+                      // [참고] DTO에 id가 없으면 idx나 employeeNum을 key로 써야 에러가 안 납니다.
                       <div
-                        key={mgr.id}
+                        key={mgr.employeeNum || idx}
                         style={styles.dropdownItem}
                         onClick={() => selectManager(mgr)}
                       >
                         <strong>{mgr.name}</strong>{" "}
+                        {/* [수정] mgr.employeeNumber -> mgr.employeeNum */}
                         <span style={{ color: "#888", fontSize: "11px" }}>
-                          ({mgr.employeeNumber || mgr.id})
+                          ({mgr.employeeNum})
                         </span>
                       </div>
                     ))}
