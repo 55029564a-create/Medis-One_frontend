@@ -228,18 +228,35 @@ const MaterialInout = () => {
     if (inputs.type === "OUT" && (!selectedLine || !selectedProcess)) {
       return alert("출고 라인과 공정을 모두 선택해주세요.");
     }
+    // ==========================================
+    // [추가된 부분] "이름 (10001)" 에서 숫자만 추출하기
+    // ==========================================
+    let cleanManagerId = "";
 
+    // 괄호 안에 있는 숫자만 쏙 빼내는 정규식
+    const managerIdMatch = inputs.manager.match(/\((.*?)\)/);
+
+    if (managerIdMatch && managerIdMatch[1]) {
+      cleanManagerId = managerIdMatch[1]; // "10001" 추출
+    } else {
+      // 만약 괄호가 없으면 입력된 값 그대로 사용 (숫자만 적었을 수도 있으니)
+      cleanManagerId = inputs.manager;
+    }
     try {
+      // API 호출 (서버로 데이터 전송)
       await registerMaterialInOut({
         type: inputs.type,
-        lotId: inputs.lot,
+        lotId: inputs.lot, // 주의: DB가 바코드 문자열을 허용하는지 확인 필요
         quantity: Number(inputs.qty),
         company: inputs.vendor,
-        worker: inputs.manager,
+
+        // ▼▼▼ [수정됨] 이름은 버리고 '숫자 ID'만 보냅니다 ▼▼▼
+        worker: Number(cleanManagerId),
       });
 
       alert("처리가 완료되었습니다.");
-      // 입력 초기화
+
+      // --- (아래는 성공 후 초기화 로직, 기존과 동일) ---
       setInputs((prev) => ({
         ...prev,
         item: "",
@@ -248,14 +265,14 @@ const MaterialInout = () => {
         qty: "",
         currentQty: 0,
       }));
-      // 선택값 초기화
       setSelectedLine("");
       setSelectedProcess("");
 
       fetchRecentHistory();
       lotInputRef.current.focus();
     } catch (error) {
-      alert("오류 발생");
+      console.error(error); // 에러 로그 확인용
+      alert("오류 발생: 데이터 형식을 확인해주세요.");
     }
   };
 

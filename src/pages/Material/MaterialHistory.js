@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import client from "../../api/client";
-// getMaterialHistory 함수 위치 확인 필수
+// import client from "../../api/client";
 import { getMaterialHistory } from "../../api/materialApi";
 
 import {
@@ -10,16 +9,20 @@ import {
   FaArrowUp,
   FaArrowDown,
   FaExchangeAlt,
-  FaTrash,
   FaEye,
   FaTimes,
-  FaExclamationCircle,
   FaCheckCircle,
+  FaExclamationCircle,
+  FaCalendarAlt,
+  FaUndo,
+  FaChevronDown,
+  FaCopy,
 } from "react-icons/fa";
 
 // 🎨 테마 컬러
 const COLORS = {
   primary: "#8C85FF",
+  primaryLight: "#F3F1FF",
   bg: "#F5F6FA",
   white: "#FFFFFF",
   text: "#333",
@@ -33,8 +36,11 @@ const COLORS = {
 
 const MaterialHistory = () => {
   const [history, setHistory] = useState([]);
+
   const [filterType, setFilterType] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -42,69 +48,45 @@ const MaterialHistory = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
-  // 🔄 [핵심 수정] 데이터 로드 로직
+  // 🔄 데이터 로드
   const fetchData = async () => {
     try {
       const data = await getMaterialHistory(searchTerm);
 
-      // 1. [연결 성공] 데이터가 있을 때
       if (data && data.length > 0) {
-        const mappedData = data.map((item, index) => {
+        const mappedData = data.map((dto, index) => {
           let typeCode = "ETC";
-          if (item.type === "입고") typeCode = "IN";
-          else if (item.type === "출고") typeCode = "OUT";
+          const rawType = dto.type || "";
+
+          if (rawType === "입고" || rawType === "INBOUND") typeCode = "IN";
+          else if (
+            rawType === "출고" ||
+            rawType === "생산투입" ||
+            rawType === "PRODUCTION_IN"
+          )
+            typeCode = "OUT";
 
           return {
             id: `HIST-${index}`,
-            date: item.date
-              ? item.date.replace("T", " ").substring(0, 16)
-              : "-",
+            rawDate: dto.date || dto.regDate,
+            date: dto.date ? dto.date.replace("T", " ").substring(0, 16) : "-",
             type: typeCode,
-            partCode: "-",
-            item: item.matName,
-            lot: item.lotNum,
-            qty: item.changeQty,
-            location: item.company || "-",
-            worker: item.empName || "시스템",
-            note: `이전: ${item.prevQty} → 현재: ${item.currentQty}`,
+            item: dto.matName || "이름 없음",
+            lot: dto.lotNum || "-",
+            qty: dto.changeQty || 0,
+            location: dto.company || "-",
+            worker: dto.empName || "시스템",
+            note: `이전: ${dto.prevQty} → 현재: ${dto.currentQty}`,
           };
         });
         setHistory(mappedData);
-      }
-      // 2. [연결 성공] 하지만 데이터가 0개일 때 (요청하신 부분!)
-      else {
-        setHistory([
-          {
-            id: "INFO-EMPTY",
-            date: "-",
-            type: "INFO", // 파란색 배지용
-            partCode: "-",
-            item: "✅ DB 연결 성공 (데이터 없음)", // 자재명에 표시
-            lot: "-",
-            qty: 0,
-            location: "-",
-            worker: "시스템",
-            note: "DB 연결은 성공했으나 조회된 내역이 없습니다.",
-          },
-        ]);
+      } else {
+        setHistory([]);
       }
     } catch (error) {
-      console.error("데이터 로드 실패", error);
-
-      // 3. [연결 실패] 에러 발생 시 (요청하신 부분!)
+      console.error("데이터 로드 실패:", error);
       setHistory([
-        {
-          id: "ERROR",
-          date: "-",
-          type: "ERROR", // 빨간색 배지용
-          partCode: "ERR-500",
-          item: "❌ DB 연결 실패", // 자재명에 표시
-          lot: "-",
-          qty: 0,
-          location: "-",
-          worker: "시스템",
-          note: "API 주소나 서버 상태를 확인하세요.",
-        },
+        { id: "ERROR", type: "ERROR", item: "서버 연결 실패", qty: 0 },
       ]);
     }
   };
@@ -116,32 +98,52 @@ const MaterialHistory = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, searchTerm]);
+  }, [filterType, searchTerm, startDate, endDate]);
 
   const handleSearch = () => {
     fetchData();
   };
 
-  // 필터링 (안내 메시지들은 필터링 무시하고 무조건 표시)
-  const filteredHistory = history.filter((item) => {
-    if (item.id === "ERROR" || item.id === "INFO-EMPTY") return true;
+  const handleReset = () => {
+    setFilterType("ALL");
+    setSearchTerm("");
+    setStartDate("");
+    setEndDate("");
+    fetchData();
+  };
 
+  const handleCopyLot = (text) => {
+    if (!text || text === "-") return;
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        alert(`LOT 번호가 복사되었습니다: ${text}`);
+      })
+      .catch((err) => console.error("복사 실패", err));
+  };
+
+  const filteredHistory = history.filter((item) => {
+    if (item.id === "ERROR") return true;
     if (!item) return false;
+
     const typeMatch = filterType === "ALL" ? true : item.type === filterType;
-    return typeMatch;
+
+    let dateMatch = true;
+    if (startDate && item.rawDate)
+      dateMatch = dateMatch && item.rawDate >= startDate;
+    if (endDate && item.rawDate)
+      dateMatch = dateMatch && item.rawDate.substring(0, 10) <= endDate;
+
+    return typeMatch && dateMatch;
   });
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredHistory.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
-
   const handlePageChange = (pageNumber) => setCurrentPage(pageNumber);
 
-  // 요약 계산 (안내 메시지는 제외)
-  const validHistory = history.filter(
-    (i) => i.id !== "ERROR" && i.id !== "INFO-EMPTY",
-  );
+  const validHistory = history.filter((i) => i.id !== "ERROR");
   const summary = {
     in: validHistory
       .filter((i) => i.type === "IN")
@@ -149,12 +151,7 @@ const MaterialHistory = () => {
     out: validHistory
       .filter((i) => i.type === "OUT")
       .reduce((acc, cur) => acc + cur.qty, 0),
-    return: validHistory
-      .filter((i) => i.type === "RETURN")
-      .reduce((acc, cur) => acc + cur.qty, 0),
-    discard: validHistory
-      .filter((i) => i.type === "DISCARD")
-      .reduce((acc, cur) => acc + cur.qty, 0),
+    total: validHistory.length,
   };
 
   const openModal = (item) => {
@@ -169,155 +166,325 @@ const MaterialHistory = () => {
   return (
     <>
       <style>{`
-        .history-container { padding: 20px; background-color: ${COLORS.bg}; min-height: 100vh; display: flex; flex-direction: column; }
-        .desktop-table { display: table; width: 100%; border-collapse: collapse; }
-        .mobile-card-list { display: none; } 
+        /* 레이아웃 */
+        .history-container { padding: 20px; background-color: ${COLORS.bg}; min-height: 100vh; display: flex; flex-direction: column; gap: 15px; }
+        .page-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 15px; }
+        
+        .dashboard-toolbar { 
+          display: flex; 
+          flex-direction: column; 
+          gap: 15px; 
+          background-color: white;
+          padding: 20px;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+
+        .controls-row { 
+          display: flex; 
+          align-items: center; 
+          gap: 10px; 
+          flex-wrap: wrap; 
+          padding-bottom: 15px;
+          border-bottom: 1px solid #eee;
+        }
+
+        /* ---------------------------------------------------- */
+        /* [최종 완성] 검색 박스 스타일 (Flex 구조 + 둥근 모서리) */
+        /* ---------------------------------------------------- */
+        
+        /* 1. 검색 박스 컨테이너 (여기가 테두리와 둥근 모서리 담당) */
+        .search-container-box {
+          display: flex; 
+          align-items: center;
+          height: 36px;
+          border: 1px solid #E0E0E0;
+          background-color: white; 
+          border-radius: 8px; /* [요청] 둥근 모서리 복구 */
+          flex: 1;
+          min-width: 250px;
+          padding: 0 10px;
+          box-sizing: border-box;
+          transition: border-color 0.2s;
+        }
+        
+        /* 포커스 효과 */
+        .search-container-box:focus-within {
+          border-color: ${COLORS.primary};
+          box-shadow: 0 0 0 2px rgba(140, 133, 255, 0.1);
+        }
+
+        /* 2. 돋보기 아이콘 (박스 안 고정) */
+        .search-icon-fixed {
+          color: #999;
+          font-size: 14px;
+          margin-right: 8px; 
+          flex-shrink: 0; 
+        }
+
+        /* 3. 입력창 (투명) */
+        .search-input-transparent {
+          border: none;
+          outline: none;
+          background: transparent;
+          width: 100%;
+          font-size: 13px;
+          color: #333;
+          height: 100%;
+          font-family: inherit;
+        }
+
+        /* ---------------------------------------------------- */
+
+        /* 날짜 및 셀렉트도 둥근 모서리(8px)로 통일 */
+        .common-input-box {
+          height: 36px; 
+          border: 1px solid #E0E0E0;
+          background-color: #fff; 
+          padding: 0 10px;
+          font-size: 13px;
+          color: #333;
+          outline: none;
+          box-sizing: border-box;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          border-radius: 8px; /* 둥근 모서리 */
+        }
+        .common-input-box:focus-within { border-color: ${COLORS.primary}; box-shadow: 0 0 0 2px rgba(140, 133, 255, 0.1); }
+        
+        .date-input-clean { border: none; outline: none; background: transparent; color: #555; width: 105px; cursor: pointer; font-family: inherit; }
+        
+        .select-wrapper { position: relative; min-width: 110px; flex-shrink: 0; }
+        .select-real { 
+          width: 100%; height: 36px; 
+          border: 1px solid #E0E0E0; background-color: white; 
+          padding: 0 25px 0 10px; 
+          appearance: none; -webkit-appearance: none; 
+          font-size: 13px; color: #333; outline: none; cursor: pointer;
+          border-radius: 8px; /* 둥근 모서리 */
+          font-family: inherit;
+        }
+        .select-real:focus { border-color: ${COLORS.primary}; box-shadow: 0 0 0 2px rgba(140, 133, 255, 0.1); }
+        .select-arrow-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #888; font-size: 11px; pointer-events: none; }
+
+        /* 버튼 */
+        .btn-action { height: 36px; background-color: ${COLORS.primary}; color: white; border: none; padding: 0 18px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; }
+        .btn-reset-icon { height: 36px; width: 36px; display: flex; align-items: center; justify-content: center; background-color: #F5F6FA; color: #666; border: 1px solid #E0E0E0; border-radius: 8px; cursor: pointer; }
+
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+
+        .table-container { background-color: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); overflow-x: auto; }
+        .desktop-table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        .th-row { border-bottom: 1px solid #eee; background-color: #FAFAFA; }
+        .th-cell { padding: 10px 8px; text-align: left; font-size: 12px; color: #666; font-weight: bold; white-space: nowrap; }
+        .tr-row { border-bottom: 1px solid #f5f5f5; }
+        .td-cell { padding: 10px 8px; fontSize: 13px; color: #333; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .lot-copyable { background-color: ${COLORS.primaryLight}; color: ${COLORS.primary}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-family: monospace; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #8C85FF; }
 
         @media (max-width: 768px) {
-          .desktop-table { display: none; }
-          .mobile-card-list { display: flex; flex-direction: column; gap: 15px; }
-          .summary-row { flex-direction: column; }
-          .filter-bar { flex-direction: column; align-items: stretch; }
-          .search-box { width: 100%; margin-top: 10px; }
+          .controls-row { flex-direction: column; align-items: stretch; }
+          .common-input-box { width: 100%; justify-content: space-between; }
+          .btn-action { width: 100%; }
         }
       `}</style>
 
       <div className="history-container">
-        {/* 헤더 */}
-        <div style={styles.header}>
+        <div className="page-header">
           <div>
-            <h2 style={styles.pageTitle}>📋 자재 입출고 이력</h2>
-            <p style={styles.pageSubtitle}>
+            <h2
+              style={{
+                fontSize: "20px",
+                fontWeight: "bold",
+                color: COLORS.text,
+                marginBottom: "4px",
+              }}
+            >
+              📋 자재 입출고 이력
+            </h2>
+            <p style={{ fontSize: "12px", color: COLORS.gray }}>
               자재의 이동 경로와 수량 변화를 추적합니다.
             </p>
           </div>
-          <button style={styles.excelBtn}>
+          <button
+            className="btn-action"
+            style={{
+              backgroundColor: "#217346",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
             <FaFileExcel /> 엑셀 다운로드
           </button>
         </div>
 
-        {/* 요약 카드 */}
-        <div className="summary-row" style={styles.summaryRow}>
-          <SummaryCard
-            label="총 입고"
-            value={summary.in.toLocaleString()}
-            color={COLORS.success}
-            icon={<FaArrowUp />}
-          />
-          <SummaryCard
-            label="총 출고"
-            value={summary.out.toLocaleString()}
-            color={COLORS.danger}
-            icon={<FaArrowDown />}
-          />
-          <SummaryCard
-            label="총 반납"
-            value={summary.return.toLocaleString()}
-            color={COLORS.info}
-            icon={<FaExchangeAlt />}
-          />
-          <SummaryCard
-            label="총 폐기"
-            value={summary.discard.toLocaleString()}
-            color={COLORS.dark}
-            icon={<FaTrash />}
-          />
-        </div>
-
-        {/* 메인 콘텐츠 */}
-        <div style={styles.card}>
-          {/* 필터 바 */}
-          <div className="filter-bar" style={styles.filterBar}>
-            <div style={styles.filterGroup}>
-              <div style={styles.selectWrapper}>
-                <FaFilter style={styles.filterIcon} />
-                <select
-                  style={styles.select}
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                >
-                  <option value="ALL">전체 유형</option>
-                  <option value="IN">입고</option>
-                  <option value="OUT">출고</option>
-                </select>
-              </div>
+        <div className="dashboard-toolbar">
+          <div className="controls-row">
+            {/* 날짜 선택 (둥근 모서리) */}
+            <div className="common-input-box">
+              <FaCalendarAlt color={COLORS.primary} size={12} />
+              <input
+                type="date"
+                className="date-input-clean"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+              <span style={{ color: "#ccc", fontSize: "11px" }}>~</span>
+              <input
+                type="date"
+                className="date-input-clean"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
             </div>
-            <div className="search-box" style={styles.searchBox}>
-              <FaSearch color="#999" />
+
+            {/* 유형 선택 (둥근 모서리) */}
+            <div className="select-wrapper">
+              <select
+                className="select-real"
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+              >
+                <option value="ALL">전체 유형</option>
+                <option value="IN">입고 (IN)</option>
+                <option value="OUT">출고 (OUT)</option>
+              </select>
+              <FaChevronDown className="select-arrow-icon" />
+            </div>
+
+            {/* ▼▼▼ [완성] 검색 박스 (둥근 모서리 8px + 돋보기 고정) ▼▼▼ */}
+            <div className="search-container-box">
+              <FaSearch className="search-icon-fixed" />
               <input
                 type="text"
-                placeholder="품목명 / LOT 번호 검색"
-                style={styles.searchInput}
+                className="search-input-transparent"
+                placeholder="품목명, LOT 번호, 담당자 검색..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
-              <button onClick={handleSearch} style={styles.searchBtn}>
-                검색
-              </button>
             </div>
+
+            <button className="btn-action" onClick={handleSearch}>
+              조회
+            </button>
+            <button
+              className="btn-reset-icon"
+              onClick={handleReset}
+              title="초기화"
+            >
+              <FaUndo size={12} />
+            </button>
           </div>
 
-          {/* 2. PC용 테이블 */}
-          <div style={{ overflowX: "hidden" }}>
-            <table className="desktop-table">
-              <thead>
-                <tr style={styles.thRow}>
-                  <th style={{ ...styles.th, width: "15%" }}>일시</th>
-                  <th
-                    style={{ ...styles.th, width: "10%", textAlign: "center" }}
-                  >
-                    구분
-                  </th>
-                  <th style={{ ...styles.th, width: "20%" }}>자재명</th>
-                  <th style={{ ...styles.th, width: "15%" }}>LOT ID</th>
-                  <th
-                    style={{ ...styles.th, width: "10%", textAlign: "right" }}
-                  >
-                    수량
-                  </th>
-                  <th style={{ ...styles.th, width: "15%" }}>업체/위치</th>
-                  <th style={{ ...styles.th, width: "10%" }}>작업자</th>
-                  <th
-                    style={{ ...styles.th, width: "5%", textAlign: "center" }}
-                  >
-                    {" "}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentItems.map((item) => (
-                  <tr key={item.id} style={styles.tr}>
-                    <td style={styles.td}>{item.date}</td>
-                    <td style={{ ...styles.td, textAlign: "center" }}>
+          <div className="stats-row">
+            <MiniCard
+              label="전체 이력"
+              value={`${summary.total}건`}
+              icon={<FaExchangeAlt />}
+              color={COLORS.info}
+            />
+            <MiniCard
+              label="총 입고량"
+              value={`${summary.in.toLocaleString()}`}
+              icon={<FaArrowUp />}
+              color={COLORS.success}
+            />
+            <MiniCard
+              label="총 출고량"
+              value={`${summary.out.toLocaleString()}`}
+              icon={<FaArrowDown />}
+              color={COLORS.danger}
+            />
+            <MiniCard
+              label="시스템 상태"
+              value="정상"
+              icon={<FaCheckCircle />}
+              color={COLORS.dark}
+            />
+          </div>
+        </div>
+
+        <div className="table-container">
+          <table className="desktop-table">
+            <thead>
+              <tr className="th-row">
+                <th className="th-cell" style={{ width: "15%" }}>
+                  일시
+                </th>
+                <th
+                  className="th-cell"
+                  style={{ width: "10%", textAlign: "center" }}
+                >
+                  구분
+                </th>
+                <th className="th-cell" style={{ width: "20%" }}>
+                  자재명
+                </th>
+                <th className="th-cell" style={{ width: "15%" }}>
+                  LOT ID (클릭 복사)
+                </th>
+                <th
+                  className="th-cell"
+                  style={{ width: "10%", textAlign: "right" }}
+                >
+                  수량
+                </th>
+                <th className="th-cell" style={{ width: "15%" }}>
+                  업체/위치
+                </th>
+                <th className="th-cell" style={{ width: "10%" }}>
+                  담당자
+                </th>
+                <th
+                  className="th-cell"
+                  style={{ width: "5%", textAlign: "center" }}
+                >
+                  {" "}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentItems.length > 0 ? (
+                currentItems.map((item) => (
+                  <tr key={item.id} className="tr-row">
+                    <td className="td-cell">{item.date}</td>
+                    <td className="td-cell" style={{ textAlign: "center" }}>
                       <TypeBadge type={item.type} />
                     </td>
-                    <td style={styles.td}>
-                      {/* 상태에 따라 색상 변경 */}
+                    <td className="td-cell">
                       <div
                         style={
                           item.id === "ERROR"
-                            ? { ...styles.itemName, color: COLORS.danger }
-                            : item.id === "INFO-EMPTY"
-                              ? { ...styles.itemName, color: COLORS.info }
-                              : styles.itemName
+                            ? { fontWeight: "bold", color: COLORS.danger }
+                            : { fontWeight: "600" }
                         }
                       >
                         {item.id === "ERROR" && (
                           <FaExclamationCircle style={{ marginRight: 6 }} />
                         )}
-                        {item.id === "INFO-EMPTY" && (
-                          <FaCheckCircle style={{ marginRight: 6 }} />
-                        )}
                         {item.item}
                       </div>
                     </td>
-                    <td style={styles.td}>
-                      <span style={styles.lotBadge}>{item.lot}</span>
+                    <td className="td-cell">
+                      <span
+                        className="lot-copyable"
+                        onClick={() => handleCopyLot(item.lot)}
+                        title="클릭해서 복사하기"
+                      >
+                        {item.lot} <FaCopy size={10} style={{ opacity: 0.5 }} />
+                      </span>
                     </td>
                     <td
+                      className="td-cell"
                       style={{
-                        ...styles.td,
                         textAlign: "right",
                         fontWeight: "bold",
                         color: getQtyColor(item.type),
@@ -330,88 +497,64 @@ const MaterialHistory = () => {
                           : ""}
                       {item.qty.toLocaleString()}
                     </td>
-                    <td style={styles.td}>{item.location}</td>
-                    <td style={styles.td}>{item.worker}</td>
-                    <td style={{ ...styles.td, textAlign: "center" }}>
+                    <td className="td-cell">{item.location}</td>
+                    <td className="td-cell">{item.worker}</td>
+                    <td className="td-cell" style={{ textAlign: "center" }}>
                       <button
-                        style={styles.detailBtn}
                         onClick={() => openModal(item)}
+                        style={{
+                          border: `1px solid ${COLORS.border}`,
+                          backgroundColor: "white",
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          color: "#555",
+                        }}
                       >
                         <FaEye />
                       </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* 3. 모바일용 카드 리스트 */}
-          <div className="mobile-card-list">
-            {currentItems.map((item) => (
-              <div
-                key={item.id}
-                style={styles.mobileCard}
-                onClick={() => openModal(item)}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginBottom: "8px",
-                  }}
-                >
-                  <span style={styles.dateText}>{item.date}</span>
-                  <TypeBadge type={item.type} />
-                </div>
-                <div
-                  style={
-                    item.id === "ERROR"
-                      ? { ...styles.itemName, color: COLORS.danger }
-                      : item.id === "INFO-EMPTY"
-                        ? { ...styles.itemName, color: COLORS.info }
-                        : styles.itemName
-                  }
-                >
-                  {item.item}
-                </div>
-                <div style={{ fontSize: "12px", color: "#666" }}>
-                  {item.location}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginTop: "10px",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={styles.lotBadge}>{item.lot}</span>
-                  <span
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan="8"
                     style={{
-                      fontWeight: "bold",
-                      fontSize: "16px",
-                      color: getQtyColor(item.type),
+                      padding: "40px",
+                      textAlign: "center",
+                      color: "#999",
+                      fontSize: "13px",
                     }}
                   >
-                    {item.type === "IN" ? "+" : item.type === "OUT" ? "-" : ""}{" "}
-                    {item.qty.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+                    검색 결과가 없습니다.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
 
-          {/* 4. 페이지네이션 */}
           {totalPages > 0 && (
-            <div style={styles.pagination}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: "5px",
+                marginTop: "20px",
+              }}
+            >
               <button
-                style={{
-                  ...styles.pageBtn,
-                  ...(currentPage === 1 ? styles.disabledBtn : {}),
-                }}
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
+                style={{
+                  border: "1px solid #eee",
+                  backgroundColor: "white",
+                  color: "#555",
+                  width: "30px",
+                  height: "30px",
+                  borderRadius: "6px",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                }}
               >
                 &lt;
               </button>
@@ -419,24 +562,38 @@ const MaterialHistory = () => {
                 (number) => (
                   <button
                     key={number}
-                    style={
-                      currentPage === number
-                        ? { ...styles.pageBtn, ...styles.activePageBtn }
-                        : styles.pageBtn
-                    }
                     onClick={() => handlePageChange(number)}
+                    style={{
+                      border:
+                        currentPage === number ? "none" : "1px solid #eee",
+                      backgroundColor:
+                        currentPage === number ? COLORS.primary : "white",
+                      color: currentPage === number ? "white" : "#555",
+                      width: "30px",
+                      height: "30px",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                      fontSize: "12px",
+                    }}
                   >
                     {number}
                   </button>
                 ),
               )}
               <button
-                style={{
-                  ...styles.pageBtn,
-                  ...(currentPage === totalPages ? styles.disabledBtn : {}),
-                }}
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
+                style={{
+                  border: "1px solid #eee",
+                  backgroundColor: "white",
+                  color: "#555",
+                  width: "30px",
+                  height: "30px",
+                  borderRadius: "6px",
+                  cursor:
+                    currentPage === totalPages ? "not-allowed" : "pointer",
+                }}
               >
                 &gt;
               </button>
@@ -445,35 +602,71 @@ const MaterialHistory = () => {
         </div>
       </div>
 
-      {/* 상세 정보 모달 */}
       {isModalOpen && selectedItem && (
-        <div style={styles.modalOverlay} onClick={closeModal}>
-          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3>상세 이력 정보</h3>
-              <button style={styles.closeBtn} onClick={closeModal}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+          }}
+          onClick={closeModal}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              width: "90%",
+              maxWidth: "400px",
+              padding: "20px",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "20px",
+                borderBottom: "1px solid #eee",
+                paddingBottom: "10px",
+              }}
+            >
+              <h3 style={{ fontSize: "18px", margin: 0 }}>상세 이력 정보</h3>
+              <button
+                onClick={closeModal}
+                style={{
+                  border: "none",
+                  background: "none",
+                  fontSize: "18px",
+                  cursor: "pointer",
+                  color: "#999",
+                }}
+              >
                 <FaTimes />
               </button>
             </div>
-            <div style={styles.modalBody}>
+            <div>
               <ModalRow label="일시" value={selectedItem.date} />
               <ModalRow
                 label="구분"
                 value={<TypeBadge type={selectedItem.type} />}
               />
-              <div style={styles.divider} />
-              <ModalRow
-                label="품목명"
-                value={selectedItem.item}
-                bold
-                color={
-                  selectedItem.id === "ERROR"
-                    ? COLORS.danger
-                    : selectedItem.id === "INFO-EMPTY"
-                      ? COLORS.info
-                      : null
-                }
+              <div
+                style={{
+                  height: "1px",
+                  backgroundColor: "#eee",
+                  margin: "10px 0",
+                }}
               />
+              <ModalRow label="품목명" value={selectedItem.item} bold />
               <ModalRow label="LOT ID" value={selectedItem.lot} />
               <ModalRow
                 label="수량"
@@ -481,16 +674,52 @@ const MaterialHistory = () => {
                 color={getQtyColor(selectedItem.type)}
                 bold
               />
-              <div style={styles.divider} />
+              <div
+                style={{
+                  height: "1px",
+                  backgroundColor: "#eee",
+                  margin: "10px 0",
+                }}
+              />
               <ModalRow label="업체/위치" value={selectedItem.location} />
-              <ModalRow label="작업자" value={selectedItem.worker} />
-              <div style={styles.noteBox}>
-                <div style={styles.noteLabel}>재고 변동 내역</div>
-                <div style={styles.noteText}>{selectedItem.note}</div>
+              <ModalRow label="담당자" value={selectedItem.worker} />
+              <div
+                style={{
+                  backgroundColor: "#F9FAFB",
+                  padding: "10px",
+                  borderRadius: "8px",
+                  marginTop: "10px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#888",
+                    marginBottom: "4px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  재고 변동 내역
+                </div>
+                <div style={{ fontSize: "13px", color: "#333" }}>
+                  {selectedItem.note}
+                </div>
               </div>
             </div>
-            <div style={styles.modalFooter}>
-              <button style={styles.confirmBtn} onClick={closeModal}>
+            <div style={{ textAlign: "center", marginTop: "20px" }}>
+              <button
+                onClick={closeModal}
+                style={{
+                  width: "100%",
+                  backgroundColor: COLORS.primary,
+                  color: "white",
+                  border: "none",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
                 확인
               </button>
             </div>
@@ -502,16 +731,41 @@ const MaterialHistory = () => {
 };
 
 // --- 서브 컴포넌트 ---
-const SummaryCard = ({ label, value, color, icon }) => (
-  <div style={styles.summaryCard}>
+const MiniCard = ({ label, value, color, icon }) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "15px",
+      padding: "15px",
+      borderRadius: "10px",
+      backgroundColor: "white",
+      border: "1px solid #eee",
+      boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+    }}
+  >
     <div
-      style={{ ...styles.iconBox, backgroundColor: `${color}15`, color: color }}
+      style={{
+        width: "36px",
+        height: "36px",
+        borderRadius: "8px",
+        backgroundColor: `${color}15`,
+        color: color,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "16px",
+      }}
     >
       {icon}
     </div>
     <div>
-      <div style={styles.summaryLabel}>{label}</div>
-      <div style={{ ...styles.summaryValue, color: color }}>{value}</div>
+      <div style={{ fontSize: "11px", color: "#888", marginBottom: "2px" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "16px", fontWeight: "900", color: "#333" }}>
+        {value}
+      </div>
     </div>
   </div>
 );
@@ -522,7 +776,7 @@ const ModalRow = ({ label, value, bold, color }) => (
       display: "flex",
       justifyContent: "space-between",
       marginBottom: "12px",
-      fontSize: "14px",
+      fontSize: "13px",
     }}
   >
     <span style={{ color: "#888", minWidth: "80px" }}>{label}</span>
@@ -548,13 +802,9 @@ const TypeBadge = ({ type }) => {
     label = "출고";
     color = COLORS.danger;
   } else if (type === "ERROR") {
-    label = "연결 오류";
+    label = "오류";
     color = COLORS.danger;
-  } else if (type === "INFO") {
-    label = "상태 확인";
-    color = COLORS.info;
-  } // [NEW] 성공/빈값용
-
+  }
   return (
     <span
       style={{
@@ -575,277 +825,5 @@ const TypeBadge = ({ type }) => {
 
 const getQtyColor = (type) =>
   type === "IN" ? COLORS.success : type === "OUT" ? COLORS.danger : COLORS.gray;
-
-// --- 스타일 (기존 유지) ---
-const styles = {
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "20px",
-    flexWrap: "wrap",
-    gap: "10px",
-  },
-  pageTitle: {
-    fontSize: "22px",
-    fontWeight: "bold",
-    color: COLORS.text,
-    marginBottom: "4px",
-  },
-  pageSubtitle: { fontSize: "13px", color: COLORS.gray },
-  excelBtn: {
-    backgroundColor: "#217346",
-    color: "white",
-    border: "none",
-    padding: "10px 16px",
-    borderRadius: "8px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    fontSize: "13px",
-  },
-  summaryRow: { display: "flex", gap: "15px", marginBottom: "20px" },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: "white",
-    padding: "15px",
-    borderRadius: "10px",
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
-    minWidth: "150px",
-  },
-  iconBox: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "8px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "16px",
-  },
-  summaryLabel: { fontSize: "12px", color: "#888", marginBottom: "2px" },
-  summaryValue: { fontSize: "18px", fontWeight: "900" },
-  card: {
-    backgroundColor: "white",
-    borderRadius: "12px",
-    padding: "20px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
-    display: "flex",
-    flexDirection: "column",
-  },
-  filterBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "20px",
-    flexWrap: "wrap",
-    gap: "10px",
-  },
-  filterGroup: {
-    display: "flex",
-    gap: "10px",
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  selectWrapper: { position: "relative" },
-  filterIcon: {
-    position: "absolute",
-    left: "10px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    color: "#888",
-    fontSize: "12px",
-  },
-  select: {
-    padding: "8px 10px 8px 30px",
-    borderRadius: "8px",
-    border: `1px solid ${COLORS.border}`,
-    fontSize: "13px",
-    color: "#555",
-    outline: "none",
-    cursor: "pointer",
-  },
-  searchBox: {
-    display: "flex",
-    alignItems: "center",
-    backgroundColor: "#F0F2F5",
-    borderRadius: "8px",
-    padding: "8px 12px",
-    minWidth: "200px",
-  },
-  searchInput: {
-    border: "none",
-    background: "transparent",
-    outline: "none",
-    marginLeft: "8px",
-    fontSize: "13px",
-    width: "100%",
-  },
-  searchBtn: {
-    backgroundColor: COLORS.primary,
-    color: "white",
-    border: "none",
-    padding: "4px 10px",
-    borderRadius: "4px",
-    fontSize: "12px",
-    cursor: "pointer",
-    marginLeft: "10px",
-  },
-  thRow: { borderBottom: "1px solid #eee", backgroundColor: "#FAFAFA" },
-  th: {
-    padding: "12px 10px",
-    textAlign: "left",
-    fontSize: "12px",
-    color: "#666",
-    fontWeight: "bold",
-    whiteSpace: "nowrap",
-  },
-  tr: { borderBottom: "1px solid #f5f5f5" },
-  td: {
-    padding: "12px 10px",
-    fontSize: "13px",
-    color: "#333",
-    verticalAlign: "middle",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  emptyTd: {
-    padding: "40px",
-    textAlign: "center",
-    color: "#999",
-    fontSize: "14px",
-  },
-  itemName: {
-    fontSize: "13px",
-    fontWeight: "bold",
-    color: "#333",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  lotBadge: {
-    backgroundColor: "#F3F1FF",
-    color: COLORS.primary,
-    padding: "2px 6px",
-    borderRadius: "4px",
-    fontSize: "11px",
-    fontFamily: "monospace",
-  },
-  detailBtn: {
-    border: `1px solid ${COLORS.border}`,
-    backgroundColor: "white",
-    padding: "4px 8px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: "4px",
-    fontSize: "11px",
-    color: "#555",
-    margin: "0 auto",
-  },
-  pagination: {
-    display: "flex",
-    justifyContent: "center",
-    gap: "5px",
-    marginTop: "20px",
-  },
-  pageBtn: {
-    border: "1px solid #eee",
-    backgroundColor: "white",
-    color: "#555",
-    width: "30px",
-    height: "30px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "12px",
-  },
-  activePageBtn: {
-    backgroundColor: COLORS.primary,
-    color: "white",
-    border: "none",
-    fontWeight: "bold",
-  },
-  disabledBtn: {
-    color: "#ccc",
-    cursor: "not-allowed",
-    backgroundColor: "#f9f9f9",
-  },
-  mobileCard: {
-    border: `1px solid ${COLORS.border}`,
-    borderRadius: "10px",
-    padding: "15px",
-    backgroundColor: "white",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
-    cursor: "pointer",
-  },
-  dateText: { fontSize: "12px", color: "#888" },
-  modalOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0,0,0,0.5)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderRadius: "12px",
-    width: "90%",
-    maxWidth: "400px",
-    padding: "20px",
-    boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
-    animation: "fadeIn 0.2s",
-  },
-  modalHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "20px",
-    borderBottom: "1px solid #eee",
-    paddingBottom: "10px",
-  },
-  closeBtn: {
-    border: "none",
-    background: "none",
-    fontSize: "18px",
-    cursor: "pointer",
-    color: "#999",
-  },
-  modalBody: { marginBottom: "20px" },
-  divider: { height: "1px", backgroundColor: "#eee", margin: "10px 0" },
-  noteBox: {
-    backgroundColor: "#F9FAFB",
-    padding: "10px",
-    borderRadius: "8px",
-    marginTop: "10px",
-  },
-  noteLabel: {
-    fontSize: "11px",
-    color: "#888",
-    marginBottom: "4px",
-    fontWeight: "bold",
-  },
-  noteText: { fontSize: "13px", color: "#333", lineHeight: "1.4" },
-  modalFooter: { textAlign: "center" },
-  confirmBtn: {
-    width: "100%",
-    backgroundColor: COLORS.primary,
-    color: "white",
-    border: "none",
-    padding: "12px",
-    borderRadius: "8px",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-};
 
 export default MaterialHistory;
