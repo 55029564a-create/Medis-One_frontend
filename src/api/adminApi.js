@@ -13,3 +13,17 @@ export const createEmployee = async (employeeData) => {
   const response = await client.post("/admin/emp-manage/signup", employeeData);
   return response.data;
 };
+
+// [추가] 사원 정보 수정 (PUT)
+export const updateEmployee = async (id, employeeData) => {
+  // 백엔드: @PutMapping("/admin/emp-manage/{id}")
+  const response = await client.put(`/admin/emp-manage/${id}`, employeeData);
+  return response.data;
+};
+
+// [추가] 사원 퇴사 처리 (PUT)
+export const resignEmployee = async (id) => {
+  // 백엔드: @PutMapping("/admin/emp-manage/{id}/resign")
+  const response = await client.put(`/admin/emp-manage/${id}/resign`);
+  return response.data;
+};
