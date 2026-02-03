@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from "react";
 import {
-  FaWaveSquare, // 진동
-  FaArrowDown, // 낙하
-  FaTint, // 방수
-  FaPlay,
-  FaStop,
-  FaClipboardList,
-  FaCheckCircle,
-  FaTimesCircle,
+  FaWaveSquare,
+  FaArrowDown,
+  FaTint,
+  FaSyncAlt,
+  FaFilter,
+  FaMicroscope,
+  FaTimes,
+  FaThumbtack,
   FaHistory,
+  FaBoxOpen,
+  FaCalendarAlt,
+  FaSave,
+  FaEye, // 보기 아이콘 추가
 } from "react-icons/fa";
 import {
-  LineChart,
+  ComposedChart,
   Line,
-  BarChart,
   Bar,
   XAxis,
   YAxis,
@@ -21,560 +24,982 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  Cell,
+  Area,
 } from "recharts";
 
-// 🎨 MedisOne 테마
+// 🎨 디자인 시스템
 const COLORS = {
-  primary: "#8C85FF",
-  secondary: "#F3F1FF",
-  bg: "#F5F6FA",
-  success: "#00C851",
-  warning: "#FFBB33",
-  danger: "#FF4444",
-  text: "#333",
+  bg: "#F5F7FA",
   white: "#FFFFFF",
-  border: "#E0E0E0",
+  primary: "#6C5CE7",
+  secondary: "#00B894",
+  warning: "#FFA502",
+  text: "#2D3436",
+  border: "#DFE6E9",
+  ok: "#00B894",
+  ng: "#FF7675",
+  holdPrimary: "#e17055",
+  holdNeighbor: "#fdcb6e",
+  dark: "#2d3436",
+};
+
+// 📦 [Master] 제품 목록
+const PRODUCT_LIST = [
+  { code: "ZOLL-18", name: 'Zoll X Series 18"', target: "Line A" },
+  { code: "ZOLL-24", name: 'Zoll X Series 24"', target: "Line A" },
+  { code: "CPLS-18", name: 'Corpuls3 18"', target: "Line B" },
+  { code: "CPLS-24", name: 'Corpuls3 24"', target: "Line B" },
+  { code: "PRQ-18", name: 'Propaq M 18"', target: "Line C" },
+  { code: "PRQ-24", name: 'Propaq M 24"', target: "Line C" },
+];
+
+// 🎲 [Logic] 유닛 데이터 생성
+const createUnit = (batchId, seq) => {
+  const isNG = Math.random() < 0.025;
+  const isPrimaryHold = !isNG && Math.random() < 0.02;
+
+  const vibData = Array.from({ length: 6 }, (_, t) => ({
+    time: `T${t}`,
+    value: isNG
+      ? (Math.random() * 2.5).toFixed(2)
+      : (Math.random() * 1.0).toFixed(2),
+  }));
+
+  const dropData = Array.from({ length: 3 }, (_, t) => ({
+    height: `${(t + 1) * 50}cm`,
+    impact:
+      isNG && Math.random() > 0.5
+        ? 90 + Math.random() * 20
+        : 45 + Math.random() * 10,
+  }));
+
+  const waterData = Array.from({ length: 6 }, (_, t) => ({
+    time: `${t}m`,
+    pressure:
+      isNG && Math.random() > 0.5 ? 100 - t * 15 : 100 - Math.random() * 2,
+  }));
+
+  return {
+    id: `${batchId}-${String(seq).padStart(3, "0")}`,
+    seq,
+    rawStatus: isNG ? "NG" : isPrimaryHold ? "HOLD_P" : "OK",
+    status: "OK",
+    cause: isNG ? "Defect Found" : isPrimaryHold ? "Calibration Error" : "-",
+    vibData,
+    dropData,
+    waterData,
+  };
+};
+
+// 🏭 [Logic] 배치 생성 및 홀딩 전파
+const generateBatch = (batchId) => {
+  let units = [];
+  for (let i = 1; i <= 200; i++) units.push(createUnit(batchId, i));
+
+  const finalUnits = units.map((u) => ({
+    ...u,
+    status: u.rawStatus === "HOLD_P" ? "HOLD_P" : u.rawStatus,
+  }));
+  for (let i = 0; i < finalUnits.length; i++) {
+    if (finalUnits[i].rawStatus === "HOLD_P") {
+      [-2, -1, 1, 2].forEach((offset) => {
+        const targetIdx = i + offset;
+        if (
+          targetIdx >= 0 &&
+          targetIdx < 200 &&
+          finalUnits[targetIdx].status === "OK"
+        ) {
+          finalUnits[targetIdx].status = "HOLD_N";
+          finalUnits[targetIdx].cause = `Adj. Hold (#${finalUnits[i].seq})`;
+        }
+      });
+    }
+  }
+  return finalUnits;
 };
 
 const ReliabilityTest = () => {
-  // --- 상태 관리 ---
-  const [activeTest, setActiveTest] = useState(null); // 'VIB', 'DROP', 'WATER' or null
-  const [testDuration, setTestDuration] = useState(0);
+  const [selectedProductCode, setSelectedProductCode] = useState(
+    PRODUCT_LIST[0].code,
+  );
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
+  const [database, setDatabase] = useState({});
+  const [activeBatchId, setActiveBatchId] = useState(null);
+  const [filterType, setFilterType] = useState("ALL");
+  const [activeUnit, setActiveUnit] = useState(null);
+  const [compareList, setCompareList] = useState([]);
 
-  // 📊 [Chart Data] 실시간 데이터 (시뮬레이션)
-  const [vibData, setVibData] = useState([]); // 진동 G값
-  const [dropData, setDropData] = useState([]); // 낙하 충격량
+  // 현재 선택된 제품 객체
+  const selectedProduct = PRODUCT_LIST.find(
+    (p) => p.code === selectedProductCode,
+  );
 
-  // 📝 [Log Data] 테스트 이력
-  const [logs] = useState([
-    {
-      id: "REL-260121-01",
-      type: "Vibration",
-      model: "MED-24-MOB",
-      result: "PASS",
-      note: "Random 1.5G / 2hrs",
-    },
-    {
-      id: "REL-260120-05",
-      type: "Drop",
-      model: "MED-TAB-10",
-      result: "FAIL",
-      note: "Corner Crack (70cm)",
-    },
-    {
-      id: "REL-260120-02",
-      type: "Waterproof",
-      model: "MED-SURG-27",
-      result: "PASS",
-      note: "IPX6 Spray Test",
-    },
-  ]);
-
-  // 시뮬레이션 로직
   useEffect(() => {
-    let interval;
-    if (activeTest === "VIB") {
-      interval = setInterval(() => {
-        setTestDuration((prev) => prev + 1);
-        const time = new Date().toLocaleTimeString("en-US", { hour12: false });
-        // 진동: 1.0G ~ 2.0G 사이 랜덤
-        const gForce = 1.0 + Math.random();
-        setVibData((prev) => {
-          const newData = [...prev, { time, value: gForce }];
-          if (newData.length > 20) newData.shift();
-          return newData;
-        });
-      }, 500);
-    } else if (activeTest === "DROP") {
-      // 낙하는 간헐적 이벤트라 타이머만
-      interval = setInterval(() => setTestDuration((prev) => prev + 1), 1000);
-    } else if (activeTest === "WATER") {
-      interval = setInterval(() => setTestDuration((prev) => prev + 1), 1000);
+    const batches = getBatches(selectedDate, selectedProductCode);
+    if (batches.length > 0 && !activeBatchId) {
+      setActiveBatchId(batches[0].id);
+    } else if (batches.length === 0) {
+      setActiveBatchId(null);
     }
+    setActiveUnit(null);
+  }, [selectedDate, selectedProductCode, database]);
 
-    return () => clearInterval(interval);
-  }, [activeTest]);
-
-  // 낙하 테스트 트리거 (버튼 누르면 충격 데이터 생성)
-  const triggerDrop = () => {
-    const impact = 40 + Math.random() * 20; // 40G ~ 60G 충격
-    const count = dropData.length + 1;
-    setDropData([...dropData, { count: `#${count}`, impact }]);
+  const getBatches = (date, modelCode) => {
+    if (database[date] && database[date][modelCode]) {
+      return database[date][modelCode];
+    }
+    return [];
   };
 
-  const stopTest = () => {
-    setActiveTest(null);
-    setTestDuration(0);
-    alert("테스트가 종료/중단되었습니다.");
+  const createNewBatch = () => {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    const batchId = `BATCH-${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+    const newBatchData = generateBatch(batchId);
+
+    const newBatchObj = {
+      id: batchId,
+      time: timeStr,
+      data: newBatchData,
+      ngCount: newBatchData.filter((u) => u.status === "NG").length,
+      holdCount: newBatchData.filter((u) => u.status.includes("HOLD")).length,
+    };
+
+    setDatabase((prev) => {
+      const dateData = prev[selectedDate] || {};
+      const modelData = dateData[selectedProductCode] || [];
+      return {
+        ...prev,
+        [selectedDate]: {
+          ...dateData,
+          [selectedProductCode]: [newBatchObj, ...modelData],
+        },
+      };
+    });
+    setActiveBatchId(batchId);
+  };
+
+  const currentBatchList = getBatches(selectedDate, selectedProductCode);
+  const currentBatch = currentBatchList.find((b) => b.id === activeBatchId);
+  const displayData = currentBatch ? currentBatch.data : [];
+
+  const filteredData = displayData.filter((unit) => {
+    if (filterType === "NG") return unit.status === "NG";
+    if (filterType === "HOLD") return unit.status.includes("HOLD");
+    return true;
+  });
+
+  const toggleCompare = (unit) => {
+    if (compareList.find((u) => u.id === unit.id)) {
+      setCompareList(compareList.filter((u) => u.id !== unit.id));
+    } else {
+      if (compareList.length >= 6)
+        return alert("최대 6개까지만 비교 가능합니다.");
+      setCompareList([...compareList, unit]);
+    }
+  };
+
+  // 🚀 [New Feature] 핀 목록 클릭 시 상세 보기 로드
+  const loadComparison = (unit) => {
+    setActiveUnit(unit);
+    // 스크롤을 위로 올려주면 더 좋음 (Optional)
+    document
+      .getElementById("main-content-area")
+      ?.scrollTo({ top: 200, behavior: "smooth" });
   };
 
   return (
-    <div style={styles.container}>
-      {/* 1. 헤더 */}
-      <div style={styles.header}>
-        <div>
-          <h2 style={styles.title}>🛡️ Reliability Test Lab (신뢰성 테스트)</h2>
-          <p style={styles.subtitle}>
-            Sample ID:{" "}
-            <strong style={{ color: COLORS.primary }}>SMP-260121-A05</strong> |
-            Standard: IEC 60601-1-11 (Medical Home Use)
-          </p>
-        </div>
-        <div style={styles.statusBox}>
-          {activeTest ? (
-            <span style={styles.runningBadge}>
-              Running: {activeTest} ({testDuration}s)
-            </span>
-          ) : (
-            <span style={styles.idleBadge}>Status: IDLE</span>
-          )}
-        </div>
-      </div>
+    <>
+      <style>{`
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+      `}</style>
 
-      {/* 2. 테스트 섹션 (3열 카드) */}
-      <div style={styles.grid}>
-        {/* (A) Vibration Test (진동) */}
-        <div
-          style={{
-            ...styles.card,
-            borderTop:
-              activeTest === "VIB" ? `4px solid ${COLORS.primary}` : "none",
-          }}
-        >
-          <div style={styles.cardHeader}>
-            <div style={styles.titleRow}>
-              <div
-                style={{
-                  ...styles.iconBox,
-                  backgroundColor: "#E3F2FD",
-                  color: "#1E88E5",
-                }}
-              >
-                <FaWaveSquare />
-              </div>
-              <h3>Vibration Test</h3>
+      <div style={styles.container}>
+        {/* ================= 좌측 사이드바 ================= */}
+        <div style={styles.sidebar}>
+          {/* 1. 날짜 선택 */}
+          <div style={styles.sidebarSection}>
+            <div style={styles.sidebarHeader}>
+              <h3>📅 Date Selection</h3>
             </div>
-            {activeTest === "VIB" ? (
-              <button style={styles.stopBtn} onClick={stopTest}>
-                <FaStop />
-              </button>
-            ) : (
-              <button
-                style={styles.startBtn}
-                onClick={() => setActiveTest("VIB")}
-              >
-                <FaPlay />
-              </button>
-            )}
-          </div>
-
-          <div style={styles.chartArea}>
-            <ResponsiveContainer width="100%" height={150}>
-              <LineChart data={vibData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <YAxis domain={[0, 3]} hide />
-                <Tooltip />
-                <ReferenceLine
-                  y={1.5}
-                  stroke="red"
-                  strokeDasharray="3 3"
-                  label="Limit"
+            <div style={{ padding: "15px" }}>
+              <div style={styles.dateInputWrapper}>
+                <FaCalendarAlt color="#666" />
+                <input
+                  type="date"
+                  style={styles.dateInput}
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#1E88E5"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-            <div style={styles.chartLabel}>Real-time G-Force (X/Y/Z)</div>
-          </div>
-          <div style={styles.paramGrid}>
-            <ParamItem label="Frequency" value="10~55 Hz" />
-            <ParamItem label="Amplitude" value="0.35 mm" />
-            <ParamItem label="Axis" value="X, Y, Z" />
-          </div>
-        </div>
-
-        {/* (B) Drop Test (낙하) */}
-        <div
-          style={{
-            ...styles.card,
-            borderTop:
-              activeTest === "DROP" ? `4px solid ${COLORS.warning}` : "none",
-          }}
-        >
-          <div style={styles.cardHeader}>
-            <div style={styles.titleRow}>
-              <div
-                style={{
-                  ...styles.iconBox,
-                  backgroundColor: "#FFF8E1",
-                  color: "#FFB300",
-                }}
-              >
-                <FaArrowDown />
-              </div>
-              <h3>Drop Test</h3>
-            </div>
-            {activeTest === "DROP" ? (
-              <div style={{ display: "flex", gap: "5px" }}>
-                <button style={styles.triggerBtn} onClick={triggerDrop}>
-                  DROP!
-                </button>
-                <button style={styles.stopBtn} onClick={stopTest}>
-                  <FaStop />
-                </button>
-              </div>
-            ) : (
-              <button
-                style={styles.startBtn}
-                onClick={() => setActiveTest("DROP")}
-              >
-                <FaPlay />
-              </button>
-            )}
-          </div>
-
-          <div style={styles.chartArea}>
-            <ResponsiveContainer width="100%" height={150}>
-              <BarChart data={dropData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="count" fontSize={10} />
-                <Tooltip />
-                <Bar
-                  dataKey="impact"
-                  fill="#FFB300"
-                  radius={[4, 4, 0, 0]}
-                  name="Impact(G)"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-            <div style={styles.chartLabel}>Impact Shock (G) History</div>
-          </div>
-          <div style={styles.paramGrid}>
-            <ParamItem label="Height" value="76 cm" />
-            <ParamItem label="Surface" value="Concrete" />
-            <ParamItem
-              label="Count"
-              value={`${dropData.length} / 10`}
-              highlight
-            />
-          </div>
-        </div>
-
-        {/* (C) Waterproof Test (방수) */}
-        <div
-          style={{
-            ...styles.card,
-            borderTop:
-              activeTest === "WATER" ? `4px solid ${COLORS.success}` : "none",
-          }}
-        >
-          <div style={styles.cardHeader}>
-            <div style={styles.titleRow}>
-              <div
-                style={{
-                  ...styles.iconBox,
-                  backgroundColor: "#E8F5E9",
-                  color: "#43A047",
-                }}
-              >
-                <FaTint />
-              </div>
-              <h3>IPX Waterproof</h3>
-            </div>
-            {activeTest === "WATER" ? (
-              <button style={styles.stopBtn} onClick={stopTest}>
-                <FaStop />
-              </button>
-            ) : (
-              <button
-                style={styles.startBtn}
-                onClick={() => setActiveTest("WATER")}
-              >
-                <FaPlay />
-              </button>
-            )}
-          </div>
-
-          <div style={styles.waterVisual}>
-            <div style={styles.waterLevel}>
-              <FaTint
-                size={40}
-                color={activeTest === "WATER" ? COLORS.primary : "#ccc"}
-              />
-              <div
-                style={{
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  marginTop: "10px",
-                }}
-              >
-                IPX6
-              </div>
-              <div style={{ fontSize: "12px", color: "#666" }}>
-                High Pressure Spray
               </div>
             </div>
-            {activeTest === "WATER" && (
-              <div style={styles.sprayingBadge}>🚿 Spraying...</div>
-            )}
           </div>
-          <div style={styles.paramGrid}>
-            <ParamItem label="Flow Rate" value="100 L/min" />
-            <ParamItem label="Distance" value="3.0 m" />
-            <ParamItem label="Duration" value="3 min" />
-          </div>
-        </div>
-      </div>
 
-      {/* 3. 테스트 로그 (하단) */}
-      <div style={styles.logCard}>
-        <h3 style={styles.logTitle}>
-          <FaHistory /> Recent Test Logs
-        </h3>
-        <table style={styles.table}>
-          <thead>
-            <tr style={styles.thRow}>
-              <th style={styles.th}>Test ID</th>
-              <th style={styles.th}>Type</th>
-              <th style={styles.th}>Model</th>
-              <th style={styles.th}>Result</th>
-              <th style={styles.th}>Note / Defects</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((log) => (
-              <tr key={log.id} style={styles.tr}>
-                <td style={styles.td}>{log.id}</td>
-                <td style={styles.td}>{log.type}</td>
-                <td style={styles.td}>{log.model}</td>
-                <td style={styles.td}>
-                  <span
+          {/* 2. 모델 선택 (드롭다운으로 변경!) */}
+          <div style={styles.sidebarSection}>
+            <div style={styles.sidebarHeader}>
+              <h3>📦 Model Select</h3>
+            </div>
+            <div style={{ padding: "15px" }}>
+              <select
+                style={styles.selectInput}
+                value={selectedProductCode}
+                onChange={(e) => setSelectedProductCode(e.target.value)}
+              >
+                {PRODUCT_LIST.map((prod) => (
+                  <option key={prod.code} value={prod.code}>
+                    {prod.name}
+                  </option>
+                ))}
+              </select>
+              <div
+                style={{ marginTop: "8px", fontSize: "12px", color: "#666" }}
+              >
+                Target Line: <strong>{selectedProduct.target}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. 배치 히스토리 (남은 공간 모두 사용) */}
+          <div
+            style={{
+              flex: 1,
+              borderTop: `1px solid ${COLORS.border}`,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            <div style={styles.sidebarHeader}>
+              <h3
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                🕒 Batch History{" "}
+                <span style={{ fontSize: "11px", color: "#888" }}>
+                  ({currentBatchList.length})
+                </span>
+              </h3>
+            </div>
+            <div style={styles.listWrapper}>
+              {currentBatchList.length === 0 ? (
+                <div
+                  style={{
+                    padding: "20px",
+                    textAlign: "center",
+                    color: "#999",
+                    fontSize: "12px",
+                  }}
+                >
+                  No batches created yet.
+                </div>
+              ) : (
+                currentBatchList.map((batch) => (
+                  <div
+                    key={batch.id}
+                    onClick={() => setActiveBatchId(batch.id)}
                     style={{
-                      padding: "4px 10px",
-                      borderRadius: "12px",
-                      fontSize: "11px",
-                      fontWeight: "bold",
+                      ...styles.historyItem,
                       backgroundColor:
-                        log.result === "PASS" ? "#E8F5E9" : "#FFEBEE",
-                      color:
-                        log.result === "PASS" ? COLORS.success : COLORS.danger,
+                        activeBatchId === batch.id ? "#E8F5E9" : "transparent",
+                      borderColor:
+                        activeBatchId === batch.id ? COLORS.ok : "#eee",
                     }}
                   >
-                    {log.result === "PASS" ? (
-                      <FaCheckCircle />
-                    ) : (
-                      <FaTimesCircle />
-                    )}{" "}
-                    {log.result}
+                    <div
+                      style={{
+                        fontWeight: "bold",
+                        fontSize: "12px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span>{batch.time}</span>
+                      <span style={{ fontSize: "10px", color: "#666" }}>
+                        {batch.id}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "11px", marginTop: "4px" }}>
+                      NG:{" "}
+                      <span style={{ color: COLORS.ng, fontWeight: "bold" }}>
+                        {batch.ngCount}
+                      </span>{" "}
+                      | Hold:{" "}
+                      <span
+                        style={{ color: COLORS.warning, fontWeight: "bold" }}
+                      >
+                        {batch.holdCount}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ================= 중앙 메인 콘텐츠 ================= */}
+        <div id="main-content-area" style={styles.mainContent}>
+          {/* 상단 컨트롤 바 */}
+          <div style={styles.topBar}>
+            <div>
+              <h2 style={styles.pageTitle}>
+                {selectedProduct.name}
+                {activeBatchId && (
+                  <span style={styles.batchBadge}>{activeBatchId}</span>
+                )}
+              </h2>
+              {currentBatch && (
+                <div style={styles.statsRow}>
+                  <span>
+                    Total: <strong>200</strong>
                   </span>
-                </td>
-                <td style={styles.td}>{log.note}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <span style={{ color: COLORS.ok }}>
+                    OK:{" "}
+                    <strong>
+                      {
+                        currentBatch.data.filter((d) => d.status === "OK")
+                          .length
+                      }
+                    </strong>
+                  </span>
+                  <span style={{ color: COLORS.ng }}>
+                    NG: <strong>{currentBatch.ngCount}</strong>
+                  </span>
+                  <span style={{ color: COLORS.warning }}>
+                    HOLD: <strong>{currentBatch.holdCount}</strong>
+                  </span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <div style={styles.filterGroup}>
+                <button
+                  style={
+                    filterType === "ALL"
+                      ? styles.activeFilter
+                      : styles.filterBtn
+                  }
+                  onClick={() => setFilterType("ALL")}
+                >
+                  ALL
+                </button>
+                <button
+                  style={
+                    filterType === "NG"
+                      ? { ...styles.activeFilter, background: COLORS.ng }
+                      : styles.filterBtn
+                  }
+                  onClick={() => setFilterType("NG")}
+                >
+                  NG
+                </button>
+                <button
+                  style={
+                    filterType === "HOLD"
+                      ? {
+                          ...styles.activeFilter,
+                          background: COLORS.warning,
+                        }
+                      : styles.filterBtn
+                  }
+                  onClick={() => setFilterType("HOLD")}
+                >
+                  HOLD
+                </button>
+              </div>
+              <button style={styles.refreshBtn} onClick={createNewBatch}>
+                <FaSave /> Create & Save Batch
+              </button>
+            </div>
+          </div>
+
+          {/* 200개 유닛 그리드 */}
+          {currentBatch ? (
+            <div style={styles.gridContainer}>
+              {filteredData.map((unit) => {
+                const isSelected = activeUnit?.id === unit.id;
+                let bgColor = COLORS.ok;
+                if (unit.status === "NG") bgColor = COLORS.ng;
+                else if (unit.status === "HOLD_P") bgColor = COLORS.holdPrimary;
+                else if (unit.status === "HOLD_N")
+                  bgColor = COLORS.holdNeighbor;
+
+                return (
+                  <div
+                    key={unit.id}
+                    onClick={() => setActiveUnit(unit)}
+                    title={`Seq: ${unit.seq} / Status: ${unit.status}`}
+                    style={{
+                      ...styles.gridItem,
+                      backgroundColor: bgColor,
+                      boxShadow: isSelected
+                        ? "0 0 0 3px #2d3436 inset"
+                        : "none",
+                      transform: isSelected ? "scale(1.15)" : "scale(1)",
+                      zIndex: isSelected ? 10 : 1,
+                      opacity: filterType !== "ALL" ? 1 : isSelected ? 1 : 0.8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "9px",
+                        color: "white",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {unit.seq}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={styles.emptyState}>
+              <FaBoxOpen size={40} color="#ddd" />
+              <p>
+                No batch data found for this date.
+                <br />
+                Click "Create & Save Batch" to generate data.
+              </p>
+            </div>
+          )}
+
+          {/* 상세 분석 패널 */}
+          {activeUnit ? (
+            <div style={styles.detailPanel}>
+              <div style={styles.detailHeader}>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <h3 style={styles.detailTitle}>
+                    <FaMicroscope /> Unit Analysis : {activeUnit.id}
+                  </h3>
+                  <span
+                    style={{
+                      ...styles.statusTag,
+                      backgroundColor:
+                        activeUnit.status === "OK"
+                          ? COLORS.ok
+                          : activeUnit.status === "NG"
+                            ? COLORS.ng
+                            : COLORS.warning,
+                    }}
+                  >
+                    {activeUnit.status === "HOLD_P"
+                      ? "PRIMARY HOLD"
+                      : activeUnit.status === "HOLD_N"
+                        ? "NEIGHBOR HOLD"
+                        : activeUnit.status}
+                  </span>
+                  {activeUnit.status !== "OK" && (
+                    <span style={styles.defectTag}>
+                      Cause: {activeUnit.cause}
+                    </span>
+                  )}
+                </div>
+                <button
+                  style={styles.pinBtn}
+                  onClick={() => toggleCompare(activeUnit)}
+                >
+                  <FaThumbtack /> Pin to Compare
+                </button>
+              </div>
+
+              {/* 3단 차트 */}
+              <div style={styles.chartRow}>
+                {/* (A) 진동 */}
+                <div style={styles.chartBox}>
+                  <h4 style={{ ...styles.chartTitle, color: COLORS.primary }}>
+                    <FaWaveSquare /> Vibration
+                  </h4>
+                  <div style={{ width: "100%", height: "150px" }}>
+                    <ResponsiveContainer>
+                      <ComposedChart data={activeUnit.vibData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="time" fontSize={10} tickLine={false} />
+                        <YAxis domain={[0, 3]} fontSize={10} width={20} />
+                        <Tooltip />
+                        <ReferenceLine
+                          y={1.5}
+                          stroke="red"
+                          strokeDasharray="3 3"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke={COLORS.primary}
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                {/* (B) 낙하 */}
+                <div style={styles.chartBox}>
+                  <h4 style={{ ...styles.chartTitle, color: COLORS.warning }}>
+                    <FaArrowDown /> Drop Impact
+                  </h4>
+                  <div style={{ width: "100%", height: "150px" }}>
+                    <ResponsiveContainer>
+                      <ComposedChart data={activeUnit.dropData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis
+                          dataKey="height"
+                          fontSize={10}
+                          tickLine={false}
+                        />
+                        <YAxis hide />
+                        <Tooltip cursor={{ fill: "#f0f0f0" }} />
+                        <Bar
+                          dataKey="impact"
+                          fill={COLORS.warning}
+                          barSize={20}
+                          radius={[4, 4, 0, 0]}
+                        >
+                          {activeUnit.dropData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={
+                                entry.impact > 80 ? COLORS.ng : COLORS.warning
+                              }
+                            />
+                          ))}
+                        </Bar>
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                {/* (C) 방수 */}
+                <div style={styles.chartBox}>
+                  <h4 style={{ ...styles.chartTitle, color: COLORS.secondary }}>
+                    <FaTint /> Water (Pressure)
+                  </h4>
+                  <div style={{ width: "100%", height: "150px" }}>
+                    <ResponsiveContainer>
+                      <ComposedChart data={activeUnit.waterData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="time" fontSize={10} tickLine={false} />
+                        <YAxis domain={[0, 110]} fontSize={10} width={25} />
+                        <Tooltip />
+                        <Area
+                          type="monotone"
+                          dataKey="pressure"
+                          stroke={COLORS.secondary}
+                          fill={`${COLORS.secondary}30`}
+                        />
+                        <ReferenceLine
+                          y={80}
+                          stroke="red"
+                          strokeDasharray="3 3"
+                          label="Min"
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            currentBatch && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  textAlign: "center",
+                  color: "#999",
+                  padding: "30px",
+                  border: "2px dashed #eee",
+                  borderRadius: "12px",
+                }}
+              >
+                Select a unit from the grid above to view details.
+              </div>
+            )
+          )}
+        </div>
+
+        {/* ================= 하단 고정: 비교 툴바 ================= */}
+        {compareList.length > 0 && (
+          <div style={styles.compareBar}>
+            <div style={styles.compareHeader}>
+              <h4
+                style={{
+                  margin: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
+                <FaBoxOpen /> Compare Tray ({compareList.length})
+              </h4>
+              <button
+                style={styles.clearBtn}
+                onClick={() => setCompareList([])}
+              >
+                Clear All
+              </button>
+            </div>
+            <div style={styles.compareWrapper}>
+              <div style={styles.compareGrid}>
+                {compareList.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => loadComparison(item)} // 🚀 클릭 시 상세 보기 로드
+                    style={{
+                      ...styles.compareCard,
+                      border:
+                        activeUnit?.id === item.id
+                          ? `2px solid ${COLORS.dark}`
+                          : `1px solid ${COLORS.border}`,
+                    }}
+                  >
+                    <div style={styles.compareCardHeader}>
+                      <span style={{ fontWeight: "bold", fontSize: "12px" }}>
+                        {item.id.split("-")[2]}
+                      </span>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <FaTimes
+                          style={{ cursor: "pointer", color: "#999" }}
+                          onClick={(e) => {
+                            e.stopPropagation(); // 부모 클릭 방지
+                            toggleCompare(item);
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "11px", marginBottom: "5px" }}>
+                      <span
+                        style={{
+                          color:
+                            item.status === "OK"
+                              ? COLORS.ok
+                              : item.status === "NG"
+                                ? COLORS.ng
+                                : COLORS.warning,
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {item.status}
+                      </span>
+                    </div>
+                    {/* 클릭 유도 아이콘 */}
+                    <div
+                      style={{
+                        textAlign: "center",
+                        marginTop: "5px",
+                        fontSize: "18px",
+                        color: "#ccc",
+                      }}
+                    >
+                      <FaEye />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </>
   );
 };
 
-// --- 서브 컴포넌트 ---
-const ParamItem = ({ label, value, highlight }) => (
-  <div style={{ textAlign: "center", borderRight: "1px solid #eee" }}>
-    <div style={{ fontSize: "11px", color: "#888", marginBottom: "2px" }}>
-      {label}
-    </div>
-    <div
-      style={{
-        fontSize: "13px",
-        fontWeight: "bold",
-        color: highlight ? COLORS.danger : "#333",
-      }}
-    >
-      {value}
-    </div>
-  </div>
-);
-
 // --- 스타일 ---
 const styles = {
-  container: { padding: "30px", backgroundColor: COLORS.bg, minHeight: "100%" },
+  container: {
+    display: "flex",
+    height: "calc(100vh - 60px)",
+    backgroundColor: COLORS.bg,
+    overflow: "hidden",
+    position: "relative",
+  },
 
-  header: {
+  // 사이드바
+  sidebar: {
+    width: "260px",
+    backgroundColor: COLORS.white,
+    borderRight: `1px solid ${COLORS.border}`,
+    display: "flex",
+    flexDirection: "column",
+  },
+  sidebarSection: { flexShrink: 0 },
+  sidebarHeader: {
+    padding: "15px 20px",
+    borderBottom: `1px solid ${COLORS.border}`,
+    backgroundColor: "#fafafa",
+  },
+
+  dateInputWrapper: {
+    display: "flex",
+    alignItems: "center",
+    backgroundColor: "#F5F7FA",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    gap: "10px",
+  },
+  dateInput: {
+    border: "none",
+    background: "transparent",
+    outline: "none",
+    fontSize: "13px",
+    width: "100%",
+    fontFamily: "inherit",
+  },
+
+  // 🚀 드롭다운 스타일
+  selectInput: {
+    width: "100%",
+    padding: "10px",
+    borderRadius: "8px",
+    border: `1px solid ${COLORS.border}`,
+    backgroundColor: "#fff",
+    fontSize: "13px",
+    outline: "none",
+    cursor: "pointer",
+  },
+
+  listWrapper: { flex: 1, overflowY: "auto" },
+  historyItem: {
+    padding: "12px 20px",
+    marginBottom: "0",
+    cursor: "pointer",
+    borderBottom: "1px solid #f0f0f0",
+    transition: "0.2s",
+  },
+
+  // 메인 영역
+  mainContent: {
+    flex: 1,
+    padding: "20px 30px",
+    overflowY: "auto",
+    paddingBottom: "200px",
+  },
+
+  topBar: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-end",
     marginBottom: "20px",
   },
-  title: {
-    fontSize: "24px",
-    fontWeight: "bold",
+  pageTitle: {
+    fontSize: "22px",
+    fontWeight: "800",
     margin: 0,
-    color: COLORS.text,
+    display: "flex",
+    alignItems: "center",
   },
-  subtitle: { fontSize: "14px", color: "#666", marginTop: "5px" },
-  statusBox: { minWidth: "200px", textAlign: "right" },
-  runningBadge: {
+  batchBadge: {
+    fontSize: "12px",
+    backgroundColor: COLORS.dark,
+    color: "white",
+    padding: "4px 8px",
+    borderRadius: "4px",
+    fontWeight: "normal",
+    marginLeft: "10px",
+  },
+  statsRow: {
+    display: "flex",
+    gap: "15px",
+    fontSize: "14px",
+    marginTop: "8px",
+  },
+
+  filterGroup: {
+    display: "flex",
+    gap: "5px",
+    backgroundColor: "#eee",
+    padding: "4px",
+    borderRadius: "6px",
+  },
+  filterBtn: {
+    border: "none",
+    padding: "6px 12px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "12px",
+    backgroundColor: "transparent",
+    color: "#666",
+    fontWeight: "bold",
+  },
+  activeFilter: {
+    border: "none",
+    padding: "6px 12px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "12px",
     backgroundColor: COLORS.primary,
     color: "white",
-    padding: "8px 15px",
-    borderRadius: "20px",
     fontWeight: "bold",
-    boxShadow: "0 2px 5px rgba(140, 133, 255, 0.4)",
-    animation: "pulse 1s infinite",
   },
-  idleBadge: {
-    backgroundColor: "#e0e0e0",
-    color: "#555",
-    padding: "8px 15px",
-    borderRadius: "20px",
+  refreshBtn: {
+    backgroundColor: COLORS.dark,
+    color: "white",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
     fontWeight: "bold",
   },
 
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: "20px",
+  gridContainer: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "4px",
     marginBottom: "20px",
   },
-
-  card: {
-    backgroundColor: "white",
-    padding: "20px",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+  gridItem: {
+    width: "26px",
+    height: "26px",
+    borderRadius: "4px",
+    cursor: "pointer",
     display: "flex",
-    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    transition: "transform 0.1s",
   },
-  cardHeader: {
+
+  detailPanel: {
+    backgroundColor: COLORS.white,
+    borderRadius: "12px",
+    padding: "20px",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
+    border: `1px solid ${COLORS.border}`,
+    animation: "fadeIn 0.3s",
+  },
+  detailHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "20px",
+    marginBottom: "15px",
   },
-  titleRow: { display: "flex", alignItems: "center", gap: "10px" },
-  iconBox: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "8px",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
+  detailTitle: {
     fontSize: "18px",
-  },
-
-  // 버튼들
-  startBtn: {
-    backgroundColor: COLORS.success,
-    color: "white",
-    border: "none",
-    width: "36px",
-    height: "36px",
-    borderRadius: "50%",
-    cursor: "pointer",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  stopBtn: {
-    backgroundColor: COLORS.danger,
-    color: "white",
-    border: "none",
-    width: "36px",
-    height: "36px",
-    borderRadius: "50%",
-    cursor: "pointer",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  triggerBtn: {
-    backgroundColor: COLORS.warning,
-    color: "white",
-    border: "none",
-    padding: "0 15px",
-    borderRadius: "18px",
-    cursor: "pointer",
     fontWeight: "bold",
-    fontSize: "12px",
-  },
-
-  // 차트 영역
-  chartArea: {
-    flex: 1,
-    minHeight: "150px",
-    marginBottom: "15px",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-  },
-  chartLabel: {
-    textAlign: "center",
-    fontSize: "11px",
-    color: "#999",
-    marginTop: "5px",
-  },
-
-  // 파라미터 그리드
-  paramGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
-    borderTop: "1px solid #eee",
-    paddingTop: "15px",
-  },
-
-  // 방수 비주얼
-  waterVisual: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: "150px",
-  },
-  waterLevel: { textAlign: "center" },
-  sprayingBadge: {
-    marginTop: "10px",
-    backgroundColor: "#E3F2FD",
-    color: "#1E88E5",
-    padding: "4px 10px",
-    borderRadius: "10px",
-    fontSize: "12px",
-    fontWeight: "bold",
-  },
-
-  // 로그 테이블
-  logCard: {
-    backgroundColor: "white",
-    padding: "20px",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-  },
-  logTitle: {
-    fontSize: "16px",
-    fontWeight: "bold",
-    marginBottom: "15px",
     display: "flex",
     alignItems: "center",
     gap: "8px",
+    margin: 0,
   },
-  table: { width: "100%", borderCollapse: "collapse" },
-  thRow: { backgroundColor: "#F9FAFB", borderBottom: "2px solid #eee" },
-  th: {
-    padding: "12px",
-    textAlign: "left",
+  statusTag: {
+    padding: "4px 10px",
+    borderRadius: "12px",
+    color: "white",
+    fontSize: "11px",
+    fontWeight: "bold",
+    marginLeft: "10px",
+  },
+  defectTag: {
+    fontSize: "12px",
+    color: COLORS.ng,
+    fontWeight: "bold",
+    marginLeft: "10px",
+    backgroundColor: "#FFEBEE",
+    padding: "4px 8px",
+    borderRadius: "4px",
+  },
+  pinBtn: {
+    backgroundColor: COLORS.white,
+    color: COLORS.dark,
+    border: `1px solid ${COLORS.dark}`,
+    padding: "6px 12px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontSize: "12px",
+    fontWeight: "bold",
+  },
+
+  chartRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr",
+    gap: "15px",
+  },
+  chartBox: {
+    backgroundColor: "#fff",
+    border: `1px solid #eee`,
+    borderRadius: "8px",
+    padding: "10px",
+  },
+  chartTitle: {
     fontSize: "13px",
-    color: "#666",
-    fontWeight: "600",
+    margin: "0 0 10px 0",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
   },
-  tr: { borderBottom: "1px solid #f5f5f5" },
-  td: { padding: "12px", fontSize: "14px", color: "#333" },
+
+  emptyState: {
+    textAlign: "center",
+    padding: "60px",
+    color: "#bbb",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "10px",
+  },
+
+  compareBar: {
+    position: "fixed",
+    bottom: 0,
+    left: "260px",
+    right: 0,
+    height: "150px",
+    backgroundColor: "white",
+    borderTop: "3px solid #333",
+    boxShadow: "0 -5px 20px rgba(0,0,0,0.15)",
+    padding: "15px 30px",
+    display: "flex",
+    flexDirection: "column",
+    zIndex: 1000,
+  },
+  compareHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "10px",
+  },
+  clearBtn: {
+    background: "none",
+    border: "none",
+    textDecoration: "underline",
+    cursor: "pointer",
+    color: "#666",
+    fontSize: "12px",
+  },
+  compareWrapper: { overflowX: "auto", paddingBottom: "10px" },
+  compareGrid: { display: "flex", gap: "15px" },
+  compareCard: {
+    minWidth: "160px",
+    backgroundColor: "#F5F7FA",
+    borderRadius: "8px",
+    padding: "10px",
+    border: `1px solid ${COLORS.border}`,
+    cursor: "pointer",
+    transition: "0.2s",
+  },
+  compareCardHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: "12px",
+    color: "#666",
+    marginBottom: "4px",
+  },
 };
 
 export default ReliabilityTest;
