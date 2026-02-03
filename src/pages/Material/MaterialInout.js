@@ -121,12 +121,22 @@ const MaterialInout = () => {
     }
   };
 
-  // 🏭 공정 데이터 (백엔드 ProductProcess 테이블 내용과 일치시킴)
+  // 🏭 공정 데이터
   const organizeProcessData = () => {
     const lines = [
       {
         id: "1",
         name: "A-18 (AREX #1)",
+        procs: [
+          { id: "PA-1", name: "Surface Prep" },
+          { id: "PA-2", name: "Optical Bonding" },
+          { id: "PA-3", name: "Core Assembly" },
+          { id: "PA-4", name: "Housing Form" },
+        ],
+      },
+      {
+        id: "2",
+        name: "A-24 (AREX #2)",
         procs: [
           { id: "PA-1", name: "Surface Prep" },
           { id: "PA-2", name: "Optical Bonding" },
@@ -150,20 +160,41 @@ const MaterialInout = () => {
 
   // --- 이벤트 핸들러 ---
 
+  // 🔍 [수정] 바코드 스캔 핸들러
   const handleScan = async (e) => {
     if (e.key === "Enter" && inputs.lot) {
       try {
-        const data = await getMaterialInfo(inputs.lot);
-        setInputs((prev) => ({
-          ...prev,
-          item: data.materialName || "", // DTO 필드 매핑
-          vendor: prev.vendor || data.company || "",
-          currentQty: data.currentQty || 0,
-          qty: "",
-        }));
-        document.getElementById("qtyInput")?.focus();
+        // 1. API 호출 (이제 /info/LOT-001 형태로 날아감)
+        const dataList = await getMaterialInfo(inputs.lot);
+        console.log("✅ 조회 결과:", dataList);
+
+        // 2. 데이터 처리
+        if (dataList && dataList.length > 0) {
+          const target = dataList[0]; // 리스트의 첫 번째 데이터 꺼냄
+          setInputs((prev) => ({ ...prev, item: target.matName }));
+
+          setInputs((prev) => ({
+            ...prev,
+            // 🚨 백엔드 DTO 필드명(matName)과 일치시킴
+            item: target.matName,
+
+            // DTO에 없는 정보는 빈값이나 기존값 유지
+            vendor: prev.vendor,
+            currentQty: 0,
+            qty: "",
+          }));
+
+          // 편의성: 수량 입력칸으로 이동
+          document.getElementById("qtyInput")?.focus();
+        } else {
+          // 데이터는 왔는데 비어있는 경우 (드문 케이스)
+          setInputs((prev) => ({ ...prev, item: "" }));
+        }
       } catch (error) {
-        // 스캔 실패 시에도 입력 가능
+        console.error("스캔 실패:", error);
+        // 404(없는 바코드) 에러가 나면 품목명 비워주기
+        setInputs((prev) => ({ ...prev, item: "" }));
+        // 필요하다면 alert("존재하지 않는 바코드입니다."); 추가
       }
     }
   };
@@ -227,6 +258,11 @@ const MaterialInout = () => {
   const handleRegister = async () => {
     if (!inputs.item || !inputs.qty || !inputs.lot) {
       return alert("자재명, LOT번호, 수량은 필수입니다.");
+    }
+
+    // 🚨 [추가] 출고(OUT)일 때 공정 선택 안 했으면 멈춰!
+    if (inputs.type === "OUT" && !selectedProcess) {
+      return alert("투입할 공정을 선택해주세요.");
     }
 
     try {
@@ -708,10 +744,12 @@ const MaterialInout = () => {
                       onChange={handleProcessSelect}
                       disabled={!selectedLine}
                     >
-                      <option value="">공정 선택</option>
+                      <option value="">공정 코드 선택</option>
                       {availableProcesses.map((p) => (
+                        // 🚨 [수정] value={p.id} -> value={p.name} 으로 변경!
+                        // 백엔드가 이름으로 찾기 때문입니다.
                         <option key={p.id} value={p.name}>
-                          {p.name}
+                          {p.id} ({p.name})
                         </option>
                       ))}
                     </select>
@@ -806,7 +844,7 @@ const MaterialInout = () => {
                     }}
                   >
                     {isIN ? "+" : "-"}{" "}
-                    {Number(item.changeQty || 0).toLocaleString()}
+                    {Number(Math.abs(item.changeQty || 0)).toLocaleString()}
                   </div>
                   <div
                     style={{ flex: 1, textAlign: "center", fontSize: "12px" }}
