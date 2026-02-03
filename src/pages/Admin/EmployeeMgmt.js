@@ -9,7 +9,6 @@ import {
   FaPhoneAlt,
 } from "react-icons/fa";
 import { MdCheckBox, MdCheckBoxOutlineBlank } from "react-icons/md";
-// API 함수들 import
 import {
   getEmployees,
   createEmployee,
@@ -29,7 +28,7 @@ const COLORS = {
   bg: "#F5F6FA",
 };
 
-// --- [상수 정의] 백엔드 Enum과 매칭 ---
+// --- [상수 정의] ---
 const DEPARTMENTS = [
   { value: "PRD1", label: "생산1팀" },
   { value: "PRD2", label: "생산2팀" },
@@ -72,79 +71,64 @@ const EmployeeMgmt = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // 모달 상태 (신규/수정 각각 분리)
+  // 모달 상태
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentEmp, setCurrentEmp] = useState(null);
 
-  // [추가] 데이터 로드 함수
-
+  // [1. 데이터 로드] 백엔드 데이터를 프론트엔드 변수명으로 매핑
   const fetchEmployees = async () => {
     try {
       const data = await getEmployees();
-
-      // 백엔드 DTO -> 프론트엔드 테이블 포맷 매핑
-
       const mappedData = data.map((emp) => ({
         id: emp.employeeNumber,
         realId: emp.employeeNumber,
         name: emp.name,
         email: emp.email,
-        dept: emp.department, // "PRD1" 등 코드로 옴
-        rank: emp.position, // "STAFF" 등 코드로 옴
         phone: emp.phone,
+
+        // ★ 핵심: 백엔드(Dto) -> 프론트(State) 변수명 통일 및 기본값 설정
+        // 백엔드에서 null이 와도 화면에는 기본값을 보여줌
+        dept: emp.department || "PRD1",
+        rank: emp.position || "STAFF",
+        line: emp.processes || "OFFICE",
+
         status: emp.status || "Active",
-        permissions: [], // 백엔드에서 아직 안 옴 (추후 구현)
-        processes: emp.processes || "OFFICE", // 백엔드에서 아직 안 옴 (추후 구현)
+        permissions: [],
         joinDate: emp.joinDate,
       }));
-
       setEmployees(mappedData);
     } catch (error) {
-      console.error("사원 목록 불러오기 실패:", error);
-
-      // alert("데이터 로드 실패"); // 필요 시 주석 해제
+      console.error("사원 목록 로드 실패:", error);
     }
   };
 
-  // 마운트 시 데이터 조회
   useEffect(() => {
     fetchEmployees();
   }, []);
 
   // --- 핸들러 ---
-
-  // 검색 필터링
-  const filteredData = employees.filter((emp) => {
-    const term = searchTerm.toLowerCase();
-    // 화면에 보여줄 땐 한글 라벨로 변환해서 검색해도 됨 (여기선 단순 코드 검색)
-    return (
-      (emp.name && emp.name.toLowerCase().includes(term)) ||
-      (emp.id && emp.id.toLowerCase().includes(term))
-    );
-  });
-
-  // 체크박스 선택
   const toggleSelect = (id) => {
-    if (selectedIds.includes(id)) {
-      setSelectedIds(selectedIds.filter((sid) => sid !== id));
-    } else {
-      setSelectedIds([...selectedIds, id]);
-    }
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id],
+    );
   };
 
-  // 2. [신규 등록] 초기값 설정
+  // [2. 신규 등록 초기화] 프론트엔드 변수명(dept, rank, line)으로 초기화
   const handleAddNew = () => {
     const newId = `E2600${employees.length + 1}`;
     setCurrentEmp({
-      employeeNumber: newId, // 백엔드 DTO 필드명 (employeeNumber)
-      password: "medis1!", // 초기 비밀번호 설정 필요
+      employeeNumber: newId,
+      password: "medis1!",
       name: "",
       email: "",
       phone: "",
+
+      // ★ 여기가 중요: SelectGroup의 name 속성과 똑같이 맞춰야 함
       dept: "PRD1",
       rank: "STAFF",
-      processes: "A-18",
+      line: "A-18",
+
       status: "Active",
       permissions: [],
       joinDate: new Date().toISOString().slice(0, 10),
@@ -152,84 +136,71 @@ const EmployeeMgmt = () => {
     setIsAddModalOpen(true);
   };
 
-  // 수정 모달 열기
+  // [3. 수정 모달 열기] 리스트에 있는 데이터를 그대로 사용
   const openEditModal = (emp) => {
-    setCurrentEmp({
-      ...emp,
-      employeeNumber: emp.id, // 리스트의 id가 사번이므로
-      dept: emp.dept,
-      rank: emp.rank,
-      processes: emp.processes,
-      status: emp.status,
-      permissions: emp.permissions,
-    });
+    // fetchEmployees에서 이미 dept, rank, line으로 매핑해두었으므로 그대로 복사
+    setCurrentEmp({ ...emp });
     setIsEditModalOpen(true);
   };
 
-  // 3. [저장] 백엔드 전송 (핵심 수정 부분)
-  // [저장 로직] - 기존 handleSave 유지하되 모달 닫기 로직만 추가
+  // [4. 저장 로직] 프론트(State) -> 백엔드(Payload) 변환 전송
   const handleSave = async (isEdit) => {
     if (!currentEmp.name) return alert("이름은 필수입니다.");
 
-    // 백엔드로 보낼 데이터 구성 (공통)
+    // ★ Payload 구성: 여기서 백엔드가 원하는 이름으로 변환합니다.
     const payload = {
       employeeNumber: currentEmp.employeeNumber,
-      password: currentEmp.password, // 수정 시에는 백엔드 처리 방식에 따라 제외될 수도 있음
+      password: currentEmp.password,
       name: currentEmp.name,
       email: currentEmp.email,
       phone: currentEmp.phone,
-      department: currentEmp.dept, // 프론트(dept) -> 백엔드(department)
-      position: currentEmp.rank, // 프론트(rank) -> 백엔드(position)
-      processes: currentEmp.processes, // 프론트(line) -> 백엔드(processes)
-      status: currentEmp.status, // 상태값 전송
+
+      // ▼▼▼ 여기가 문제 해결의 핵심입니다 ▼▼▼
+      department: currentEmp.dept, // state.dept -> dto.department
+      position: currentEmp.rank, // state.rank -> dto.position (직급 수정 반영)
+      processes: currentEmp.line, // state.line -> dto.processes (공정 수정 반영)
+      // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+      status: currentEmp.status,
       permissions: currentEmp.permissions,
     };
 
+    console.log("서버로 전송되는 데이터:", payload); // F12 콘솔에서 확인 가능
+
     try {
       if (isEdit) {
-        // ★ 수정 API 호출 구현
         await updateEmployee(currentEmp.realId, payload);
-        alert("성공적으로 수정되었습니다.");
+        alert("수정되었습니다.");
       } else {
-        // 신규 등록 API 호출
         await createEmployee(payload);
-        alert("신규 사원이 등록되었습니다.");
+        alert("등록되었습니다.");
       }
 
-      // 모달 닫기 및 데이터 갱신
       setIsAddModalOpen(false);
       setIsEditModalOpen(false);
-      fetchEmployees();
+      fetchEmployees(); // 목록 갱신
     } catch (error) {
-      console.error("실패:", error);
-      alert("저장에 실패했습니다. 관리자에게 문의하세요.");
+      console.error("저장 실패:", error);
+      alert("저장 중 오류가 발생했습니다.");
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setCurrentEmp({ ...currentEmp, [name]: value });
+    // 기존 값을 유지하면서 변경된 값만 업데이트
+    setCurrentEmp((prev) => ({ ...prev, [name]: value }));
   };
 
-  // 4. [퇴사] 퇴사 처리
-  const handleResign = () => {
-    if (
-      window.confirm(
-        `${currentEmp.name} 님을 퇴사 처리 하시겠습니까?\n모든 권한이 회수됩니다.`,
-      )
-    ) {
-      const resignedEmp = {
-        ...currentEmp,
-        status: "Resigned",
-        permissions: [],
-        processes: [],
-      };
-      setEmployees(
-        employees.map((emp) => (emp.id === resignedEmp.id ? resignedEmp : emp)),
-      );
-      setCurrentEmp(null);
-      setIsEditModalOpen(false);
-      alert("퇴사 처리가 완료되었습니다.");
+  const handleResign = async () => {
+    if (window.confirm(`${currentEmp.name}님을 퇴사 처리하시겠습니까?`)) {
+      try {
+        await resignEmployee(currentEmp.realId);
+        alert("퇴사 처리되었습니다.");
+        setIsEditModalOpen(false);
+        fetchEmployees();
+      } catch (error) {
+        alert("오류 발생");
+      }
     }
   };
 
@@ -238,15 +209,16 @@ const EmployeeMgmt = () => {
     const newPerms = hasPerm
       ? currentEmp.permissions.filter((p) => p !== perm)
       : [...currentEmp.permissions, perm];
-    setCurrentEmp({ ...currentEmp, permissions: newPerms });
+    setCurrentEmp((prev) => ({ ...prev, permissions: newPerms }));
   };
 
-  const getDeptLabel = (code) =>
-    DEPARTMENTS.find((d) => d.value === code)?.label || code;
-  const getRankLabel = (code) =>
-    POSITIONS.find((p) => p.value === code)?.label || code;
-  const getLineLabel = (code) =>
-    LINES.find((l) => l.value === code)?.label || code;
+  const filteredData = employees.filter((emp) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (emp.name && emp.name.toLowerCase().includes(term)) ||
+      (emp.id && emp.id.toLowerCase().includes(term))
+    );
+  });
 
   return (
     <div style={styles.container}>
@@ -312,7 +284,7 @@ const EmployeeMgmt = () => {
 
         {filteredData.map((emp) => (
           <div
-            key={emp.realId}
+            key={emp.id}
             style={styles.rowData}
             onClick={() => openEditModal(emp)}
           >
@@ -360,6 +332,7 @@ const EmployeeMgmt = () => {
                 </div>
               </div>
             </div>
+
             <div
               style={{
                 ...styles.cell,
@@ -377,6 +350,7 @@ const EmployeeMgmt = () => {
                 {getRankLabel(emp.rank)}
               </div>
             </div>
+
             <div
               style={{
                 ...styles.cell,
@@ -412,6 +386,7 @@ const EmployeeMgmt = () => {
                 {emp.status === "Active" ? "재직중" : "퇴사"}
               </span>
             </div>
+
             <div
               style={{
                 ...styles.cell,
@@ -435,7 +410,6 @@ const EmployeeMgmt = () => {
         ))}
       </div>
 
-      {/* 1. 신규 등록 모달 */}
       {isAddModalOpen && currentEmp && (
         <AddEmployeeModal
           currentEmp={currentEmp}
@@ -444,8 +418,6 @@ const EmployeeMgmt = () => {
           onChange={handleInputChange}
         />
       )}
-
-      {/* 2. 사원 정보 수정 모달 */}
       {isEditModalOpen && currentEmp && (
         <EditEmployeeModal
           currentEmp={currentEmp}
@@ -460,7 +432,7 @@ const EmployeeMgmt = () => {
   );
 };
 
-// --- [신규 등록 모달 컴포넌트] ---
+// --- [모달] Input name을 state key (dept, rank, line)와 반드시 일치시켜야 함 ---
 const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
   <div style={styles.modalOverlay}>
     <div style={styles.modalContent}>
@@ -506,6 +478,8 @@ const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
             value={currentEmp.phone}
             onChange={onChange}
           />
+
+          {/* name="dept" -> currentEmp.dept 업데이트 */}
           <SelectGroup
             label="부서"
             name="dept"
@@ -513,6 +487,7 @@ const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
             options={DEPARTMENTS}
             onChange={onChange}
           />
+          {/* name="rank" -> currentEmp.rank 업데이트 */}
           <SelectGroup
             label="직급"
             name="rank"
@@ -520,6 +495,7 @@ const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
             options={POSITIONS}
             onChange={onChange}
           />
+          {/* name="line" -> currentEmp.line 업데이트 */}
           <SelectGroup
             label="담당 라인"
             name="line"
@@ -541,7 +517,6 @@ const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
   </div>
 );
 
-// --- [정보 수정 모달 컴포넌트] ---
 const EditEmployeeModal = ({
   currentEmp,
   onClose,
@@ -574,11 +549,18 @@ const EditEmployeeModal = ({
             onChange={onChange}
           />
           <InputGroup
+            label="이메일"
+            name="email"
+            value={currentEmp.email}
+            onChange={onChange}
+          />
+          <InputGroup
             label="연락처"
             name="phone"
             value={currentEmp.phone}
             onChange={onChange}
           />
+
           <SelectGroup
             label="부서"
             name="dept"
@@ -600,6 +582,7 @@ const EditEmployeeModal = ({
             options={LINES}
             onChange={onChange}
           />
+
           <SelectGroup
             label="상태"
             name="status"
@@ -673,7 +656,12 @@ const InputGroup = ({ label, name, value, onChange, readOnly }) => (
 const SelectGroup = ({ label, name, value, options, onChange }) => (
   <div style={{ display: "flex", flexDirection: "column" }}>
     <label style={styles.label}>{label}</label>
-    <select name={name} value={value} onChange={onChange} style={styles.input}>
+    <select
+      name={name}
+      value={value || ""}
+      onChange={onChange}
+      style={styles.input}
+    >
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}
@@ -788,12 +776,6 @@ const styles = {
     fontSize: "12px",
     fontWeight: "bold",
   },
-  iconButton: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: "5px",
-  },
   modalOverlay: {
     position: "fixed",
     top: 0,
@@ -852,15 +834,6 @@ const styles = {
     borderRadius: "6px",
     border: "1px solid #ddd",
     fontSize: "14px",
-    boxSizing: "border-box",
-  },
-  fullInput: {
-    width: "100%",
-    padding: "8px",
-    borderRadius: "6px",
-    border: "1px solid #ddd",
-    fontSize: "14px",
-    backgroundColor: "#fff",
     boxSizing: "border-box",
   },
   modalFooter: {
