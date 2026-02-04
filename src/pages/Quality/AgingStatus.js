@@ -1,28 +1,25 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaThermometerHalf,
   FaClock,
   FaExclamationTriangle,
   FaTv,
-  FaChartLine,
   FaCheckCircle,
   FaTimesCircle,
   FaSearch,
   FaServer,
   FaIndustry,
   FaClipboardList,
-  FaArrowRight,
   FaTimes,
 } from "react-icons/fa";
 import {
   AreaChart,
   Area,
-  XAxis,
-  YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  XAxis,
 } from "recharts";
 
 // 🎨 디자인 테마
@@ -42,27 +39,64 @@ const COLORS = {
   overlay: "rgba(0, 0, 0, 0.6)",
 };
 
-// [설정] 룸 데이터 (생산량 200대로 통일)
+// 🔴 [수정 완료] 지시하신 사양대로 18인치/24인치 설정 고정
 const ROOM_CONFIG = [
+  // === 18인치 모델 (5 Racks x 40 Slots = 200대) ===
   {
-    id: "ROOM_24",
-    name: 'A-Zone (24" Standard)',
-    rackCount: 10, // 랙 10개
-    rackCapacity: 20, // 랙당 20대
+    id: "ZOLL-18",
+    name: 'Zoll X Series 18"',
+    target: 200,
+    rackCount: 5,
+    cols: 8,
+    baseTemp: 45.0,
+    limitTemp: 48.0,
+  },
+  {
+    id: "CPLS-18",
+    name: 'Corpuls3 18"',
+    target: 200,
+    rackCount: 5,
+    cols: 8,
+    baseTemp: 45.0,
+    limitTemp: 48.0,
+  },
+  {
+    id: "PRQ-18",
+    name: 'Propaq M 18"',
+    target: 200,
+    rackCount: 5,
+    cols: 8,
+    baseTemp: 45.0,
+    limitTemp: 48.0,
+  },
+
+  // === 24인치 모델 (10 Racks x 20 Slots = 200대) ===
+  {
+    id: "ZOLL-24",
+    name: 'Zoll X Series 24"',
+    target: 200,
+    rackCount: 10,
     cols: 5,
     baseTemp: 48.0,
     limitTemp: 51.0,
-    target: 200, // 10 * 20 = 200대
   },
   {
-    id: "ROOM_18",
-    name: 'B-Zone (18" Compact)',
-    rackCount: 5, // [수정] 랙 5개로 축소
-    rackCapacity: 40, // 랙당 40대
-    cols: 8,
-    baseTemp: 42.0,
-    limitTemp: 45.0,
-    target: 200, // [수정] 5 * 40 = 200대
+    id: "CPLS-24",
+    name: 'Corpuls3 24"',
+    target: 200,
+    rackCount: 10,
+    cols: 5,
+    baseTemp: 48.0,
+    limitTemp: 51.0,
+  },
+  {
+    id: "PRQ-24",
+    name: 'Propaq M 24"',
+    target: 200,
+    rackCount: 10,
+    cols: 5,
+    baseTemp: 48.0,
+    limitTemp: 51.0,
   },
 ];
 
@@ -77,28 +111,22 @@ const calculateRealTimeProgress = () => {
   return Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100));
 };
 
-// [수정] 차트 데이터 생성 시 랜덤성 강화
+// 차트 데이터 생성
 const generateHistory = (baseTemp, isFail) => {
-  // 시작 온도를 약간 다르게 설정
   const startOffset = Math.random() * 3 - 1.5;
-
   return Array.from({ length: 20 }, (_, i) => {
-    // 시간 흐름에 따른 변화 + 노이즈
     let temp =
       baseTemp +
       startOffset +
       Math.sin(i * 0.4) * 0.5 +
       (Math.random() * 0.4 - 0.2);
-
-    // 불량이면 뒤로 갈수록 온도 급상승
     if (isFail && i > 12) temp += (i - 12) * 0.8;
-
     return { time: i, temp: parseFloat(temp.toFixed(1)) };
   });
 };
 
 const AgingStatus = () => {
-  const [selectedRoomId, setSelectedRoomId] = useState("ROOM_24");
+  const [selectedRoomId, setSelectedRoomId] = useState(ROOM_CONFIG[0].id);
   const [selectedRackId, setSelectedRackId] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null);
 
@@ -109,25 +137,26 @@ const AgingStatus = () => {
   const [chamberHistory, setChamberHistory] = useState([]);
   const [racks, setRacks] = useState([]);
 
-  // 1. 초기 데이터 생성 (랜덤성 대폭 강화)
+  // 1. 초기 데이터 생성
   useEffect(() => {
     const allRacks = [];
     ROOM_CONFIG.forEach((room) => {
-      for (let i = 1; i <= room.rackCount; i++) {
-        const slots = Array.from({ length: room.rackCapacity }, (_, j) => {
-          const slotId = j + 1;
-          const isDefective = Math.random() < 0.05; // 5% 불량 확률
+      // 랙당 용량 계산 (200 / 5 = 40, 200 / 10 = 20)
+      const capacityPerRack = Math.ceil(room.target / room.rackCount);
 
-          // [핵심 수정] 초기 온도를 베이스 온도 ±2.5도 범위로 분산
+      for (let i = 1; i <= room.rackCount; i++) {
+        const slots = Array.from({ length: capacityPerRack }, (_, j) => {
+          const slotId = j + 1;
+          const isDefective = Math.random() < 0.03;
           const initialRandomTemp = room.baseTemp + (Math.random() * 5 - 2.5);
 
           return {
             id: slotId,
             lineName: `R${i}-${Math.ceil(slotId / room.cols)}-${String(((slotId - 1) % room.cols) + 1).padStart(2, "0")}`,
-            panelId: `PNL-${room.id === "ROOM_24" ? "A" : "B"}${i}-${String(slotId).padStart(3, "0")}`,
+            panelId: `PNL-${String(slotId).padStart(3, "0")}`,
             status: "TESTING",
-            temp: parseFloat(initialRandomTemp.toFixed(1)), // 랜덤 시작 온도
-            offset: Math.random() * 1000, // 움직임 패턴 오프셋
+            temp: parseFloat(initialRandomTemp.toFixed(1)),
+            offset: Math.random() * 1000,
             isDefective: isDefective,
             history: generateHistory(room.baseTemp, isDefective),
           };
@@ -140,42 +169,36 @@ const AgingStatus = () => {
           status: "NORMAL",
           baseTemp: room.baseTemp,
           limitTemp: room.limitTemp,
-          capacity: room.rackCapacity,
+          capacity: capacityPerRack,
           cols: room.cols,
           slots: slots,
         });
       }
     });
     setRacks(allRacks);
-
-    // 챔버 온도 히스토리도 약간 리얼하게 생성
     setChamberHistory(generateHistory(45.0, false));
 
-    const firstRack = allRacks.find((r) => r.roomId === "ROOM_24");
+    const firstRack = allRacks.find((r) => r.roomId === ROOM_CONFIG[0].id);
     if (firstRack) setSelectedRackId(firstRack.uniqId);
   }, []);
 
-  // 2. 룸 변경 핸들러
+  // 2. 룸 변경 시 첫 번째 랙 자동 선택
   useEffect(() => {
     if (racks.length > 0) {
-      const currentRackObj = racks.find((r) => r.uniqId === selectedRackId);
-      if (!currentRackObj || currentRackObj.roomId !== selectedRoomId) {
-        const firstRackInRoom = racks.find((r) => r.roomId === selectedRoomId);
-        if (firstRackInRoom) {
-          setSelectedRackId(firstRackInRoom.uniqId);
-          setSelectedSlot(null);
-        }
+      const firstRackInRoom = racks.find((r) => r.roomId === selectedRoomId);
+      if (firstRackInRoom) {
+        setSelectedRackId(firstRackInRoom.uniqId);
+        setSelectedSlot(null);
       }
     }
-  }, [selectedRoomId]);
+  }, [selectedRoomId, racks]);
 
-  // 3. 실시간 시뮬레이션 (1분 주기)
+  // 3. 실시간 시뮬레이션
   useEffect(() => {
     const interval = setInterval(() => {
       setGlobalProgress(calculateRealTimeProgress());
-
       const nowTime = Date.now();
-      // 챔버 온도도 랜덤하게 흔들림
+
       const newChamberTemp = parseFloat(
         (
           45.0 +
@@ -192,17 +215,12 @@ const AgingStatus = () => {
       setRacks((prevRacks) =>
         prevRacks.map((rack) => {
           let hasFailInRack = false;
-
           const updatedSlots = rack.slots.map((slot) => {
             let nextTemp;
-
             if (slot.isDefective) {
-              // 불량품: 온도 계속 상승
               nextTemp = slot.temp + Math.random() * 0.4;
               if (nextTemp > rack.limitTemp + 4) nextTemp = rack.limitTemp + 4;
             } else {
-              // [수정] 정상품: 각자의 패턴(offset)대로 조금씩 다르게 움직임
-              // 사인파에 랜덤 노이즈를 섞어서 기계적인 움직임 방지
               const noise = (Math.random() - 0.5) * 0.3;
               nextTemp =
                 rack.baseTemp +
@@ -216,16 +234,14 @@ const AgingStatus = () => {
               hasFailInRack = true;
             }
 
-            const newHistory = [
-              ...slot.history.slice(1),
-              { time: nowTime, temp: parseFloat(nextTemp.toFixed(1)) },
-            ];
-
             return {
               ...slot,
               temp: parseFloat(nextTemp.toFixed(1)),
               status: nextStatus,
-              history: newHistory,
+              history: [
+                ...slot.history.slice(1),
+                { time: nowTime, temp: parseFloat(nextTemp.toFixed(1)) },
+              ],
             };
           });
 
@@ -236,23 +252,10 @@ const AgingStatus = () => {
           };
         }),
       );
-    }, 60000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, []);
-
-  // 상태 동기화
-  useEffect(() => {
-    if (selectedSlot && selectedRackId) {
-      const currentR = racks.find((r) => r.uniqId === selectedRackId);
-      if (currentR) {
-        const updatedSlot = currentR.slots.find(
-          (s) => s.id === selectedSlot.id,
-        );
-        if (updatedSlot) setSelectedSlot(updatedSlot);
-      }
-    }
-  }, [racks]);
 
   const currentRack = racks.find((r) => r.uniqId === selectedRackId);
   const currentRoom = ROOM_CONFIG.find((r) => r.id === selectedRoomId);
@@ -281,7 +284,7 @@ const AgingStatus = () => {
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
       `}</style>
 
-      {/* 1. 헤더 */}
+      {/* 헤더 */}
       <div style={styles.header}>
         <div style={styles.headerLeft}>
           <div style={styles.logoBox}>
@@ -292,25 +295,34 @@ const AgingStatus = () => {
             <p style={styles.pageSubtitle}>Real-time Burn-in Process Control</p>
           </div>
         </div>
-        <div style={styles.roomTabs}>
-          {ROOM_CONFIG.map((room) => (
-            <button
-              key={room.id}
-              style={
-                selectedRoomId === room.id
-                  ? styles.roomTabActive
-                  : styles.roomTab
-              }
-              onClick={() => setSelectedRoomId(room.id)}
-            >
-              {room.name}
-            </button>
-          ))}
+
+        {/* 모델 선택 드롭다운 */}
+        <div style={styles.roomSelectWrapper}>
+          <span
+            style={{
+              fontSize: "12px",
+              color: COLORS.subText,
+              fontWeight: "600",
+            }}
+          >
+            Select Model:
+          </span>
+          <select
+            style={styles.roomSelect}
+            value={selectedRoomId}
+            onChange={(e) => setSelectedRoomId(e.target.value)}
+          >
+            {ROOM_CONFIG.map((room) => (
+              <option key={room.id} value={room.id}>
+                {room.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
       <div style={styles.scrollBody} className="no-scrollbar">
-        {/* 2. 대시보드 요약 */}
+        {/* 대시보드 요약 */}
         <div style={styles.topDashboard}>
           <div style={styles.chamberCard}>
             <div style={styles.cardHeader}>
@@ -401,7 +413,7 @@ const AgingStatus = () => {
           </div>
         </div>
 
-        {/* 3. 메인 콘텐츠 */}
+        {/* 메인 콘텐츠 */}
         <div style={styles.mainLayout}>
           <div style={styles.sidebar}>
             <div style={styles.sidebarHeader}>
@@ -414,7 +426,6 @@ const AgingStatus = () => {
               {filteredRackList.map((rack) => {
                 const isActive = rack.uniqId === selectedRackId;
                 const isWarning = rack.status === "WARNING";
-
                 return (
                   <div
                     key={rack.uniqId}
@@ -523,7 +534,6 @@ const AgingStatus = () => {
                     {currentRack.slots.map((slot) => {
                       const isFail = slot.status === "FAIL";
                       const isSelected = selectedSlot?.id === slot.id;
-
                       return (
                         <div
                           key={slot.id}
@@ -543,8 +553,7 @@ const AgingStatus = () => {
                             boxShadow: isSelected
                               ? `0 0 0 2px ${COLORS.primary}`
                               : "none",
-                            aspectRatio:
-                              currentRoom.id === "ROOM_24" ? "1.6" : "1.3",
+                            aspectRatio: currentRack.cols === 5 ? "1.6" : "1.3", // 24인치는 넓게, 18인치는 좁게
                           }}
                         >
                           <div style={styles.slotHeader}>
@@ -566,8 +575,7 @@ const AgingStatus = () => {
                           </div>
                           <div
                             style={{
-                              fontSize:
-                                currentRoom.id === "ROOM_24" ? "20px" : "16px",
+                              fontSize: "18px",
                               fontWeight: "800",
                               textAlign: "center",
                               color: isFail ? COLORS.danger : COLORS.text,
@@ -584,7 +592,7 @@ const AgingStatus = () => {
                               marginTop: "2px",
                             }}
                           >
-                            PNL-{String(slot.id).padStart(3, "0")}
+                            {slot.panelId}
                           </div>
                         </div>
                       );
@@ -628,7 +636,6 @@ const AgingStatus = () => {
                 <FaTimes size={18} color={COLORS.subText} />
               </button>
             </div>
-
             <div style={styles.modalBody}>
               <div style={styles.modalChartBox}>
                 <div
@@ -693,7 +700,6 @@ const AgingStatus = () => {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-
               <div style={styles.modalInfoBox}>
                 <div style={styles.infoRow}>
                   <span style={styles.infoLabel}>Rack Location</span>
@@ -744,7 +750,6 @@ const AgingStatus = () => {
   );
 };
 
-// 요약 카드
 const SummaryCard = ({
   label,
   value,
@@ -843,32 +848,18 @@ const styles = {
     fontWeight: "500",
   },
 
-  roomTabs: {
-    display: "flex",
-    gap: "8px",
-    height: "100%",
-    alignItems: "center",
-  },
-  roomTab: {
-    padding: "8px 16px",
-    backgroundColor: "transparent",
-    border: "1px solid transparent",
+  roomSelectWrapper: { display: "flex", alignItems: "center", gap: "10px" },
+  roomSelect: {
+    padding: "8px 12px",
     borderRadius: "8px",
-    cursor: "pointer",
-    color: COLORS.subText,
+    border: `1px solid ${COLORS.border}`,
+    backgroundColor: COLORS.bg,
+    color: COLORS.text,
+    fontSize: "13px",
     fontWeight: "600",
-    fontSize: "13px",
-    transition: "all 0.2s",
-  },
-  roomTabActive: {
-    padding: "8px 16px",
-    backgroundColor: COLORS.primaryLight,
-    border: `1px solid ${COLORS.primary}30`,
-    borderRadius: "8px",
     cursor: "pointer",
-    color: COLORS.primary,
-    fontWeight: "700",
-    fontSize: "13px",
+    outline: "none",
+    minWidth: "200px",
   },
 
   scrollBody: {
@@ -877,7 +868,6 @@ const styles = {
     flexDirection: "column",
     paddingBottom: "40px",
   },
-
   topDashboard: {
     display: "flex",
     gap: "20px",
@@ -913,7 +903,6 @@ const styles = {
     gridTemplateColumns: "1fr 1fr 1fr 1fr",
     gap: "16px",
   },
-
   summaryCard: {
     backgroundColor: COLORS.white,
     borderRadius: "16px",
@@ -936,7 +925,6 @@ const styles = {
   },
 
   mainLayout: { display: "flex", flex: 1, padding: "20px 24px", gap: "20px" },
-
   sidebar: {
     width: "220px",
     backgroundColor: COLORS.white,
@@ -964,7 +952,6 @@ const styles = {
     cursor: "pointer",
     transition: "all 0.2s",
   },
-
   rightColumn: {
     flex: 1,
     display: "flex",
@@ -1078,11 +1065,9 @@ const styles = {
     borderLeft: `1px solid ${COLORS.border}`,
     paddingLeft: "30px",
   },
-
   infoRow: { display: "flex", flexDirection: "column", gap: "4px" },
   infoLabel: { fontSize: "12px", color: COLORS.subText, fontWeight: "600" },
   infoValue: { fontSize: "16px", color: COLORS.text, fontWeight: "700" },
-
   failBadgeLarge: {
     backgroundColor: COLORS.danger,
     color: "white",
