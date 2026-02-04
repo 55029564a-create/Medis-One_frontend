@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios"; // 서버 통신을 위한 라이브러리
 import {
   FaBoxes,
   FaExclamationTriangle,
@@ -35,107 +36,150 @@ const InventoryCurrent = () => {
   // 상태 관리: 검색어 + 카테고리 필터
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // 📝 [Mock Data]
-  const inventoryData = [
-    {
-      id: 1,
-      code: "PNL-24-MED",
-      name: "24인치 의료용 패널",
-      category: "원자재",
-      qty: 450,
-      safeQty: 100,
-      loc: "A-01",
-      unit: "EA",
-    },
-    {
-      id: 2,
-      code: "RESIN-OCR",
-      name: "OCR 레진 (광학접착)",
-      category: "화학",
-      qty: 5,
-      safeQty: 20,
-      loc: "C-02 (냉장)",
-      unit: "kg",
-    },
-    {
-      id: 3,
-      code: "GLS-AG-24",
-      name: "AG 커버 글라스",
-      category: "원자재",
-      qty: 1200,
-      safeQty: 500,
-      loc: "A-03",
-      unit: "EA",
-    },
-    {
-      id: 4,
-      code: "SCREW-M4",
-      name: "M4 조립 나사",
-      category: "부자재",
-      qty: 25,
-      safeQty: 100,
-      loc: "B-05",
-      unit: "Box",
-    },
-    {
-      id: 5,
-      code: "PCB-MAIN",
-      name: "메인보드 (V2)",
-      category: "반제품",
-      qty: 80,
-      safeQty: 50,
-      loc: "B-01",
-      unit: "EA",
-    },
-    {
-      id: 6,
-      code: "BOX-PKG",
-      name: "포장 박스",
-      category: "부자재",
-      qty: 2000,
-      safeQty: 500,
-      loc: "D-01",
-      unit: "EA",
-    },
-    {
-      id: 7,
-      code: "MON-24-PRO",
-      name: "의료용 모니터 완제품",
-      category: "완제품",
-      qty: 30,
-      safeQty: 10,
-      loc: "F-01",
-      unit: "EA",
-    },
-  ];
+  // // 📝 [Mock Data]
+  // const inventoryData = [
+  //   {
+  //     id: 1,
+  //     code: "PNL-24-MED",
+  //     name: "24인치 의료용 패널",
+  //     category: "원자재",
+  //     qty: 450,
+  //     safeQty: 100,
+  //     loc: "A-01",
+  //     unit: "EA",
+  //   },
+  //   {
+  //     id: 2,
+  //     code: "RESIN-OCR",
+  //     name: "OCR 레진 (광학접착)",
+  //     category: "화학",
+  //     qty: 5,
+  //     safeQty: 20,
+  //     loc: "C-02 (냉장)",
+  //     unit: "kg",
+  //   },
+  //   {
+  //     id: 3,
+  //     code: "GLS-AG-24",
+  //     name: "AG 커버 글라스",
+  //     category: "원자재",
+  //     qty: 1200,
+  //     safeQty: 500,
+  //     loc: "A-03",
+  //     unit: "EA",
+  //   },
+  //   {
+  //     id: 4,
+  //     code: "SCREW-M4",
+  //     name: "M4 조립 나사",
+  //     category: "부자재",
+  //     qty: 25,
+  //     safeQty: 100,
+  //     loc: "B-05",
+  //     unit: "Box",
+  //   },
+  //   {
+  //     id: 5,
+  //     code: "PCB-MAIN",
+  //     name: "메인보드 (V2)",
+  //     category: "반제품",
+  //     qty: 80,
+  //     safeQty: 50,
+  //     loc: "B-01",
+  //     unit: "EA",
+  //   },
+  //   {
+  //     id: 6,
+  //     code: "BOX-PKG",
+  //     name: "포장 박스",
+  //     category: "부자재",
+  //     qty: 2000,
+  //     safeQty: 500,
+  //     loc: "D-01",
+  //     unit: "EA",
+  //   },
+  //   {
+  //     id: 7,
+  //     code: "MON-24-PRO",
+  //     name: "의료용 모니터 완제품",
+  //     category: "완제품",
+  //     qty: 30,
+  //     safeQty: 10,
+  //     loc: "F-01",
+  //     unit: "EA",
+  //   },
+  // ];
 
   // 카테고리 목록
   const categories = ["All", "원자재", "부자재", "화학", "반제품", "완제품"];
 
-  // 📊 차트 데이터
-  const categoryStats = [
-    { name: "원자재", value: 45 },
-    { name: "부자재", value: 25 },
-    { name: "화학", value: 10 },
-    { name: "반제품", value: 20 },
-  ];
+  // // 📊 차트 데이터
+  // const categoryStats = [
+  //   { name: "원자재", value: 45 },
+  //   { name: "부자재", value: 25 },
+  //   { name: "화학", value: 10 },
+  //   { name: "반제품", value: 20 },
+  // ];
 
-  const stockComparison = [
-    { name: "패널", current: 450, safe: 100 },
-    { name: "글라스", current: 1200, safe: 500 },
-    { name: "레진", current: 5, safe: 20 },
-    { name: "나사", current: 25, safe: 100 },
-  ];
+  // const stockComparison = [
+  //   { name: "패널", current: 450, safe: 100 },
+  //   { name: "글라스", current: 1200, safe: 500 },
+  //   { name: "레진", current: 5, safe: 20 },
+  //   { name: "나사", current: 25, safe: 100 },
+  // ];
 
-  // 🔍 [필터링 로직]
-  const filteredData = inventoryData.filter((item) => {
-    const matchSearch =
-      item.name.includes(searchTerm) || item.code.includes(searchTerm);
-    const matchCategory =
-      selectedCategory === "All" || item.category === selectedCategory;
-    return matchSearch && matchCategory;
-  });
+  // // 🔍 [필터링 로직]
+  // const filteredData = inventoryData.filter((item) => {
+  //   const matchSearch =
+  //     item.name.includes(searchTerm) || item.code.includes(searchTerm);
+  //   const matchCategory =
+  //     selectedCategory === "All" || item.category === selectedCategory;
+  //   return matchSearch && matchCategory;
+  // });
+
+  // API 데이터 호출 로직
+  const fetchInventoryData = async () => {
+    try {
+      setLoading(true);
+      // 백엔드 컨트롤러 주소와 매개변수(params) 연결
+      const response = await axios.get(
+        "http://localhost:8111/api/inventory/state",
+        {
+          params: {
+            category: selectedCategory === "All" ? "" : selectedCategory,
+            searchTerm: searchTerm,
+          },
+        },
+      );
+      setDashboardData(response.data); // 서버에서 받은 DTO 저장
+    } catch (error) {
+      console.error("데이터 로드 실패:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // useEffect: 필터 변경 시 자동 새로고침
+  useEffect(() => {
+    fetchInventoryData();
+  }, [selectedCategory, searchTerm]);
+
+  if (loading && !dashboardData)
+    return <div className="empty-state">데이터를 불러오는 중...</div>;
+  if (!dashboardData)
+    return <div className="empty-state">서버 연결 상태를 확인하세요.</div>;
+
+  const { categoryStats, itemList } = dashboardData;
+
+  // 📊 차트용 데이터 가공
+  const pieData = Object.entries(categoryStats).map(([name, value]) => ({
+    name,
+    value,
+  }));
+  const barData = (itemList || []).slice(0, 5); // 상위 5개만 차트 표시
 
   return (
     <>
@@ -410,7 +454,7 @@ const InventoryCurrent = () => {
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
-                  data={categoryStats}
+                  data={pieData} // 수정: categoryStats -> pieData
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -418,12 +462,17 @@ const InventoryCurrent = () => {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {categoryStats.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={PIE_COLORS[index % PIE_COLORS.length]}
-                    />
-                  ))}
+                  {pieData.map(
+                    (
+                      entry,
+                      index, // 수정: categoryStats -> pieData
+                    ) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={PIE_COLORS[index % PIE_COLORS.length]}
+                      />
+                    ),
+                  )}
                 </Pie>
                 <Tooltip />
                 <Legend verticalAlign="bottom" height={36} />
@@ -439,7 +488,9 @@ const InventoryCurrent = () => {
               </div>
             </div>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={stockComparison} barSize={20}>
+              <BarChart data={barData} barSize={20}>
+                {" "}
+                {/* 수정: stockComparison -> barData */}
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
@@ -455,13 +506,13 @@ const InventoryCurrent = () => {
                 <Tooltip cursor={{ fill: "transparent" }} />
                 <Legend />
                 <Bar
-                  dataKey="current"
+                  dataKey="qty" // 수정: current -> qty
                   name="현재고"
                   fill={CHART_COLORS.primary}
                   radius={[4, 4, 0, 0]}
                 />
                 <Bar
-                  dataKey="safe"
+                  dataKey="safeQty" // 수정: safe -> safeQty
                   name="안전재고"
                   fill={CHART_COLORS.warning}
                   radius={[4, 4, 0, 0]}
@@ -473,9 +524,7 @@ const InventoryCurrent = () => {
 
         {/* 2. 하단 리스트 영역 */}
         <div className="content-card">
-          {/* 필터 헤더 */}
           <div className="filter-header">
-            {/* 탭 그룹 */}
             <div className="tab-group">
               {categories.map((cat) => (
                 <button
@@ -488,7 +537,6 @@ const InventoryCurrent = () => {
               ))}
             </div>
 
-            {/* 검색창 */}
             <div className="search-box-wrapper">
               <FaSearch className="search-icon" />
               <input
@@ -500,7 +548,6 @@ const InventoryCurrent = () => {
             </div>
           </div>
 
-          {/* 테이블 */}
           <div className="table-responsive">
             <table className="custom-table">
               <thead>
@@ -515,8 +562,9 @@ const InventoryCurrent = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredData.length > 0 ? (
-                  filteredData.map((item) => {
+                {/* 수정: filteredData -> itemList (백엔드에서 필터링해오기 때문) */}
+                {itemList && itemList.length > 0 ? (
+                  itemList.map((item) => {
                     const percent = (item.qty / item.safeQty) * 100;
                     let statusClass = "badge-normal";
                     let dotClass = "dot-normal";
@@ -529,7 +577,6 @@ const InventoryCurrent = () => {
                       statusText = "부족";
                       barColor = CHART_COLORS.danger;
                     } else if (percent <= 150) {
-                      // 50%가 아니라 1.5배수로 여유있게 설정 예시
                       statusClass = "badge-low";
                       dotClass = "dot-low";
                       statusText = "관심";
@@ -562,7 +609,7 @@ const InventoryCurrent = () => {
                                   statusText === "부족" ? "#d92d20" : "#333",
                               }}
                             >
-                              {item.qty.toLocaleString()} {item.unit}
+                              {item.qty.toLocaleString()} {item.unit || "EA"}
                             </span>
                             <span style={{ fontSize: "0.8rem", color: "#999" }}>
                               {" "}
