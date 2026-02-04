@@ -14,8 +14,6 @@ import {
   FaThLarge,
   FaEllipsisV,
   FaUser,
-  FaTimes,
-  FaCheck,
 } from "react-icons/fa";
 
 const THEME = {
@@ -35,24 +33,14 @@ const ProductionSchedule = () => {
   const [currentDate, setCurrentDate] = useState("2026년 2월 1주차");
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState("list");
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // 서버에서 받아올 데이터 상태
   const [schedules, setSchedules] = useState([]);
 
-  // 입력 폼 상태
-  const [newPlan, setNewPlan] = useState({
-    date: "",
-    line: "AREX #1",
-    product: "",
-    planQty: 0,
-    manager: "",
-    isEmergency: false,
-  });
-
   // [API] 데이터 조회 함수
   const fetchSchedules = async () => {
     try {
+      // 포트가 8111로 변경되었으므로 확인 필요
       const response = await fetch(
         "http://localhost:8111/api/production/plans",
       );
@@ -73,55 +61,6 @@ const ProductionSchedule = () => {
   useEffect(() => {
     fetchSchedules();
   }, []);
-
-  // [API] 데이터 저장 함수
-  const handleSave = async () => {
-    if (!newPlan.date || !newPlan.product || !newPlan.planQty) {
-      alert("필수 항목(날짜, 품목명, 수량)을 입력해주세요.");
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        "http://localhost:8111/api/production/plans",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(newPlan),
-        },
-      );
-
-      if (response.ok) {
-        alert("등록되었습니다.");
-        setIsModalOpen(false);
-        // 폼 초기화
-        setNewPlan({
-          date: "",
-          line: "AREX #1",
-          product: "",
-          planQty: 0,
-          manager: "",
-          isEmergency: false,
-        });
-        // 목록 다시 불러오기
-        fetchSchedules();
-      } else {
-        alert("저장에 실패했습니다.");
-      }
-    } catch (error) {
-      console.error("저장 중 에러:", error);
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setNewPlan({
-      ...newPlan,
-      [name]: type === "checkbox" ? checked : value,
-    });
-  };
 
   // 필터링 로직
   const filteredSchedules = schedules.filter(
@@ -222,12 +161,7 @@ const ProductionSchedule = () => {
           <button style={styles.outlineBtn}>
             <FaFileDownload style={{ marginRight: "6px" }} /> 엑셀
           </button>
-          <button
-            style={styles.primaryBtn}
-            onClick={() => setIsModalOpen(true)}
-          >
-            + 계획 등록
-          </button>
+          {/* [+ 계획 등록] 버튼 제거됨 */}
         </div>
       </div>
 
@@ -271,124 +205,12 @@ const ProductionSchedule = () => {
         </div>
       )}
 
-      {/* 5. Modal */}
-      {isModalOpen && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <div style={styles.modalHeader}>
-              <h3>📝 신규 생산 계획 등록</h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                style={styles.closeBtn}
-              >
-                <FaTimes />
-              </button>
-            </div>
-            <div style={styles.modalBody}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>생산 일자</label>
-                <input
-                  type="date"
-                  name="date"
-                  value={newPlan.date}
-                  onChange={handleInputChange}
-                  style={styles.input}
-                />
-              </div>
-              <div style={styles.row}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>라인</label>
-                  <select
-                    name="line"
-                    value={newPlan.line}
-                    onChange={handleInputChange}
-                    style={styles.select}
-                  >
-                    <option value="AREX #1">AREX #1 (Main)</option>
-                    <option value="AREX #2">AREX #2 (Modular)</option>
-                    <option value="AREX #3">AREX #3 (Rugged)</option>
-                  </select>
-                </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>긴급 여부</label>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      height: "45px",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      name="isEmergency"
-                      checked={newPlan.isEmergency}
-                      onChange={handleInputChange}
-                      style={{ width: "20px", height: "20px" }}
-                    />
-                    <span
-                      style={{
-                        marginLeft: "8px",
-                        color: newPlan.isEmergency ? THEME.danger : "#666",
-                      }}
-                    >
-                      긴급
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>품목명</label>
-                <input
-                  type="text"
-                  name="product"
-                  value={newPlan.product}
-                  onChange={handleInputChange}
-                  style={styles.input}
-                  placeholder="예: Zoll X Series"
-                />
-              </div>
-              <div style={styles.row}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>수량</label>
-                  <input
-                    type="number"
-                    name="planQty"
-                    value={newPlan.planQty}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                  />
-                </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>담당자</label>
-                  <input
-                    type="text"
-                    name="manager"
-                    value={newPlan.manager}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                  />
-                </div>
-              </div>
-            </div>
-            <div style={styles.modalFooter}>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                style={styles.cancelBtn}
-              >
-                취소
-              </button>
-              <button onClick={handleSave} style={styles.saveBtn}>
-                <FaCheck style={{ marginRight: "5px" }} /> 저장
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 5. Modal 제거됨 */}
     </div>
   );
 };
 
-// --- Sub Components & Styles ---
+// --- Sub Components ---
 
 const ScheduleRow = ({ item }) => {
   const percent =
@@ -685,16 +507,6 @@ const styles = {
     color: THEME.primary,
     fontWeight: "bold",
   },
-  primaryBtn: {
-    backgroundColor: THEME.primary,
-    color: "#fff",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "10px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    boxShadow: "0 4px 10px rgba(140, 133, 255, 0.3)",
-  },
   outlineBtn: {
     backgroundColor: THEME.white,
     color: THEME.text,
@@ -781,88 +593,6 @@ const styles = {
     padding: "5px",
   },
   emptyState: { padding: "40px", textAlign: "center", color: THEME.gray },
-  modalOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderRadius: "16px",
-    width: "500px",
-    padding: "30px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-  },
-  modalHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "20px",
-    borderBottom: `1px solid ${THEME.border}`,
-    paddingBottom: "15px",
-  },
-  closeBtn: {
-    background: "transparent",
-    border: "none",
-    fontSize: "20px",
-    cursor: "pointer",
-    color: "#999",
-  },
-  modalBody: { display: "flex", flexDirection: "column", gap: "15px" },
-  formGroup: { display: "flex", flexDirection: "column", flex: 1 },
-  label: {
-    fontSize: "13px",
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: "5px",
-  },
-  input: {
-    padding: "10px",
-    borderRadius: "8px",
-    border: `1px solid ${THEME.border}`,
-    fontSize: "14px",
-  },
-  select: {
-    padding: "10px",
-    borderRadius: "8px",
-    border: `1px solid ${THEME.border}`,
-    fontSize: "14px",
-  },
-  row: { display: "flex", gap: "15px" },
-  modalFooter: {
-    marginTop: "25px",
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "10px",
-    paddingTop: "20px",
-    borderTop: `1px solid ${THEME.border}`,
-  },
-  saveBtn: {
-    backgroundColor: THEME.primary,
-    color: "#fff",
-    padding: "10px 20px",
-    borderRadius: "8px",
-    border: "none",
-    fontWeight: "bold",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-  },
-  cancelBtn: {
-    backgroundColor: "#f0f0f0",
-    color: "#333",
-    padding: "10px 20px",
-    borderRadius: "8px",
-    border: "none",
-    cursor: "pointer",
-  },
 };
 
 export default ProductionSchedule;
