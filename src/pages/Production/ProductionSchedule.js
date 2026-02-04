@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaCalendarAlt,
   FaChevronLeft,
@@ -32,94 +32,103 @@ const THEME = {
 };
 
 const ProductionSchedule = () => {
-  const [currentDate, setCurrentDate] = useState("2026년 1월 3주차");
+  const [currentDate, setCurrentDate] = useState("2026년 2월 1주차");
   const [searchTerm, setSearchTerm] = useState("");
-
-  // 뷰 모드 상태 (기본값: 'list' -> 리스트가 먼저 보임)
   const [viewMode, setViewMode] = useState("list");
-
-  // 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // 서버에서 받아올 데이터 상태
+  const [schedules, setSchedules] = useState([]);
 
   // 입력 폼 상태
   const [newPlan, setNewPlan] = useState({
     date: "",
-    line: "Line-A",
+    line: "AREX #1",
     product: "",
     planQty: 0,
     manager: "",
     isEmergency: false,
   });
 
-  // Mock Data
-  const [schedules, setSchedules] = useState([
-    {
-      id: 1,
-      date: "2026-01-14",
-      line: "Line-A",
-      product: "Zoll X Series (Main Unit)",
-      planQty: 50,
-      doneQty: 35,
-      manager: "김철수",
-      status: "진행중",
-      isEmergency: true,
-      materialStatus: "Ready",
-    },
-    {
-      id: 2,
-      date: "2026-01-14",
-      line: "Line-B",
-      product: "Propaq M (Casing)",
-      planQty: 200,
-      doneQty: 0,
-      manager: "이영희",
-      status: "대기",
-      isEmergency: false,
-      materialStatus: "Shortage",
-    },
-    {
-      id: 3,
-      date: "2026-01-15",
-      line: "Line-A",
-      product: "32인치 4K 모니터",
-      planQty: 100,
-      doneQty: 0,
-      manager: "박지성",
-      status: "예정",
-      isEmergency: false,
-      materialStatus: "Ready",
-    },
-    {
-      id: 4,
-      date: "2026-01-15",
-      line: "Line-C",
-      product: "전원 어댑터 (12V)",
-      planQty: 2000,
-      doneQty: 2000,
-      manager: "최유리",
-      status: "완료",
-      isEmergency: false,
-      materialStatus: "Used",
-    },
-    {
-      id: 5,
-      date: "2026-01-16",
-      line: "Line-B",
-      product: "Corpuls3 (Sensor Module)",
-      planQty: 150,
-      doneQty: 0,
-      manager: "정민수",
-      status: "예정",
-      isEmergency: true,
-      materialStatus: "Checking",
-    },
-  ]);
+  // [API] 데이터 조회 함수
+  const fetchSchedules = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:8111/api/production/plans",
+      );
+      if (response.ok) {
+        const data = await response.json();
+        // 최신순으로 정렬 (id 역순)
+        const sortedData = data.sort((a, b) => b.id - a.id);
+        setSchedules(sortedData);
+      } else {
+        console.error("데이터 로딩 실패");
+      }
+    } catch (error) {
+      console.error("API 에러:", error);
+    }
+  };
 
-  // 필터링
+  // 화면이 켜질 때(마운트) 데이터 조회 실행
+  useEffect(() => {
+    fetchSchedules();
+  }, []);
+
+  // [API] 데이터 저장 함수
+  const handleSave = async () => {
+    if (!newPlan.date || !newPlan.product || !newPlan.planQty) {
+      alert("필수 항목(날짜, 품목명, 수량)을 입력해주세요.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        "http://localhost:8111/api/production/plans",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(newPlan),
+        },
+      );
+
+      if (response.ok) {
+        alert("등록되었습니다.");
+        setIsModalOpen(false);
+        // 폼 초기화
+        setNewPlan({
+          date: "",
+          line: "AREX #1",
+          product: "",
+          planQty: 0,
+          manager: "",
+          isEmergency: false,
+        });
+        // 목록 다시 불러오기
+        fetchSchedules();
+      } else {
+        alert("저장에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("저장 중 에러:", error);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setNewPlan({
+      ...newPlan,
+      [name]: type === "checkbox" ? checked : value,
+    });
+  };
+
+  // 필터링 로직
   const filteredSchedules = schedules.filter(
     (item) =>
-      item.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.line.toLowerCase().includes(searchTerm.toLowerCase()),
+      (item.product &&
+        item.product.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.line && item.line.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   // KPI 계산
@@ -133,40 +142,6 @@ const ProductionSchedule = () => {
   );
   const progressRate =
     totalPlan === 0 ? 0 : Math.round((totalDone / totalPlan) * 100);
-
-  // --- 핸들러 ---
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setNewPlan({
-      ...newPlan,
-      [name]: type === "checkbox" ? checked : value,
-    });
-  };
-
-  const handleSave = () => {
-    if (!newPlan.date || !newPlan.product || !newPlan.planQty) {
-      alert("필수 항목(날짜, 품목명, 수량)을 입력해주세요.");
-      return;
-    }
-    const newItem = {
-      id: Date.now(),
-      ...newPlan,
-      doneQty: 0,
-      status: "예정",
-      materialStatus: "Checking",
-    };
-    setSchedules([newItem, ...schedules]);
-    setIsModalOpen(false);
-    setNewPlan({
-      date: "",
-      line: "Line-A",
-      product: "",
-      planQty: 0,
-      manager: "",
-      isEmergency: false,
-    });
-    alert("등록되었습니다.");
-  };
 
   return (
     <div style={styles.container}>
@@ -209,7 +184,7 @@ const ProductionSchedule = () => {
         />
       </div>
 
-      {/* 3. Toolbar (뷰 전환 버튼 포함) */}
+      {/* 3. Toolbar */}
       <div style={styles.toolbar}>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <div style={styles.searchBox}>
@@ -221,7 +196,6 @@ const ProductionSchedule = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {/* 뷰 모드 전환 버튼 */}
           <div style={styles.toggleContainer}>
             <button
               style={
@@ -257,9 +231,8 @@ const ProductionSchedule = () => {
         </div>
       </div>
 
-      {/* 4. Main Content (조건부 렌더링: 리스트 또는 그리드) */}
+      {/* 4. Main Content */}
       {viewMode === "list" ? (
-        // [A] 리스트 뷰 (기존 테이블 형태)
         <div style={styles.tableContainer}>
           <table style={styles.table}>
             <thead>
@@ -280,11 +253,17 @@ const ProductionSchedule = () => {
               {filteredSchedules.map((item) => (
                 <ScheduleRow key={item.id} item={item} />
               ))}
+              {filteredSchedules.length === 0 && (
+                <tr>
+                  <td colSpan="10" style={styles.emptyState}>
+                    데이터가 없습니다.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       ) : (
-        // [B] 그리드 뷰 (카드 형태)
         <div style={styles.gridContainer}>
           {filteredSchedules.map((item) => (
             <ScheduleCard key={item.id} item={item} />
@@ -292,7 +271,7 @@ const ProductionSchedule = () => {
         </div>
       )}
 
-      {/* 5. Modal (등록 팝업) */}
+      {/* 5. Modal */}
       {isModalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -325,9 +304,9 @@ const ProductionSchedule = () => {
                     onChange={handleInputChange}
                     style={styles.select}
                   >
-                    <option value="Line-A">Line-A (조립)</option>
-                    <option value="Line-B">Line-B (가공)</option>
-                    <option value="Line-C">Line-C (검사)</option>
+                    <option value="AREX #1">AREX #1 (Main)</option>
+                    <option value="AREX #2">AREX #2 (Modular)</option>
+                    <option value="AREX #3">AREX #3 (Rugged)</option>
                   </select>
                 </div>
                 <div style={styles.formGroup}>
@@ -365,7 +344,7 @@ const ProductionSchedule = () => {
                   value={newPlan.product}
                   onChange={handleInputChange}
                   style={styles.input}
-                  placeholder="품목명 입력"
+                  placeholder="예: Zoll X Series"
                 />
               </div>
               <div style={styles.row}>
@@ -409,7 +388,8 @@ const ProductionSchedule = () => {
   );
 };
 
-// [A] 리스트 뷰
+// --- Sub Components & Styles ---
+
 const ScheduleRow = ({ item }) => {
   const percent =
     item.planQty > 0
@@ -454,7 +434,6 @@ const ScheduleRow = ({ item }) => {
   );
 };
 
-// [B] 그리드 뷰
 const ScheduleCard = ({ item }) => {
   const percent =
     item.planQty > 0
@@ -593,7 +572,6 @@ const MaterialBadge = ({ status }) => {
   );
 };
 
-// --- Styles ---
 const styles = {
   container: {
     padding: "30px",
@@ -632,7 +610,6 @@ const styles = {
     padding: "5px",
     fontSize: "14px",
   },
-
   kpiContainer: { display: "flex", gap: "20px", marginBottom: "30px" },
   kpiCard: {
     flex: 1,
@@ -660,7 +637,6 @@ const styles = {
     fontWeight: "bold",
     color: THEME.text,
   },
-
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
@@ -683,8 +659,6 @@ const styles = {
     width: "100%",
     fontSize: "14px",
   },
-
-  // Toggle Buttons
   toggleContainer: {
     display: "flex",
     backgroundColor: THEME.white,
@@ -711,7 +685,6 @@ const styles = {
     color: THEME.primary,
     fontWeight: "bold",
   },
-
   primaryBtn: {
     backgroundColor: THEME.primary,
     color: "#fff",
@@ -733,8 +706,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
-
-  // List View
   tableContainer: {
     backgroundColor: THEME.white,
     borderRadius: "16px",
@@ -762,8 +733,6 @@ const styles = {
     color: THEME.text,
     verticalAlign: "middle",
   },
-
-  // Grid View
   gridContainer: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
@@ -777,8 +746,6 @@ const styles = {
     transition: "transform 0.2s",
     ":hover": { transform: "translateY(-5px)" },
   },
-
-  // Badges & Bars
   badge: {
     padding: "5px 10px",
     borderRadius: "20px",
@@ -814,8 +781,6 @@ const styles = {
     padding: "5px",
   },
   emptyState: { padding: "40px", textAlign: "center", color: THEME.gray },
-
-  // Modal
   modalOverlay: {
     position: "fixed",
     top: 0,
