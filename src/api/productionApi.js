@@ -1,4 +1,7 @@
+import jwtAxios from "../utils/jwtUtil";
 import client from "./client";
+
+const host = "http://localhost:8111/api";
 
 // --- [공정 마스터 관리] ---
 
@@ -30,4 +33,9 @@ export const deleteProcess = async (id) => {
 export const getLineStatus = async () => {
   const response = await client.get("/production/lines/status");
   return response.data;
+};
+
+export const getEquipmentList = async () => {
+  const res = await jwtAxios.get(`${host}/production/equipment/list`);
+  return res.data;
 };
