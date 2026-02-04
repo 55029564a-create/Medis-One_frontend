@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaExclamationTriangle,
   FaCheckCircle,
@@ -36,23 +36,82 @@ const PROCESS_STEPS = [
 ];
 
 const ProductMgmt = () => {
+  const [products, setProducts] = useState([]);
   const [filterCategory, setFilterCategory] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [defectAction, setDefectAction] = useState("재작업");
 
-  // 생산 현황 데이터
+  // 1. 데이터 조회 (GET)
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:8111/api/production/product-mgmt",
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(data.sort((a, b) => b.id - a.id));
+      } else {
+        console.error("데이터 로딩 실패");
+      }
+    } catch (error) {
+      console.error("API 에러:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  // 2. 저장 로직 (PUT)
+  const handleSaveDefect = async () => {
+    if (!selectedProduct) return;
+
+    let newStatus = "FAIL"; // 기본값
+
+    if (defectAction === "정상 복구") {
+      newStatus = "PASS";
+    } else if (defectAction === "검사 대기") {
+      newStatus = "PENDING";
+    }
+
+    const updatedProduct = {
+      ...selectedProduct,
+      testStatus: newStatus,
+    };
+
+    try {
+      const response = await fetch(
+        `http://localhost:8111/api/production/product-mgmt/${selectedProduct.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedProduct),
+        },
+      );
+
+      if (response.ok) {
+        alert(`[${defectAction}] 처리가 완료되었습니다.`);
+        closeModal();
+        fetchProducts();
+      } else {
+        alert("저장 실패");
+      }
+    } catch (error) {
+      console.error("저장 중 에러", error);
+    }
+  };
+
   const productionData = {
     target: 200,
-    actual: 144,
+    actual: products.length,
   };
-  const achievementRate = (
-    (productionData.actual / productionData.target) *
-    100
-  ).toFixed(1);
+  const achievementRate =
+    productionData.target > 0
+      ? ((productionData.actual / productionData.target) * 100).toFixed(1)
+      : 0;
 
-  // 시간대별 생산 계획 vs 실적 데이터 (그래프)
   const hourlyData = [
     { time: "09:00", plan: 20, actual: 18 },
     { time: "10:00", plan: 40, actual: 38 },
@@ -67,63 +126,6 @@ const ProductMgmt = () => {
     { time: "19:00", plan: 200, actual: null },
   ];
 
-  const products = [
-    {
-      id: "DEV-001",
-      model: "Zoll X Series",
-      category: "Defibrillator/Monitor",
-      serial: "ZOLL-240101-A",
-      step: 2,
-      operator: "이태수",
-      testStatus: "PASS",
-    },
-    {
-      id: "DEV-002",
-      model: "Propaq M",
-      category: "Transport Monitor",
-      serial: "PRQ-240102-B",
-      step: 1,
-      operator: "이상미",
-      testStatus: "PENDING",
-    },
-    {
-      id: "DEV-003",
-      model: "Corpuls3",
-      category: "Modular Monitor",
-      serial: "CPLS-240103-C",
-      step: 5,
-      operator: "이재환",
-      testStatus: "FAIL",
-    },
-    {
-      id: "DEV-004",
-      model: "Zoll X Series",
-      category: "Defibrillator/Monitor",
-      serial: "ZOLL-240104-D",
-      step: 3,
-      operator: "이민아",
-      testStatus: "PASS",
-    },
-    {
-      id: "DEV-005",
-      model: "Corpuls3",
-      category: "Modular Monitor",
-      serial: "CPLS-240105-E",
-      step: 4,
-      operator: "이철수",
-      testStatus: "FAIL",
-    },
-    {
-      id: "DEV-006",
-      model: "Hamilton-T1",
-      category: "Transport Ventilator",
-      serial: "HMT-240106-F",
-      step: 2,
-      operator: "김경선",
-      testStatus: "PASS",
-    },
-  ];
-
   const filteredProducts = products.filter((p) => {
     const matchCategory =
       filterCategory === "All" || p.category === filterCategory;
@@ -135,6 +137,7 @@ const ProductMgmt = () => {
 
   const openModal = (product) => {
     setSelectedProduct(product);
+    setDefectAction("재작업");
     setIsModalOpen(true);
   };
   const closeModal = () => {
@@ -277,7 +280,6 @@ const ProductMgmt = () => {
                 }}
               />
               <Legend />
-              {/* 목표량 (Line) */}
               <Line
                 type="monotone"
                 dataKey="plan"
@@ -286,7 +288,6 @@ const ProductMgmt = () => {
                 strokeWidth={3}
                 dot={{ r: 4 }}
               />
-              {/* 실적 (Bar) */}
               <Bar
                 dataKey="actual"
                 name="실적(Actual)"
@@ -371,7 +372,7 @@ const ProductMgmt = () => {
                   onClick={() => openModal(product)}
                 >
                   <FaExclamationTriangle style={{ marginRight: "5px" }} />
-                  {isFail ? "불량 등록 필요" : "불량 등록"}
+                  {isFail ? "불량 처리 필요" : "불량 등록"}
                 </button>
               </div>
               <div
@@ -442,6 +443,18 @@ const ProductMgmt = () => {
             </div>
           );
         })}
+        {filteredProducts.length === 0 && (
+          <div
+            style={{
+              textAlign: "center",
+              gridColumn: "1 / -1",
+              padding: "40px",
+              color: "#888",
+            }}
+          >
+            데이터가 없습니다.
+          </div>
+        )}
       </div>
 
       {/* 3. 불량 관리 Modal */}
@@ -500,6 +513,10 @@ const ProductMgmt = () => {
                 value={defectAction}
                 onChange={(e) => setDefectAction(e.target.value)}
               >
+                <option value="정상 복구">✅ 정상으로 복구 (PASS)</option>
+                <option value="검사 대기">
+                  ⏳ 검사 진행중으로 복구 (PENDING)
+                </option>
                 <option value="폐기">폐기 (Scrap)</option>
                 <option value="재작업">재작업 (Rework)</option>
                 <option value="반품 승인">반품 승인 (Return)</option>
@@ -509,9 +526,11 @@ const ProductMgmt = () => {
               <textarea
                 rows="3"
                 placeholder={
-                  selectedProduct.testStatus === "FAIL"
-                    ? "부적합 사유를 상세히 입력하세요"
-                    : "불량 사유 입력..."
+                  defectAction === "정상 복구" || defectAction === "검사 대기"
+                    ? "상세 사유를 입력하세요 (예: 수리 완료, 재검사 요청 등)"
+                    : selectedProduct.testStatus === "FAIL"
+                      ? "부적합 사유를 입력하세요"
+                      : "불량 사유를 입력하세요"
                 }
                 style={styles.textarea}
               ></textarea>
@@ -520,13 +539,7 @@ const ProductMgmt = () => {
               <button onClick={closeModal} style={styles.cancelBtn}>
                 취소
               </button>
-              <button
-                onClick={() => {
-                  alert("저장되었습니다.");
-                  closeModal();
-                }}
-                style={styles.saveBtn}
-              >
+              <button onClick={handleSaveDefect} style={styles.saveBtn}>
                 저장하기
               </button>
             </div>
