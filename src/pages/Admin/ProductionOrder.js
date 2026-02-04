@@ -11,7 +11,16 @@ import {
   FaCheckDouble,
 } from "react-icons/fa";
 
-// 🎨 MedisOne 테마 컬러 (Blue & Clean)
+// 작성한 API 파일 임포트 (경로가 맞는지 확인해주세요)
+import {
+  getOrders,
+  createOrder,
+  updateOrder,
+  deleteOrder,
+  getProcesses,
+} from "../../api/productionApi";
+
+// 🎨 테마 컬러
 const THEME = {
   primary: "#8C85FF",
   secondary: "#6AD2FF",
@@ -25,180 +34,177 @@ const THEME = {
   danger: "#EE5D50",
 };
 
-// 1. 기간별 데이터 정의 (데이터가 다름을 보여주기 위함)
-const MOCK_DATA = {
-  Week: [
-    {
-      id: "PO-WK-001",
-      process: "Line-A (조립)",
-      product: "Zoll X Series (Main Unit)",
-      target: 200,
-      current: 145,
-      deadline: "2026-01-20",
-      worker: "김철수",
-      status: "Running",
-    },
-    {
-      id: "PO-WK-002",
-      process: "Line-B (가공)",
-      product: "Propaq M (Casing)",
-      target: 500,
-      current: 500,
-      deadline: "2026-01-18",
-      worker: "이영희",
-      status: "Done",
-    },
-    {
-      id: "PO-WK-003",
-      process: "Line-C (포장)",
-      product: "Power Adapter Set",
-      target: 1000,
-      current: 0,
-      deadline: "2026-01-22",
-      worker: "박지성",
-      status: "Waiting",
-    },
-  ],
-  Month: [
-    {
-      id: "PO-MO-101",
-      process: "Line-A (조립)",
-      product: "Corpuls3 (Monitor Module)",
-      target: 1500,
-      current: 450,
-      deadline: "2026-02-10",
-      worker: "정민수",
-      status: "Running",
-    },
-    {
-      id: "PO-MO-102",
-      process: "Line-D (검사)",
-      product: "LCD Panel 15 inch",
-      target: 3000,
-      current: 1200,
-      deadline: "2026-02-15",
-      worker: "한소희",
-      status: "Running",
-    },
-    {
-      id: "PO-MO-103",
-      process: "Line-B (가공)",
-      product: "Ventilator Valve",
-      target: 5000,
-      current: 5000,
-      deadline: "2026-01-10",
-      worker: "김철수",
-      status: "Done",
-    },
-    {
-      id: "PO-MO-104",
-      process: "Line-C (포장)",
-      product: "User Manual Pack",
-      target: 2000,
-      current: 0,
-      deadline: "2026-02-28",
-      worker: "최유리",
-      status: "Waiting",
-    },
-  ],
-  Quarter: [
-    {
-      id: "PO-QT-901",
-      process: "Line-A (조립)",
-      product: "Zoll X Series (Full Set)",
-      target: 5000,
-      current: 120,
-      deadline: "2026-03-31",
-      worker: "박준형",
-      status: "Running",
-    },
-    {
-      id: "PO-QT-902",
-      process: "Ext-1 (외주)",
-      product: "Lithium Battery Pack",
-      target: 10000,
-      current: 0,
-      deadline: "2026-04-15",
-      worker: "구매팀",
-      status: "Waiting",
-    },
-  ],
-};
-
 const ProductionOrder = () => {
   // --- 상태 관리 ---
-  const [viewPeriod, setViewPeriod] = useState("Week"); // Week | Month | Quarter
-  const [orders, setOrders] = useState(MOCK_DATA["Week"]);
+  const [viewPeriod, setViewPeriod] = useState("Week"); // "Week" | "Month"
+  const [orders, setOrders] = useState([]); // 전체 데이터
+  const [filteredList, setFilteredList] = useState([]); // 필터링된 데이터
   const [searchTerm, setSearchTerm] = useState("");
+  const [processes, setProcesses] = useState([]); // 공정 목록 (콤보박스용)
 
-  // 모달 관련
+  // 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [currentOrder, setCurrentOrder] = useState(null);
 
-  // 🔄 탭 변경 시 데이터 교체 (useEffect)
-  useEffect(() => {
-    setOrders(MOCK_DATA[viewPeriod]);
-  }, [viewPeriod]);
-
-  // 📊 통계 계산 (KPI용)
-  const totalCount = orders.length;
-  const runningCount = orders.filter((o) => o.status === "Running").length;
-  const doneCount = orders.filter((o) => o.status === "Done").length;
-  const waitingCount = orders.filter((o) => o.status === "Waiting").length;
-
-  // 🔍 필터링
-  const filteredOrders = orders.filter((order) => {
-    const matchSearch =
-      order.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.process.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.worker.includes(searchTerm);
-    return matchSearch;
+  // 입력 폼 상태 (DTO 구조에 맞춤)
+  const [currentOrder, setCurrentOrder] = useState({
+    id: null,
+    productId: 1, // 기본값 (추후 제품 선택 기능 추가 시 변경)
+    productProcessId: 1,
+    targetQty: 0,
+    deadline: "",
+    worker: "",
+    instruction: "",
+    requirements: "",
   });
+
+  // 1. 초기 데이터 로드 (작업지시 목록 + 공정 목록)
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      // Promise.all로 두 API 동시 호출
+      const [orderData, processData] = await Promise.all([
+        getOrders(),
+        getProcesses(),
+      ]);
+
+      console.log("불러온 주문 데이터:", orderData);
+      console.log("불러온 공정 데이터:", processData);
+
+      setOrders(orderData);
+      setProcesses(processData);
+    } catch (error) {
+      console.error("데이터 로드 중 오류 발생:", error);
+    }
+  };
+
+  // 2. 필터링 로직 (검색어 & 기간)
+  useEffect(() => {
+    filterOrders();
+  }, [orders, viewPeriod, searchTerm]);
+
+  const filterOrders = () => {
+    const today = new Date();
+    // 시간 부분 초기화 (날짜 비교 정확도를 위해)
+    today.setHours(0, 0, 0, 0);
+
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+
+    const result = orders.filter((order) => {
+      if (!order.deadline) return false;
+
+      const deadline = new Date(order.deadline);
+      deadline.setHours(0, 0, 0, 0);
+
+      // 1. 기간 필터
+      let isPeriodMatch = false;
+      if (viewPeriod === "Week") {
+        // 오늘 ~ 7일 후
+        isPeriodMatch = deadline >= today && deadline <= nextWeek;
+      } else {
+        // Month: 같은 연도, 같은 달
+        isPeriodMatch =
+          deadline.getMonth() === today.getMonth() &&
+          deadline.getFullYear() === today.getFullYear();
+      }
+
+      // 2. 검색어 필터 (Null Check 포함)
+      const term = searchTerm.toLowerCase();
+      const isSearchMatch =
+        (order.code && order.code.toLowerCase().includes(term)) ||
+        (order.productName && order.productName.toLowerCase().includes(term)) ||
+        (order.processName && order.processName.toLowerCase().includes(term)) ||
+        (order.worker && order.worker.toLowerCase().includes(term));
+
+      return isPeriodMatch && isSearchMatch;
+    });
+
+    setFilteredList(result);
+  };
+
+  // --- KPI 계산 ---
+  const totalCount = orders.length;
+  const runningCount = orders.filter((o) => o.status === "IN_PROGRESS").length;
+  const doneCount = orders.filter((o) => o.status === "COMPLETED").length;
 
   // --- 핸들러 ---
   const handleAddNew = () => {
-    const newId = `PO-NEW-${Math.floor(Math.random() * 1000)}`;
     setCurrentOrder({
-      id: newId,
-      process: "Line-A (조립)",
-      product: "",
-      target: 0,
-      current: 0,
-      deadline: "",
+      id: null,
+      productId: 1, // 임시 고정
+      productProcessId: processes.length > 0 ? processes[0].id : 1,
+      targetQty: 0,
+      deadline: new Date().toISOString().slice(0, 10), // 오늘 날짜
       worker: "",
-      status: "Waiting",
+      instruction: "",
+      requirements: "",
     });
     setIsEditMode(false);
     setIsModalOpen(true);
   };
 
   const handleEdit = (order) => {
-    setCurrentOrder({ ...order });
+    // 수정 시 기존 데이터를 폼에 채워넣기
+    setCurrentOrder({
+      id: order.id,
+      productId: order.productId || 1,
+      productProcessId: order.productProcessId || 1,
+      targetQty: order.targetQty,
+      deadline: order.deadline,
+      worker: order.worker,
+      currentQty: order.currentQty, // 보여주기용 (수정불가)
+      instruction: order.instruction || "",
+      requirements: order.requirements || "",
+    });
     setIsEditMode(true);
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (!currentOrder.product || !currentOrder.target)
-      return alert("필수 정보를 입력하세요.");
-
-    let newOrders;
-    if (isEditMode) {
-      newOrders = orders.map((od) =>
-        od.id === currentOrder.id ? currentOrder : od,
-      );
-    } else {
-      newOrders = [currentOrder, ...orders];
+  const handleSave = async () => {
+    // 유효성 검사
+    if (
+      !currentOrder.worker ||
+      !currentOrder.targetQty ||
+      !currentOrder.deadline
+    ) {
+      return alert("필수 정보(담당자, 수량, 마감일)를 모두 입력해주세요.");
     }
-    setOrders(newOrders);
-    setIsModalOpen(false);
+
+    try {
+      if (isEditMode) {
+        // 수정 (PUT)
+        await updateOrder(currentOrder.id, currentOrder);
+        alert("성공적으로 수정되었습니다.");
+      } else {
+        // 등록 (POST)
+        await createOrder(currentOrder);
+        alert("새로운 작업 지시가 등록되었습니다.");
+      }
+      setIsModalOpen(false);
+      fetchData(); // 목록 새로고침
+    } catch (error) {
+      const msg = error.response?.data || "서버 오류가 발생했습니다.";
+      alert("저장 실패: " + msg);
+    }
   };
 
-  const handleDelete = () => {
-    if (window.confirm("정말 삭제하시겠습니까?")) {
-      setOrders(orders.filter((od) => od.id !== currentOrder.id));
-      setIsModalOpen(false);
+  const handleDelete = async () => {
+    if (
+      window.confirm("정말 이 지시를 삭제하시겠습니까? (되돌릴 수 없습니다)")
+    ) {
+      try {
+        await deleteOrder(currentOrder.id);
+        alert("삭제되었습니다.");
+        setIsModalOpen(false);
+        fetchData();
+      } catch (error) {
+        const msg = error.response?.data || "삭제 중 오류 발생";
+        alert("삭제 실패: " + msg);
+      }
     }
   };
 
@@ -209,18 +215,20 @@ const ProductionOrder = () => {
 
   return (
     <div style={styles.container}>
-      {/* 1. Header */}
+      {/* Header */}
       <div style={styles.header}>
         <div>
           <h2 style={styles.title}>생산 지시 관리</h2>
-          <p style={styles.subtitle}>기간별 생산 계획 수립 및 진척도 관리</p>
+          <p style={styles.subtitle}>
+            생산 계획 수립 및 실시간 진척도 관리 (Admin)
+          </p>
         </div>
         <button style={styles.addButton} onClick={handleAddNew}>
           <FaPlus /> 지시 등록
         </button>
       </div>
 
-      {/* 2. KPI Cards (요약 정보) */}
+      {/* KPI Cards */}
       <div style={styles.kpiContainer}>
         <KpiCard
           title="총 지시 건수"
@@ -242,27 +250,23 @@ const ProductionOrder = () => {
         />
       </div>
 
-      {/* 3. Toolbar (Tabs & Search) */}
+      {/* Toolbar */}
       <div style={styles.toolbar}>
         <div style={styles.tabContainer}>
-          {["Week", "Month", "Quarter"].map((tab) => (
+          {["Week", "Month"].map((tab) => (
             <button
               key={tab}
               style={viewPeriod === tab ? styles.tabActive : styles.tab}
               onClick={() => setViewPeriod(tab)}
             >
-              {tab === "Week"
-                ? "주간 일정"
-                : tab === "Month"
-                  ? "월간 일정"
-                  : "분기 계획"}
+              {tab === "Week" ? "주간 일정" : "월간 일정"}
             </button>
           ))}
         </div>
         <div style={styles.searchBox}>
           <FaSearch color={THEME.subText} />
           <input
-            placeholder="품목, 공정, 담당자 검색"
+            placeholder="지시코드, 품목, 담당자 검색"
             style={styles.searchInput}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -270,32 +274,45 @@ const ProductionOrder = () => {
         </div>
       </div>
 
-      {/* 4. Data List (Grid Layout) */}
+      {/* List Header */}
       <div style={styles.listHeader}>
-        <div style={{ width: "10%" }}>지시번호</div>
+        <div style={{ width: "12%" }}>지시코드</div>
         <div style={{ width: "15%" }}>공정</div>
-        <div style={{ width: "25%" }}>품목명</div>
+        <div style={{ width: "23%" }}>품목명</div>
         <div style={{ width: "20%" }}>진척률 (실적/목표)</div>
         <div style={{ width: "15%" }}>마감일</div>
         <div style={{ width: "10%", textAlign: "center" }}>상태</div>
         <div style={{ width: "5%" }}></div>
       </div>
 
+      {/* List Body */}
       <div style={styles.listBody}>
-        {filteredOrders.length > 0 ? (
-          filteredOrders.map((order) => {
-            const percent = Math.min(
-              Math.round((order.current / order.target) * 100),
-              100,
-            );
+        {filteredList.length > 0 ? (
+          filteredList.map((order) => {
+            // 진척률 계산 (0~100%)
+            const percent =
+              order.targetQty > 0
+                ? Math.min(
+                    Math.round((order.currentQty / order.targetQty) * 100),
+                    100,
+                  )
+                : 0;
+
             return (
               <div
                 key={order.id}
                 style={styles.cardRow}
                 onClick={() => handleEdit(order)}
               >
-                <div style={{ width: "10%", fontSize: "12px", color: "#888" }}>
-                  {order.id}
+                <div
+                  style={{
+                    width: "12%",
+                    fontSize: "12px",
+                    color: "#888",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {order.code}
                 </div>
                 <div
                   style={{
@@ -306,12 +323,13 @@ const ProductionOrder = () => {
                     alignItems: "center",
                   }}
                 >
-                  <FaIndustry color={THEME.subText} size={12} /> {order.process}
+                  <FaIndustry color={THEME.subText} size={12} />{" "}
+                  {order.processName || "공정 미정"}
                 </div>
                 <div
-                  style={{ width: "25%", fontWeight: "600", color: THEME.text }}
+                  style={{ width: "23%", fontWeight: "600", color: THEME.text }}
                 >
-                  {order.product}
+                  {order.productName || "제품 정보 없음"}
                 </div>
 
                 {/* Progress Bar */}
@@ -328,7 +346,7 @@ const ProductionOrder = () => {
                       {percent}%
                     </span>
                     <span style={{ color: "#aaa" }}>
-                      {order.current} / {order.target}
+                      {order.currentQty} / {order.targetQty}
                     </span>
                   </div>
                   <div style={styles.progressBg}>
@@ -361,83 +379,104 @@ const ProductionOrder = () => {
             );
           })
         ) : (
-          <div style={styles.emptyState}>데이터가 없습니다.</div>
+          <div style={styles.emptyState}>조건에 맞는 데이터가 없습니다.</div>
         )}
       </div>
 
-      {/* 5. Modal */}
-      {isModalOpen && currentOrder && (
+      {/* Modal */}
+      {isModalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h3>{isEditMode ? "생산 지시 수정" : "신규 생산 지시"}</h3>
-              <span style={{ fontSize: "12px", color: "#999" }}>
-                {currentOrder.id}
-              </span>
+              <h3>{isEditMode ? "생산 지시 수정" : "신규 생산 지시 등록"}</h3>
             </div>
             <div style={styles.modalBody}>
               <div style={styles.row}>
-                <InputGroup
-                  label="공정"
-                  value={currentOrder.process}
-                  name="process"
-                  onChange={handleInputChange}
-                />
-                <InputGroup
-                  label="담당자"
-                  value={currentOrder.worker}
-                  name="worker"
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div style={styles.row}>
-                <InputGroup
-                  label="품목명"
-                  value={currentOrder.product}
-                  name="product"
-                  onChange={handleInputChange}
-                  full
-                />
-              </div>
-              <div style={styles.row}>
-                <InputGroup
-                  label="목표 수량"
-                  value={currentOrder.target}
-                  name="target"
-                  type="number"
-                  onChange={handleInputChange}
-                />
-                <InputGroup
-                  label="현재 실적"
-                  value={currentOrder.current}
-                  name="current"
-                  type="number"
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div style={styles.row}>
-                <InputGroup
-                  label="마감일"
-                  value={currentOrder.deadline}
-                  name="deadline"
-                  type="date"
-                  onChange={handleInputChange}
-                />
-                <div style={{ flex: 1 }}>
-                  <label style={styles.label}>상태</label>
+                <InputGroup label="공정 선택">
                   <select
-                    name="status"
-                    value={currentOrder.status}
+                    name="productProcessId"
+                    value={currentOrder.productProcessId}
+                    onChange={handleInputChange}
+                    style={styles.select}
+                  >
+                    {processes.length > 0 ? (
+                      processes.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="1">기본 공정</option>
+                    )}
+                  </select>
+                </InputGroup>
+                <InputGroup label="담당자">
+                  <input
+                    name="worker"
+                    value={currentOrder.worker}
                     onChange={handleInputChange}
                     style={styles.input}
-                  >
-                    <option value="Waiting">Waiting</option>
-                    <option value="Running">Running</option>
-                    <option value="Done">Done</option>
-                  </select>
-                </div>
+                    placeholder="담당자 이름"
+                  />
+                </InputGroup>
               </div>
+
+              <div style={styles.row}>
+                <InputGroup label="제품 ID (임시)">
+                  <input
+                    type="number"
+                    name="productId"
+                    value={currentOrder.productId}
+                    onChange={handleInputChange}
+                    style={styles.input}
+                    readOnly={isEditMode} // 수정 시 제품 변경 불가 등 정책에 따라
+                  />
+                </InputGroup>
+                <InputGroup label="마감 기한">
+                  <input
+                    type="date"
+                    name="deadline"
+                    value={currentOrder.deadline}
+                    onChange={handleInputChange}
+                    style={styles.input}
+                  />
+                </InputGroup>
+              </div>
+
+              <div style={styles.row}>
+                <InputGroup label="목표 수량">
+                  <input
+                    type="number"
+                    name="targetQty"
+                    value={currentOrder.targetQty}
+                    onChange={handleInputChange}
+                    style={styles.input}
+                  />
+                </InputGroup>
+                <InputGroup label="현재 실적 (수정불가)">
+                  <input
+                    value={currentOrder.currentQty || 0}
+                    readOnly
+                    style={{
+                      ...styles.input,
+                      backgroundColor: "#f5f5f5",
+                      color: "#888",
+                    }}
+                  />
+                </InputGroup>
+              </div>
+
+              <InputGroup label="작업 지시 사항">
+                <textarea
+                  name="instruction"
+                  value={currentOrder.instruction}
+                  onChange={handleInputChange}
+                  style={styles.textarea}
+                  placeholder="작업자에게 전달할 구체적인 내용..."
+                />
+              </InputGroup>
             </div>
+
             <div style={styles.modalFooter}>
               {isEditMode ? (
                 <button style={styles.btnDelete} onClick={handleDelete}>
@@ -482,11 +521,12 @@ const KpiCard = ({ title, value, icon, color }) => (
 
 const StatusBadge = ({ status }) => {
   const map = {
-    Running: { color: THEME.secondary, bg: "#E3F2FD", text: "가동중" },
-    Waiting: { color: THEME.warning, bg: "#FFF8E1", text: "대기" },
-    Done: { color: THEME.success, bg: "#E8F5E9", text: "완료" },
+    IN_PROGRESS: { color: THEME.secondary, bg: "#E3F2FD", text: "가동중" },
+    WAIT: { color: THEME.warning, bg: "#FFF8E1", text: "대기" },
+    COMPLETED: { color: THEME.success, bg: "#E8F5E9", text: "완료" },
+    STOP: { color: THEME.danger, bg: "#FFEBEE", text: "중지" },
   };
-  const s = map[status] || map.Waiting;
+  const s = map[status] || map.WAIT;
   return (
     <span style={{ ...styles.badge, color: s.color, backgroundColor: s.bg }}>
       {s.text}
@@ -494,22 +534,17 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-const InputGroup = ({ label, name, value, onChange, type = "text", full }) => (
+const InputGroup = ({ label, children }) => (
   <div
     style={{
-      flex: full ? "100%" : 1,
+      flex: 1,
       display: "flex",
       flexDirection: "column",
+      marginBottom: "15px",
     }}
   >
     <label style={styles.label}>{label}</label>
-    <input
-      style={styles.input}
-      name={name}
-      value={value}
-      onChange={onChange}
-      type={type}
-    />
+    {children}
   </div>
 );
 
@@ -542,8 +577,6 @@ const styles = {
     gap: "8px",
     boxShadow: "0 4px 10px rgba(67, 24, 255, 0.3)",
   },
-
-  // KPI
   kpiContainer: { display: "flex", gap: "20px", marginBottom: "30px" },
   kpiCard: {
     flex: 1,
@@ -571,8 +604,6 @@ const styles = {
     fontWeight: "bold",
     color: THEME.text,
   },
-
-  // Toolbar
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
@@ -605,7 +636,6 @@ const styles = {
     borderRadius: "8px",
     boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
   },
-
   searchBox: {
     display: "flex",
     alignItems: "center",
@@ -622,8 +652,6 @@ const styles = {
     width: "100%",
     fontSize: "14px",
   },
-
-  // List
   listHeader: {
     display: "flex",
     padding: "0 25px",
@@ -674,8 +702,6 @@ const styles = {
     cursor: "pointer",
   },
   emptyState: { textAlign: "center", padding: "50px", color: THEME.subText },
-
-  // Modal
   modalOverlay: {
     position: "fixed",
     top: 0,
@@ -703,7 +729,7 @@ const styles = {
     borderBottom: `1px solid ${THEME.border}`,
     paddingBottom: "15px",
   },
-  modalBody: { display: "flex", flexDirection: "column", gap: "15px" },
+  modalBody: { display: "flex", flexDirection: "column" },
   row: { display: "flex", gap: "15px" },
   label: {
     fontSize: "13px",
@@ -718,10 +744,27 @@ const styles = {
     width: "100%",
     boxSizing: "border-box",
   },
+  select: {
+    padding: "10px",
+    borderRadius: "8px",
+    border: `1px solid ${THEME.border}`,
+    width: "100%",
+    boxSizing: "border-box",
+    backgroundColor: "#fff",
+  },
+  textarea: {
+    padding: "10px",
+    borderRadius: "8px",
+    border: `1px solid ${THEME.border}`,
+    width: "100%",
+    boxSizing: "border-box",
+    minHeight: "80px",
+    resize: "vertical",
+  },
   modalFooter: {
     display: "flex",
     justifyContent: "space-between",
-    marginTop: "30px",
+    marginTop: "20px",
   },
   btnSave: {
     backgroundColor: THEME.primary,
