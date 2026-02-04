@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-// ... (아이콘, 스타일 등 import 부분은 기존과 동일) ...
+import React, { useState, useEffect } from "react";
+// 아이콘 Import
 import {
   FaUsers,
   FaClock,
@@ -8,13 +8,26 @@ import {
   FaUserCircle,
   FaCog,
   FaEdit,
+  FaTimes, // 모달 닫기용
+  FaTrash, // 삭제용
+  FaPlus, // 추가용
 } from "react-icons/fa";
 
+// 공통 컴포넌트 및 스타일 Import
 import Table from "../../components/common/Table";
 import Button from "../../components/common/Button";
 import { Colors, CommonStyles } from "../../styles/GlobalStyle";
 
-// ... (DashboardStyles 스타일 정의 부분도 기존과 동일) ...
+// [첨부 2]에서 만든 API 함수 Import
+import {
+  getProcesses,
+  createProcess,
+  updateProcess,
+  deleteProcess,
+  getLineStatus,
+} from "../../api/productionApi";
+
+// --- 스타일 정의 (기존 스타일 유지 + 모달 스타일 추가) ---
 const DashboardStyles = {
   card: {
     backgroundColor: "#fff",
@@ -52,95 +65,113 @@ const DashboardStyles = {
     position: "relative",
     cursor: "pointer",
   }),
+  // 모달 관련 스타일 추가
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: "16px",
+    width: "500px",
+    padding: "30px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+  },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottom: "1px solid #eee",
+    paddingBottom: "15px",
+    marginBottom: "20px",
+  },
+  inputGroup: { marginBottom: "15px" },
+  label: {
+    display: "block",
+    marginBottom: "5px",
+    fontSize: "13px",
+    fontWeight: "bold",
+    color: "#555",
+  },
+  input: {
+    width: "100%",
+    padding: "10px",
+    borderRadius: "8px",
+    border: "1px solid #ddd",
+    boxSizing: "border-box",
+  },
+  modalFooter: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "10px",
+    marginTop: "20px",
+  },
 };
 
-const ProductionManagement = () => {
-  // ... (useState 데이터 부분은 기존과 동일) ...
-  const [lines, setLines] = useState([
-    {
-      id: "Line-A",
-      product: "27인치 패널",
-      worker: "김철수 (PL)",
-      personnel: 4,
-      target: 1000,
-      current: 950,
-      startTime: "08:30",
-      workTime: "7h 30m",
-      status: "RUN",
-      timeline: ["RUN", "RUN", "RUN", "STOP", "RUN", "RUN", "RUN", "RUN"],
-    },
-    {
-      id: "Line-B",
-      product: "메인보드",
-      worker: "이영희",
-      personnel: 3,
-      target: 2000,
-      current: 1200,
-      startTime: "09:00",
-      workTime: "6h 00m",
-      status: "RUN",
-      timeline: ["RUN", "RUN", "STOP", "STOP", "RUN", "RUN", "RUN", "RUN"],
-    },
-    {
-      id: "Line-C",
-      product: "케이스",
-      worker: "박민수",
-      personnel: 2,
-      target: 500,
-      current: 500,
-      startTime: "09:00",
-      workTime: "4h 00m",
-      status: "STOP",
-      timeline: ["RUN", "RUN", "RUN", "RUN", "STOP", "STOP", "STOP", "STOP"],
-    },
-    {
-      id: "Line-D",
-      product: "전원부",
-      worker: "최지훈",
-      personnel: 3,
-      target: 1500,
-      current: 400,
-      startTime: "08:30",
-      workTime: "3h 20m",
-      status: "ERR",
-      timeline: ["RUN", "RUN", "ERR", "ERR", "STOP", "STOP", "STOP", "STOP"],
-    },
-  ]);
+const ProcessMgmt = () => {
+  // 1. 데이터 상태 관리 (초기값 빈 배열로 설정하여 API 데이터 대기)
+  const [lines, setLines] = useState([]);
+  const [processes, setProcesses] = useState([]);
 
-  const [processes, setProcesses] = useState([
-    {
-      code: "L-01",
-      name: "Main Assembly Line A",
-      capa: "1,500 / day",
-      manager: "김반장",
-      status: "Active",
-    },
-    {
-      code: "L-02",
-      name: "Sub Assembly Line B",
-      capa: "1,000 / day",
-      manager: "이조장",
-      status: "Active",
-    },
-    {
-      code: "L-03",
-      name: "Packaging Line",
-      capa: "3,000 / day",
-      manager: "박포장",
-      status: "Maintenance",
-    },
-  ]);
+  // 2. 모달 관련 상태
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState("CREATE"); // "CREATE" or "EDIT"
+  const [currentProcess, setCurrentProcess] = useState(null); // 입력 폼 데이터
 
-  // ... (Helper 함수 부분 동일) ...
+  // 3. 데이터 로드 (마운트 시 실행)
+  useEffect(() => {
+    fetchProcessData(); // 공정 마스터 데이터 로드
+    fetchLineData(); // 라인 현황 데이터 로드
+
+    // 10초마다 라인 현황 자동 갱신 (실시간 모니터링 효과)
+    const interval = setInterval(fetchLineData, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // --- API 호출 함수 ---
+  const fetchProcessData = async () => {
+    try {
+      const data = await getProcesses();
+      setProcesses(data);
+    } catch (err) {
+      console.error("공정 목록 로드 실패:", err);
+    }
+  };
+
+  const fetchLineData = async () => {
+    try {
+      const data = await getLineStatus();
+      setLines(data);
+    } catch (err) {
+      console.error("라인 현황 로드 실패:", err);
+    }
+  };
+
+  // --- KPI 계산 (API에서 받아온 lines 데이터 기반 자동 계산) ---
   const totalPersonnel = lines.reduce((acc, cur) => acc + cur.personnel, 0);
-  const avgRate = Math.round(
-    lines.reduce((acc, cur) => acc + (cur.current / cur.target) * 100, 0) /
-      lines.length,
-  );
+
+  const avgRate =
+    lines.length > 0
+      ? Math.round(
+          lines.reduce((acc, cur) => {
+            const rate = cur.target > 0 ? (cur.current / cur.target) * 100 : 0;
+            return acc + rate;
+          }, 0) / lines.length,
+        )
+      : 0;
+
   const activeLines = lines.filter((l) => l.status === "RUN").length;
 
   const getPercentage = (current, target) =>
-    Math.round((current / target) * 100);
+    target > 0 ? Math.round((current / target) * 100) : 0;
 
   const getProgressColor = (percent) => {
     if (percent >= 95) return Colors.success;
@@ -151,28 +182,92 @@ const ProductionManagement = () => {
 
   const timeLabels = ["09", "10", "11", "12", "13", "14", "15", "16"];
 
+  // --- 핸들러 함수들 (모달 & CRUD) ---
+
+  // 신규 등록 모달 열기
+  const handleOpenCreate = () => {
+    setModalMode("CREATE");
+    setCurrentProcess({
+      code: "",
+      name: "",
+      capa: "",
+      manager: "",
+      status: "Active",
+    });
+    setIsModalOpen(true);
+  };
+
+  // 수정 모달 열기
+  const handleOpenEdit = (proc) => {
+    setModalMode("EDIT");
+    setCurrentProcess({ ...proc }); // 선택한 행의 데이터 복사
+    setIsModalOpen(true);
+  };
+
+  // 저장 (등록/수정)
+  const handleSaveProcess = async () => {
+    if (!currentProcess.code || !currentProcess.name) {
+      return alert("공정 코드와 공정명은 필수입니다.");
+    }
+
+    try {
+      if (modalMode === "CREATE") {
+        await createProcess(currentProcess);
+        alert("공정이 등록되었습니다.");
+      } else {
+        await updateProcess(currentProcess.id, currentProcess);
+        alert("공정이 수정되었습니다.");
+      }
+      setIsModalOpen(false);
+      fetchProcessData(); // 목록 갱신
+    } catch (err) {
+      alert(
+        "저장 실패: " + (err.response?.data?.message || "오류가 발생했습니다."),
+      );
+    }
+  };
+
+  // 삭제
+  const handleDeleteProcess = async () => {
+    if (!window.confirm("정말 이 공정을 삭제하시겠습니까?")) return;
+    try {
+      await deleteProcess(currentProcess.id);
+      alert("삭제되었습니다.");
+      setIsModalOpen(false);
+      fetchProcessData(); // 목록 갱신
+    } catch (err) {
+      alert(
+        "삭제 실패: " + (err.response?.data?.message || "오류가 발생했습니다."),
+      );
+    }
+  };
+
   return (
     <div style={{ ...CommonStyles.pageContainer, backgroundColor: "#F8F9FE" }}>
-      {/* ... (Header 부분 동일) ... */}
+      {/* Header */}
       <div style={CommonStyles.flexBetween}>
         <div>
           <h2 style={{ marginBottom: "5px", color: "#2c3e50" }}>
             🏭 통합 공정 관리
           </h2>
           <p
-            style={{ color: "#7f8c8d", fontSize: "14px", marginBottom: "30px" }}
+            style={{
+              color: "#7f8c8d",
+              fontSize: "14px",
+              marginBottom: "30px",
+            }}
           >
             실시간 가동 현황 모니터링 및 공정 기준 정보 관리
           </p>
         </div>
         <div style={{ textAlign: "right" }}>
           <span style={{ fontSize: "12px", color: "#999" }}>
-            Last updated: 10:42 AM
+            Last updated: {new Date().toLocaleTimeString()}
           </span>
         </div>
       </div>
 
-      {/* ... (KPI Cards 부분 동일) ... */}
+      {/* KPI Cards (DB 데이터 연동됨) */}
       <div
         style={{
           display: "grid",
@@ -181,7 +276,6 @@ const ProductionManagement = () => {
           marginBottom: "30px",
         }}
       >
-        {/* ... (KPI 1 ~ 4 내용 생략, 기존 코드 그대로 사용) ... */}
         <div style={DashboardStyles.card}>
           <div style={CommonStyles.flexBetween}>
             <div>
@@ -229,21 +323,19 @@ const ProductionManagement = () => {
             <span style={{ color: "#8898aa", fontSize: "14px" }}>
               설비/품질 이슈
             </span>
-            <h3 style={{ fontSize: "24px", margin: "5px 0" }}>1건</h3>
+            <h3 style={{ fontSize: "24px", margin: "5px 0" }}>0건</h3>
           </div>
         </div>
       </div>
 
-      {/* ─────────────────────────────────────────────
-          SECTION 2: Line Monitoring Table (★ 여기 수정됨 ★)
-      ───────────────────────────────────────────── */}
+      {/* SECTION 2: Line Monitoring Table (DB 데이터 연동됨) */}
       <div style={DashboardStyles.card}>
         <div style={{ ...CommonStyles.flexBetween, marginBottom: "20px" }}>
           <h3 style={{ fontSize: "18px", fontWeight: "bold", color: "#333" }}>
             📈 라인별 실시간 가동 현황
           </h3>
           <div style={{ display: "flex", gap: "10px" }}>
-            {/* ... (범례 부분 동일) ... */}
+            {/* 범례 */}
             <div
               style={{
                 display: "flex",
@@ -298,19 +390,17 @@ const ProductionManagement = () => {
           </div>
         </div>
 
-        {/* ▼▼▼ [수정 포인트] 헤더 배열 수정 ▼▼▼ */}
         <Table
           headers={[
-            "", // 1. 첫 번째 칸 비움 (ID용)
-            "라인명", // 2. 여기부터 한 칸씩 밀림
-            "책임자 (인원)",
+            "",
+            "라인명",
+            "책임자",
             "작업 시간",
             "타임테이블 (09~17)",
             "진행률 (목표/현재)",
             "상태",
           ]}
           data={lines.map((line) => ({
-            // 1. 첫 번째 열: ID (Line-A 등)
             id: (
               <div
                 style={{ fontWeight: "bold", fontSize: "14px", color: "#555" }}
@@ -318,7 +408,6 @@ const ProductionManagement = () => {
                 {line.id}
               </div>
             ),
-            // 2. 두 번째 열: 상세 라인 정보
             lineInfo: (
               <div>
                 <div style={{ fontWeight: "bold", fontSize: "14px" }}>
@@ -363,25 +452,14 @@ const ProductionManagement = () => {
                     marginBottom: "4px",
                   }}
                 >
-                  {line.timeline.map((status, idx) => (
-                    <div
-                      key={idx}
-                      style={DashboardStyles.timeBlock(status)}
-                      title={`${timeLabels[idx]}:00 - ${status}`}
-                    ></div>
-                  ))}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "10px",
-                    color: "#aaa",
-                  }}
-                >
-                  <span>09</span>
-                  <span>12</span>
-                  <span>17</span>
+                  {line.timeline &&
+                    line.timeline.map((status, idx) => (
+                      <div
+                        key={idx}
+                        style={DashboardStyles.timeBlock(status)}
+                        title={`${timeLabels[idx]}:00 - ${status}`}
+                      ></div>
+                    ))}
                 </div>
               </div>
             ),
@@ -469,7 +547,7 @@ const ProductionManagement = () => {
         />
       </div>
 
-      {/* ... (SECTION 3: Process Master Management 기존과 동일) ... */}
+      {/* SECTION 3: Process Master Management (DB 연동됨) */}
       <div style={DashboardStyles.card}>
         <div style={{ ...CommonStyles.flexBetween, marginBottom: "20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -494,14 +572,16 @@ const ProductionManagement = () => {
               공정 마스터 관리
             </h3>
           </div>
-          <Button color={Colors.primary}>+ 공정 추가</Button>
+          <Button color={Colors.primary} onClick={handleOpenCreate}>
+            <FaPlus style={{ marginRight: "5px" }} /> 공정 추가
+          </Button>
         </div>
 
         <Table
           headers={[
             "공정 코드",
             "공정명",
-            "일일 생산능력(Capa)",
+            "생산능력(Capa)",
             "담당자",
             "상태",
             "관리",
@@ -513,12 +593,12 @@ const ProductionManagement = () => {
               </span>
             ),
             name: p.name,
-            capa: p.capa,
+            capa: p.capa || "-",
             manager: (
               <div
                 style={{ display: "flex", alignItems: "center", gap: "5px" }}
               >
-                <FaUserCircle color="#ccc" /> {p.manager}
+                <FaUserCircle color="#ccc" /> {p.manager || "-"}
               </div>
             ),
             status: (
@@ -540,6 +620,7 @@ const ProductionManagement = () => {
               <Button
                 color={Colors.secondary}
                 style={{ padding: "6px 10px", fontSize: "12px", color: "#333" }}
+                onClick={() => handleOpenEdit(p)}
               >
                 <FaEdit style={{ marginRight: "4px" }} /> 수정
               </Button>
@@ -547,8 +628,136 @@ const ProductionManagement = () => {
           }))}
         />
       </div>
+
+      {/* === [Modal] 공정 추가/수정 (통합 구현) === */}
+      {isModalOpen && currentProcess && (
+        <div style={DashboardStyles.modalOverlay}>
+          <div style={DashboardStyles.modalContent}>
+            <div style={DashboardStyles.modalHeader}>
+              <h3>
+                {modalMode === "CREATE"
+                  ? "🛠️ 신규 공정 등록"
+                  : "🔧 공정 정보 수정"}
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "18px",
+                  cursor: "pointer",
+                }}
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            {/* 모달 Body */}
+            <div>
+              <div style={DashboardStyles.inputGroup}>
+                <label style={DashboardStyles.label}>공정 코드</label>
+                <input
+                  style={DashboardStyles.input}
+                  value={currentProcess.code}
+                  onChange={(e) =>
+                    setCurrentProcess({
+                      ...currentProcess,
+                      code: e.target.value,
+                    })
+                  }
+                  readOnly={modalMode === "EDIT"} // 수정 시 코드 변경 불가
+                  placeholder="예: PA-1"
+                />
+              </div>
+              <div style={DashboardStyles.inputGroup}>
+                <label style={DashboardStyles.label}>공정명</label>
+                <input
+                  style={DashboardStyles.input}
+                  value={currentProcess.name}
+                  onChange={(e) =>
+                    setCurrentProcess({
+                      ...currentProcess,
+                      name: e.target.value,
+                    })
+                  }
+                  placeholder="예: Surface Prep"
+                />
+              </div>
+              <div style={{ display: "flex", gap: "15px" }}>
+                <div style={{ ...DashboardStyles.inputGroup, flex: 1 }}>
+                  <label style={DashboardStyles.label}>생산 능력 (Capa)</label>
+                  <input
+                    style={DashboardStyles.input}
+                    value={currentProcess.capa}
+                    onChange={(e) =>
+                      setCurrentProcess({
+                        ...currentProcess,
+                        capa: e.target.value,
+                      })
+                    }
+                    placeholder="예: 1000 / day"
+                  />
+                </div>
+                <div style={{ ...DashboardStyles.inputGroup, flex: 1 }}>
+                  <label style={DashboardStyles.label}>담당자</label>
+                  <input
+                    style={DashboardStyles.input}
+                    value={currentProcess.manager}
+                    onChange={(e) =>
+                      setCurrentProcess({
+                        ...currentProcess,
+                        manager: e.target.value,
+                      })
+                    }
+                    placeholder="이름 입력"
+                  />
+                </div>
+              </div>
+              <div style={DashboardStyles.inputGroup}>
+                <label style={DashboardStyles.label}>상태</label>
+                <select
+                  style={DashboardStyles.input}
+                  value={currentProcess.status}
+                  onChange={(e) =>
+                    setCurrentProcess({
+                      ...currentProcess,
+                      status: e.target.value,
+                    })
+                  }
+                >
+                  <option value="Active">Active (사용)</option>
+                  <option value="Inactive">Inactive (중지)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 모달 Footer */}
+            <div style={DashboardStyles.modalFooter}>
+              {modalMode === "EDIT" && (
+                <Button
+                  color={Colors.danger}
+                  onClick={handleDeleteProcess}
+                  style={{ marginRight: "auto" }}
+                >
+                  <FaTrash style={{ marginRight: "5px" }} /> 삭제
+                </Button>
+              )}
+              <Button
+                color="#eee"
+                style={{ color: "#333" }}
+                onClick={() => setIsModalOpen(false)}
+              >
+                취소
+              </Button>
+              <Button color={Colors.primary} onClick={handleSaveProcess}>
+                저장
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default ProductionManagement;
+export default ProcessMgmt;

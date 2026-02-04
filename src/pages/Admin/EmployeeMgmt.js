@@ -8,8 +8,13 @@ import {
   FaEdit,
   FaPhoneAlt,
 } from "react-icons/fa";
-import { getEmployees, createEmployee } from "../../api/adminApi"; // API 함수 import
 import { MdCheckBox, MdCheckBoxOutlineBlank } from "react-icons/md";
+import {
+  getEmployees,
+  createEmployee,
+  updateEmployee,
+  resignEmployee,
+} from "../../api/adminApi";
 
 // 🎨 테마 컬러
 const COLORS = {
@@ -23,7 +28,7 @@ const COLORS = {
   bg: "#F5F6FA",
 };
 
-// --- [상수 정의] 백엔드 Enum과 매칭 ---
+// --- [상수 정의] ---
 const DEPARTMENTS = [
   { value: "PRD1", label: "생산1팀" },
   { value: "PRD2", label: "생산2팀" },
@@ -53,162 +58,150 @@ const LINES = [
   { value: "OFFICE", label: "사무실 (생산 외)" },
 ];
 
+// 헬퍼 함수
+const getDeptLabel = (code) =>
+  DEPARTMENTS.find((d) => d.value === code)?.label || code;
+const getRankLabel = (code) =>
+  POSITIONS.find((p) => p.value === code)?.label || code;
+const getLineLabel = (code) =>
+  LINES.find((l) => l.value === code)?.label || code;
+
 const EmployeeMgmt = () => {
   const [employees, setEmployees] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
 
   // 모달 상태
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentEmp, setCurrentEmp] = useState(null);
-  const [isEditMode, setIsEditMode] = useState(false);
 
-  // [추가] 데이터 로드 함수
+  // [1. 데이터 로드] 백엔드 데이터를 프론트엔드 변수명으로 매핑
   const fetchEmployees = async () => {
     try {
       const data = await getEmployees();
-      // 백엔드 DTO -> 프론트엔드 테이블 포맷 매핑
       const mappedData = data.map((emp) => ({
         id: emp.employeeNumber,
-        realId: emp.id, // 실제 DB ID (수정/삭제용)
+        realId: emp.employeeNumber,
         name: emp.name,
         email: emp.email,
-        dept: emp.department, // "PRD1" 등 코드로 옴
-        rank: emp.position, // "STAFF" 등 코드로 옴
         phone: emp.phone,
-        status: emp.status,
-        permissions: [], // 백엔드에서 아직 안 옴 (추후 구현)
-        processes: emp.processes, // 백엔드에서 아직 안 옴 (추후 구현)
+
+        // ★ 핵심: 백엔드(Dto) -> 프론트(State) 변수명 통일 및 기본값 설정
+        // 백엔드에서 null이 와도 화면에는 기본값을 보여줌
+        dept: emp.department || "PRD1",
+        rank: emp.position || "STAFF",
+        line: emp.processes || "OFFICE",
+
+        status: emp.status || "Active",
+        permissions: [],
         joinDate: emp.joinDate,
       }));
       setEmployees(mappedData);
     } catch (error) {
-      console.error("사원 목록 불러오기 실패:", error);
-      // alert("데이터 로드 실패"); // 필요 시 주석 해제
+      console.error("사원 목록 로드 실패:", error);
     }
   };
 
-  // 마운트 시 데이터 조회
   useEffect(() => {
     fetchEmployees();
   }, []);
 
   // --- 핸들러 ---
-
-  // 검색 필터링
-  const filteredData = employees.filter((emp) => {
-    const term = searchTerm.toLowerCase();
-    // 화면에 보여줄 땐 한글 라벨로 변환해서 검색해도 됨 (여기선 단순 코드 검색)
-    return (
-      (emp.name && emp.name.toLowerCase().includes(term)) ||
-      (emp.id && emp.id.toLowerCase().includes(term))
-    );
-  });
-
-  // 체크박스 선택
   const toggleSelect = (id) => {
-    if (selectedIds.includes(id)) {
-      setSelectedIds(selectedIds.filter((sid) => sid !== id));
-    } else {
-      setSelectedIds([...selectedIds, id]);
-    }
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id],
+    );
   };
 
-  // 2. [신규 등록] 초기값 설정
+  // [2. 신규 등록 초기화] 프론트엔드 변수명(dept, rank, line)으로 초기화
   const handleAddNew = () => {
     const newId = `E2600${employees.length + 1}`;
     setCurrentEmp({
-      employeeNumber: newId, // 백엔드 DTO 필드명 (employeeNumber)
-      password: "medis1!", // 초기 비밀번호 설정 필요
+      employeeNumber: newId,
+      password: "medis1!",
       name: "",
       email: "",
-      dept: "", // Enum 값과 일치시켜야 함 (예: PRODUCTION, QUALITY 등)
       phone: "",
-      // 프론트 전용 필드 (UI용)
-      rank: "",
-      line: "",
-      status: "",
+
+      // ★ 여기가 중요: SelectGroup의 name 속성과 똑같이 맞춰야 함
+      dept: "PRD1",
+      rank: "STAFF",
+      line: "A-18",
+
+      status: "Active",
       permissions: [],
       joinDate: new Date().toISOString().slice(0, 10),
     });
-    setIsEditMode(false);
-    setIsModalOpen(true);
+    setIsAddModalOpen(true);
   };
 
-  // 수정 모달 열기
+  // [3. 수정 모달 열기] 리스트에 있는 데이터를 그대로 사용
   const openEditModal = (emp) => {
-    setCurrentEmp({
-      ...emp,
-      employeeNumber: emp.id, // 리스트의 id가 사번이므로
-      dept: emp.dept, // 리스트의 dept가 department 코드
-      position: emp.rank,
-      processes: emp.processes,
-    });
-    setIsEditMode(true);
-    setIsModalOpen(true);
+    // fetchEmployees에서 이미 dept, rank, line으로 매핑해두었으므로 그대로 복사
+    setCurrentEmp({ ...emp });
+    setIsEditModalOpen(true);
   };
 
-  // 3. [저장] 백엔드 전송 (핵심 수정 부분)
-  const handleSave = async () => {
-    if (!currentEmp.name || !currentEmp.employeeNumber) {
-      return alert("이름과 부서는 필수입니다.");
-    }
-    try {
-      if (isEditMode) {
-        setEmployees(
-          employees.map((emp) => (emp.id === currentEmp.id ? currentEmp : emp)),
-        );
-      } else {
-        // ★ [핵심] 프론트엔드 State -> 백엔드 DTO 매핑
-        // 백엔드 SignUpReqDto 형태에 맞춰 데이터 가공
-        console.log("부서: ", currentEmp.line);
-        const payload = {
-          employeeNumber: currentEmp.employeeNumber,
-          password: currentEmp.password,
-          name: currentEmp.name,
-          email: currentEmp.email,
-          phone: currentEmp.phone,
-          department: currentEmp.dept,
-          position: currentEmp.rank,
-          assignedLine: currentEmp.line,
-        };
+  // [4. 저장 로직] 프론트(State) -> 백엔드(Payload) 변환 전송
+  const handleSave = async (isEdit) => {
+    if (!currentEmp.name) return alert("이름은 필수입니다.");
 
+    // ★ Payload 구성: 여기서 백엔드가 원하는 이름으로 변환합니다.
+    const payload = {
+      employeeNumber: currentEmp.employeeNumber,
+      password: currentEmp.password,
+      name: currentEmp.name,
+      email: currentEmp.email,
+      phone: currentEmp.phone,
+
+      // ▼▼▼ 여기가 문제 해결의 핵심입니다 ▼▼▼
+      department: currentEmp.dept, // state.dept -> dto.department
+      position: currentEmp.rank, // state.rank -> dto.position (직급 수정 반영)
+      processes: currentEmp.line, // state.line -> dto.processes (공정 수정 반영)
+      // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+      status: currentEmp.status,
+      permissions: currentEmp.permissions,
+    };
+
+    console.log("서버로 전송되는 데이터:", payload); // F12 콘솔에서 확인 가능
+
+    try {
+      if (isEdit) {
+        await updateEmployee(currentEmp.realId, payload);
+        alert("수정되었습니다.");
+      } else {
         await createEmployee(payload);
-        alert("사원이 성공적으로 등록되었습니다.");
+        alert("등록되었습니다.");
       }
-      // 모달 닫기 및 목록 갱신
-      setIsModalOpen(false);
+
+      setIsAddModalOpen(false);
+      setIsEditModalOpen(false);
       fetchEmployees(); // 목록 갱신
     } catch (error) {
       console.error("저장 실패:", error);
-      const msg = error.response?.data?.message || "알 수 없는 오류";
-      alert(`저장 실패: ${msg}`);
-    }
-  };
-
-  // 4. [퇴사] 퇴사 처리
-  const handleResign = () => {
-    if (
-      window.confirm(
-        `${currentEmp.name} 님을 퇴사 처리 하시겠습니까?\n모든 권한이 회수됩니다.`,
-      )
-    ) {
-      const resignedEmp = {
-        ...currentEmp,
-        status: "Resigned",
-        permissions: [],
-        processes: [],
-      };
-      setEmployees(
-        employees.map((emp) => (emp.id === resignedEmp.id ? resignedEmp : emp)),
-      );
-      setIsModalOpen(false);
+      alert("저장 중 오류가 발생했습니다.");
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setCurrentEmp({ ...currentEmp, [name]: value });
+    // 기존 값을 유지하면서 변경된 값만 업데이트
+    setCurrentEmp((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleResign = async () => {
+    if (window.confirm(`${currentEmp.name}님을 퇴사 처리하시겠습니까?`)) {
+      try {
+        await resignEmployee(currentEmp.realId);
+        alert("퇴사 처리되었습니다.");
+        setIsEditModalOpen(false);
+        fetchEmployees();
+      } catch (error) {
+        alert("오류 발생");
+      }
+    }
   };
 
   const togglePermission = (perm) => {
@@ -216,15 +209,16 @@ const EmployeeMgmt = () => {
     const newPerms = hasPerm
       ? currentEmp.permissions.filter((p) => p !== perm)
       : [...currentEmp.permissions, perm];
-    setCurrentEmp({ ...currentEmp, permissions: newPerms });
+    setCurrentEmp((prev) => ({ ...prev, permissions: newPerms }));
   };
 
-  const getDeptLabel = (code) =>
-    DEPARTMENTS.find((d) => d.value === code)?.label || code;
-  const getRankLabel = (code) =>
-    POSITIONS.find((p) => p.value === code)?.label || code;
-  const getLineLabel = (code) =>
-    LINES.find((l) => l.value === code)?.label || code;
+  const filteredData = employees.filter((emp) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (emp.name && emp.name.toLowerCase().includes(term)) ||
+      (emp.id && emp.id.toLowerCase().includes(term))
+    );
+  });
 
   return (
     <div style={styles.container}>
@@ -288,14 +282,12 @@ const EmployeeMgmt = () => {
           </div>
         </div>
 
-        {/* Data Rows */}
         {filteredData.map((emp) => (
           <div
             key={emp.id}
             style={styles.rowData}
             onClick={() => openEditModal(emp)}
           >
-            {/* Checkbox */}
             <div
               style={{ ...styles.cell, width: "5%" }}
               onClick={(e) => e.stopPropagation()}
@@ -311,7 +303,6 @@ const EmployeeMgmt = () => {
                 )}
               </div>
             </div>
-            {/* 사번 */}
             <div
               style={{
                 ...styles.cell,
@@ -322,7 +313,6 @@ const EmployeeMgmt = () => {
             >
               #{emp.id}
             </div>
-            {/* 프로필 */}
             <div style={{ ...styles.cell, width: "25%", gap: "10px" }}>
               <div style={styles.avatar}>
                 <FaUserCircle size={36} color="#ddd" />
@@ -337,13 +327,12 @@ const EmployeeMgmt = () => {
                     fontSize: "12px",
                     color: "#999",
                   }}
-                  title={emp.email}
                 >
                   {emp.email || "-"}
                 </div>
               </div>
             </div>
-            {/* 부서/직급 (변환된 라벨 표시) */}
+
             <div
               style={{
                 ...styles.cell,
@@ -361,7 +350,7 @@ const EmployeeMgmt = () => {
                 {getRankLabel(emp.rank)}
               </div>
             </div>
-            {/* 연락처/입사일 */}
+
             <div
               style={{
                 ...styles.cell,
@@ -384,7 +373,6 @@ const EmployeeMgmt = () => {
                 {emp.joinDate}
               </div>
             </div>
-            {/* 상태 */}
             <div
               style={{ ...styles.cell, width: "10%", justifyContent: "center" }}
             >
@@ -398,7 +386,7 @@ const EmployeeMgmt = () => {
                 {emp.status === "Active" ? "재직중" : "퇴사"}
               </span>
             </div>
-            {/* 담당 라인 (변환된 라벨 표시) */}
+
             <div
               style={{
                 ...styles.cell,
@@ -409,186 +397,250 @@ const EmployeeMgmt = () => {
             >
               {getLineLabel(emp.line)}
             </div>
-            {/* 관리 */}
             <div
               style={{
                 ...styles.cell,
                 width: "5%",
                 justifyContent: "flex-end",
               }}
-              onClick={(e) => e.stopPropagation()}
             >
-              <button style={styles.iconButton}>
-                <FaEllipsisH color="#999" />
-              </button>
+              <FaEllipsisH color="#999" />
             </div>
           </div>
         ))}
       </div>
 
-      {/* Modal */}
-      {isModalOpen && currentEmp && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <div style={styles.modalHeader}>
-              <h3>{isEditMode ? "👤 사원 정보 수정" : "➕ 신규 사원 등록"}</h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                style={styles.closeButton}
-              >
-                X
-              </button>
-            </div>
-            <div style={styles.modalBody}>
-              <div style={styles.sectionTitle}>기본 정보</div>
-              <div style={styles.formGrid}>
-                {/* ID: 수정 모드일 때 readOnly 적용 */}
-                <InputGroup
-                  label="사번 (ID)"
-                  name="id"
-                  value={currentEmp.id}
-                  onChange={handleInputChange}
-                  readOnly={isEditMode}
-                />
-                <InputGroup
-                  label="이름"
-                  name="name"
-                  value={currentEmp.name}
-                  onChange={handleInputChange}
-                />
-                <InputGroup
-                  label="이메일"
-                  name="email"
-                  value={currentEmp.email}
-                  onChange={handleInputChange}
-                />
-                <InputGroup
-                  label="연락처"
-                  name="phone"
-                  value={currentEmp.phone}
-                  onChange={handleInputChange}
-                />
-
-                {/* [수정됨] 부서 선택 (Select) */}
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <label style={styles.label}>부서</label>
-                  <select
-                    name="dept"
-                    value={currentEmp.dept}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                  >
-                    {DEPARTMENTS.map((dept) => (
-                      <option key={dept.value} value={dept.value}>
-                        {dept.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* [수정됨] 직급 선택 (Select) */}
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <label style={styles.label}>직급</label>
-                  <select
-                    name="rank"
-                    value={currentEmp.rank}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                  >
-                    {POSITIONS.map((pos) => (
-                      <option key={pos.value} value={pos.value}>
-                        {pos.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* [수정됨] 담당 라인 선택 (Select) */}
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <label style={styles.label}>담당 라인 (Process)</label>
-                  <select
-                    name="line"
-                    value={currentEmp.line}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                  >
-                    {LINES.map((ln) => (
-                      <option key={ln.value} value={ln.value}>
-                        {ln.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <label style={styles.label}>입사일</label>
-                  <input
-                    type="date"
-                    name="joinDate"
-                    value={currentEmp.joinDate}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                  />
-                </div>
-              </div>
-
-              {/* 페이지 접근 권한 (기존 유지) */}
-              <div style={styles.sectionTitle}>페이지 접근 권한</div>
-              <div style={styles.permGrid}>
-                {[
-                  "dashboard",
-                  "production",
-                  "quality",
-                  "material",
-                  "admin",
-                ].map((perm) => (
-                  <label key={perm} style={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={currentEmp.permissions.includes(perm)}
-                      onChange={() => togglePermission(perm)}
-                      disabled={currentEmp.status === "Resigned"}
-                    />
-                    {perm.toUpperCase()}
-                  </label>
-                ))}
-              </div>
-
-              <div style={styles.modalFooter}>
-                {isEditMode && currentEmp.status === "Active" ? (
-                  <button style={styles.resignButton} onClick={handleResign}>
-                    <FaTrashAlt style={{ marginRight: "5px" }} /> 퇴사 처리
-                  </button>
-                ) : (
-                  <div></div>
-                )}
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button
-                    style={styles.cancelButton}
-                    onClick={() => setIsModalOpen(false)}
-                  >
-                    취소
-                  </button>
-                  <button style={styles.saveButton} onClick={handleSave}>
-                    <FaEdit style={{ marginRight: "5px" }} /> 저장
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {isAddModalOpen && currentEmp && (
+        <AddEmployeeModal
+          currentEmp={currentEmp}
+          onClose={() => setIsAddModalOpen(false)}
+          onSave={() => handleSave(false)}
+          onChange={handleInputChange}
+        />
+      )}
+      {isEditModalOpen && currentEmp && (
+        <EditEmployeeModal
+          currentEmp={currentEmp}
+          onClose={() => setIsEditModalOpen(false)}
+          onSave={() => handleSave(true)}
+          onChange={handleInputChange}
+          onResign={handleResign}
+          togglePermission={togglePermission}
+        />
       )}
     </div>
   );
 };
 
-// [수정됨] readOnly 속성 지원 및 스타일 적용
+// --- [모달] Input name을 state key (dept, rank, line)와 반드시 일치시켜야 함 ---
+const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
+  <div style={styles.modalOverlay}>
+    <div style={styles.modalContent}>
+      <div style={styles.modalHeader}>
+        <h3>➕ 신규 사원 등록</h3>
+        <button onClick={onClose} style={styles.closeButton}>
+          X
+        </button>
+      </div>
+      <div style={styles.modalBody}>
+        <div style={styles.sectionTitle}>계정 정보</div>
+        <div style={styles.formGrid}>
+          <InputGroup
+            label="사번 (자동생성)"
+            name="employeeNumber"
+            value={currentEmp.employeeNumber}
+            readOnly
+          />
+          <InputGroup
+            label="초기 비밀번호"
+            name="password"
+            value={currentEmp.password}
+            onChange={onChange}
+          />
+        </div>
+        <div style={styles.sectionTitle}>기본 정보</div>
+        <div style={styles.formGrid}>
+          <InputGroup
+            label="이름"
+            name="name"
+            value={currentEmp.name}
+            onChange={onChange}
+          />
+          <InputGroup
+            label="이메일"
+            name="email"
+            value={currentEmp.email}
+            onChange={onChange}
+          />
+          <InputGroup
+            label="연락처"
+            name="phone"
+            value={currentEmp.phone}
+            onChange={onChange}
+          />
+
+          {/* name="dept" -> currentEmp.dept 업데이트 */}
+          <SelectGroup
+            label="부서"
+            name="dept"
+            value={currentEmp.dept}
+            options={DEPARTMENTS}
+            onChange={onChange}
+          />
+          {/* name="rank" -> currentEmp.rank 업데이트 */}
+          <SelectGroup
+            label="직급"
+            name="rank"
+            value={currentEmp.rank}
+            options={POSITIONS}
+            onChange={onChange}
+          />
+          {/* name="line" -> currentEmp.line 업데이트 */}
+          <SelectGroup
+            label="담당 라인"
+            name="line"
+            value={currentEmp.line}
+            options={LINES}
+            onChange={onChange}
+          />
+        </div>
+      </div>
+      <div style={styles.modalFooter}>
+        <button style={styles.cancelButton} onClick={onClose}>
+          취소
+        </button>
+        <button style={styles.saveButton} onClick={onSave}>
+          등록하기
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+const EditEmployeeModal = ({
+  currentEmp,
+  onClose,
+  onSave,
+  onChange,
+  onResign,
+  togglePermission,
+}) => (
+  <div style={styles.modalOverlay}>
+    <div style={styles.modalContent}>
+      <div style={styles.modalHeader}>
+        <h3>👤 사원 정보 수정</h3>
+        <button onClick={onClose} style={styles.closeButton}>
+          X
+        </button>
+      </div>
+      <div style={styles.modalBody}>
+        <div style={styles.sectionTitle}>기본 정보 수정</div>
+        <div style={styles.formGrid}>
+          <InputGroup
+            label="사번"
+            name="employeeNumber"
+            value={currentEmp.employeeNumber}
+            readOnly
+          />
+          <InputGroup
+            label="성명"
+            name="name"
+            value={currentEmp.name}
+            onChange={onChange}
+          />
+          <InputGroup
+            label="이메일"
+            name="email"
+            value={currentEmp.email}
+            onChange={onChange}
+          />
+          <InputGroup
+            label="연락처"
+            name="phone"
+            value={currentEmp.phone}
+            onChange={onChange}
+          />
+
+          <SelectGroup
+            label="부서"
+            name="dept"
+            value={currentEmp.dept}
+            options={DEPARTMENTS}
+            onChange={onChange}
+          />
+          <SelectGroup
+            label="직급"
+            name="rank"
+            value={currentEmp.rank}
+            options={POSITIONS}
+            onChange={onChange}
+          />
+          <SelectGroup
+            label="담당 라인"
+            name="line"
+            value={currentEmp.line}
+            options={LINES}
+            onChange={onChange}
+          />
+
+          <SelectGroup
+            label="상태"
+            name="status"
+            value={currentEmp.status}
+            options={[
+              { value: "Active", label: "재직중" },
+              { value: "Resigned", label: "퇴사" },
+            ]}
+            onChange={onChange}
+          />
+        </div>
+
+        <div style={styles.sectionTitle}>페이지 접근 권한</div>
+        <div style={styles.permGrid}>
+          {["dashboard", "production", "quality", "material", "admin"].map(
+            (perm) => (
+              <label key={perm} style={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={currentEmp.permissions?.includes(perm)}
+                  onChange={() => togglePermission(perm)}
+                  disabled={currentEmp.status === "Resigned"}
+                />
+                {perm.toUpperCase()}
+              </label>
+            ),
+          )}
+        </div>
+      </div>
+      <div style={styles.modalFooter}>
+        {currentEmp.status === "Active" ? (
+          <button style={styles.resignButton} onClick={onResign}>
+            <FaTrashAlt style={{ marginRight: "5px" }} /> 퇴사 처리
+          </button>
+        ) : (
+          <div />
+        )}
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button style={styles.cancelButton} onClick={onClose}>
+            닫기
+          </button>
+          <button style={styles.saveButton} onClick={onSave}>
+            <FaEdit style={{ marginRight: "5px" }} />
+            수정 저장
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// 공통 컴포넌트
 const InputGroup = ({ label, name, value, onChange, readOnly }) => (
   <div style={{ display: "flex", flexDirection: "column" }}>
     <label style={styles.label}>{label}</label>
     <input
       name={name}
-      value={value}
+      value={value || ""}
       onChange={onChange}
       readOnly={readOnly}
       style={{
@@ -597,8 +649,25 @@ const InputGroup = ({ label, name, value, onChange, readOnly }) => (
         color: readOnly ? "#999" : "#333",
         cursor: readOnly ? "not-allowed" : "text",
       }}
-      placeholder={label}
     />
+  </div>
+);
+
+const SelectGroup = ({ label, name, value, options, onChange }) => (
+  <div style={{ display: "flex", flexDirection: "column" }}>
+    <label style={styles.label}>{label}</label>
+    <select
+      name={name}
+      value={value || ""}
+      onChange={onChange}
+      style={styles.input}
+    >
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
   </div>
 );
 
@@ -707,12 +776,6 @@ const styles = {
     fontSize: "12px",
     fontWeight: "bold",
   },
-  iconButton: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: "5px",
-  },
   modalOverlay: {
     position: "fixed",
     top: 0,
@@ -771,15 +834,6 @@ const styles = {
     borderRadius: "6px",
     border: "1px solid #ddd",
     fontSize: "14px",
-    boxSizing: "border-box",
-  },
-  fullInput: {
-    width: "100%",
-    padding: "8px",
-    borderRadius: "6px",
-    border: "1px solid #ddd",
-    fontSize: "14px",
-    backgroundColor: "#fff",
     boxSizing: "border-box",
   },
   modalFooter: {
