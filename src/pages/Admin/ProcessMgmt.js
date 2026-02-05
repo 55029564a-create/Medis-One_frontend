@@ -139,10 +139,12 @@ const ProcessMgmt = () => {
   // --- API 호출 함수 ---
   const fetchProcessData = async () => {
     try {
+      // 백엔드 API 호출하여 공정 목록 가져오기
       const data = await getProcesses();
       setProcesses(data);
-    } catch (err) {
-      console.error("공정 목록 로드 실패:", err);
+    } catch (error) {
+      console.error("공정 데이터 로드 실패:", error);
+      // 필요 시 에러 처리 (예: alert("데이터를 불러오지 못했습니다."))
     }
   };
 

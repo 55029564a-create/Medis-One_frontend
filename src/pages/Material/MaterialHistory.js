@@ -52,20 +52,34 @@ const MaterialHistory = () => {
   const fetchData = async () => {
     try {
       const data = await getMaterialHistory(searchTerm);
+      
+      // 🚨 [디버깅] 이 로그를 확인해주세요!
+      console.log("🔥 서버에서 받은 전체 데이터:", data);
 
       if (data && data.length > 0) {
         const mappedData = data.map((dto, index) => {
+          
+          // 🚨 [디버깅] 각 항목의 type 값이 뭔지 확인
+          console.log(`Row ${index} Type:`, dto.type); 
+
           let typeCode = "ETC";
           const rawType = dto.type || "";
 
-          if (rawType === "입고" || rawType === "INBOUND") typeCode = "IN";
+          // 👇 기존 로직: 여기서 걸리지 않으면 다 ETC가 됩니다.
+          if (
+            rawType === "입고" || 
+            rawType === "INBOUND" || 
+            rawType === "기타" // 👈 (임시) '기타'도 입고로 처리하고 싶다면 여기 추가
+          ) {
+            typeCode = "IN";
+          } 
           else if (
             rawType === "출고" ||
             rawType === "생산투입" ||
             rawType === "PRODUCTION_IN"
-          )
+          ) {
             typeCode = "OUT";
-
+          }
           return {
             id: `HIST-${index}`,
             rawDate: dto.date || dto.regDate,

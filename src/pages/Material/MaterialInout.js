@@ -1,985 +1,908 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  FaWaveSquare,
-  FaArrowDown,
-  FaTint,
+  getMaterialInfo,
+  registerMaterialInOut,
+  getRecentHistory,
+  getEmployeeList,
+  getTodayStats,
+} from "../../api/materialApi";
+import {
+  FaBox,
+  FaBarcode,
+  FaTruckLoading,
+  FaDolly,
+  FaCheckCircle,
   FaSyncAlt,
-  FaFilter,
-  FaMicroscope,
-  FaTimes,
-  FaThumbtack,
   FaHistory,
-  FaBoxOpen,
-  FaCalendarAlt,
-  FaSave,
-  FaEye,
+  FaUserTie,
+  FaCaretDown,
+  FaLayerGroup,
+  FaSearch,
+  FaIndustry,
+  FaCogs,
 } from "react-icons/fa";
-import {
-  ComposedChart,
-  Line,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  Cell,
-  Area,
-  LineChart,
-} from "recharts";
 
 // 🎨 디자인 시스템
 const COLORS = {
-  bg: "#F5F7FA",
+  primary: "#8C85FF",
+  secondary: "#F3F1FF",
+  success: "#4CAF50",
+  danger: "#FF5252",
+  info: "#2196F3",
+  text: "#333",
+  subText: "#666",
+  border: "#E0E0E0",
+  bg: "#F5F6FA",
   white: "#FFFFFF",
-  primary: "#6C5CE7",
-  secondary: "#00B894",
-  warning: "#FFA502",
-  text: "#2D3436",
-  border: "#DFE6E9",
-  ok: "#00B894",
-  ng: "#FF7675",
-  holdPrimary: "#e17055",
-  holdNeighbor: "#fdcb6e",
-  dark: "#2d3436",
+  cardShadow: "0 2px 8px rgba(0,0,0,0.04)",
+  inputBg: "#FFFFFF",
 };
 
-// 📦 [Master] 제품 목록
-const PRODUCT_LIST = [
-  { code: "ZOLL-18", name: 'Zoll X Series 18"', target: "Line A" },
-  { code: "ZOLL-24", name: 'Zoll X Series 24"', target: "Line A" },
-  { code: "CPLS-18", name: 'Corpuls3 18"', target: "Line B" },
-  { code: "CPLS-24", name: 'Corpuls3 24"', target: "Line B" },
-  { code: "PRQ-18", name: 'Propaq M 18"', target: "Line C" },
-  { code: "PRQ-24", name: 'Propaq M 24"', target: "Line C" },
+// 🏢 공급업체
+const VENDOR_LIST = [
+  { name: "ZOLL Medical", id: "V-001" },
+  { name: "Samsung SDI", id: "V-002" },
+  { name: "LG Display", id: "V-003" },
+  { name: "Texas Inst.", id: "V-004" },
+  { name: "3M Korea", id: "V-005" },
 ];
 
-// 🎲 [Logic] 유닛 데이터 생성
-const createUnit = (batchId, seq) => {
-  const isNG = Math.random() < 0.025;
-  const isPrimaryHold = !isNG && Math.random() < 0.02;
+const MaterialInout = () => {
+  const navigate = useNavigate();
+  const lotInputRef = useRef(null);
 
-  const vibData = Array.from({ length: 6 }, (_, t) => ({
-    time: `T${t}`,
-    value: isNG
-      ? (Math.random() * 2.5).toFixed(2)
-      : (Math.random() * 1.0).toFixed(2),
-  }));
-
-  const dropData = Array.from({ length: 3 }, (_, t) => ({
-    height: `${(t + 1) * 50}cm`,
-    impact:
-      isNG && Math.random() > 0.5
-        ? 90 + Math.random() * 20
-        : 45 + Math.random() * 10,
-  }));
-
-  const waterData = Array.from({ length: 6 }, (_, t) => ({
-    time: `${t}m`,
-    pressure:
-      isNG && Math.random() > 0.5 ? 100 - t * 15 : 100 - Math.random() * 2,
-  }));
-
-  return {
-    id: `${batchId}-${String(seq).padStart(3, "0")}`,
-    seq,
-    rawStatus: isNG ? "NG" : isPrimaryHold ? "HOLD_P" : "OK",
-    status: "OK",
-    cause: isNG ? "Defect Found" : isPrimaryHold ? "Calibration Error" : "-",
-    vibData,
-    dropData,
-    waterData,
-  };
-};
-
-// 🏭 [Logic] 배치 생성 및 홀딩 전파
-const generateBatch = (batchId) => {
-  let units = [];
-  for (let i = 1; i <= 200; i++) units.push(createUnit(batchId, i));
-
-  const finalUnits = units.map((u) => ({
-    ...u,
-    status: u.rawStatus === "HOLD_P" ? "HOLD_P" : u.rawStatus,
-  }));
-  for (let i = 0; i < finalUnits.length; i++) {
-    if (finalUnits[i].rawStatus === "HOLD_P") {
-      [-2, -1, 1, 2].forEach((offset) => {
-        const targetIdx = i + offset;
-        if (
-          targetIdx >= 0 &&
-          targetIdx < 200 &&
-          finalUnits[targetIdx].status === "OK"
-        ) {
-          finalUnits[targetIdx].status = "HOLD_N";
-          finalUnits[targetIdx].cause = `Adj. Hold (#${finalUnits[i].seq})`;
-        }
-      });
-    }
-  }
-  return finalUnits;
-};
-
-const ReliabilityTest = () => {
-  const [selectedProductCode, setSelectedProductCode] = useState(
-    PRODUCT_LIST[0].code,
-  );
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().slice(0, 10),
-  );
-  const [database, setDatabase] = useState({});
-  const [activeBatchId, setActiveBatchId] = useState(null);
-  const [filterType, setFilterType] = useState("ALL");
-  const [activeUnit, setActiveUnit] = useState(null);
-  const [compareList, setCompareList] = useState([]);
-
-  const selectedProduct = PRODUCT_LIST.find(
-    (p) => p.code === selectedProductCode,
-  );
-
-  useEffect(() => {
-    const batches = getBatches(selectedDate, selectedProductCode);
-    if (batches.length > 0 && !activeBatchId) {
-      setActiveBatchId(batches[0].id);
-    } else if (batches.length === 0) {
-      setActiveBatchId(null);
-    }
-    setActiveUnit(null);
-  }, [selectedDate, selectedProductCode, database]);
-
-  const getBatches = (date, modelCode) => {
-    if (database[date] && database[date][modelCode]) {
-      return database[date][modelCode];
-    }
-    return [];
-  };
-
-  const createNewBatch = () => {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-    const batchId = `BATCH-${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
-    const newBatchData = generateBatch(batchId);
-
-    const newBatchObj = {
-      id: batchId,
-      time: timeStr,
-      data: newBatchData,
-      ngCount: newBatchData.filter((u) => u.status === "NG").length,
-      holdCount: newBatchData.filter((u) => u.status.includes("HOLD")).length,
-    };
-
-    setDatabase((prev) => {
-      const dateData = prev[selectedDate] || {};
-      const modelData = dateData[selectedProductCode] || [];
-      return {
-        ...prev,
-        [selectedDate]: {
-          ...dateData,
-          [selectedProductCode]: [newBatchObj, ...modelData],
-        },
-      };
-    });
-    setActiveBatchId(batchId);
-  };
-
-  const currentBatchList = getBatches(selectedDate, selectedProductCode);
-  const currentBatch = currentBatchList.find((b) => b.id === activeBatchId);
-  const displayData = currentBatch ? currentBatch.data : [];
-
-  const filteredData = displayData.filter((unit) => {
-    if (filterType === "NG") return unit.status === "NG";
-    if (filterType === "HOLD") return unit.status.includes("HOLD");
-    return true;
+  // --- 상태 관리 ---
+  const [inputs, setInputs] = useState({
+    type: "IN",
+    item: "",
+    lot: "",
+    vendor: "",
+    qty: "",
+    currentQty: 0,
+    manager: "",
   });
 
-  const toggleCompare = (unit) => {
-    if (compareList.find((u) => u.id === unit.id)) {
-      setCompareList(compareList.filter((u) => u.id !== unit.id));
-    } else {
-      if (compareList.length >= 6)
-        return alert("최대 6개까지만 비교 가능합니다.");
-      setCompareList([...compareList, unit]);
+  // 🚨 [수정] 이제 ID가 아니라 '사번(String)'을 저장합니다.
+  const [selectedEmpNum, setSelectedEmpNum] = useState(null);
+
+  const [recentList, setRecentList] = useState([]);
+  const [stats, setStats] = useState({ inbound: 0, outbound: 0 });
+
+  // 담당자 목록
+  const [managerList, setManagerList] = useState([]);
+  const [filteredManagers, setFilteredManagers] = useState([]);
+  const [showManagerList, setShowManagerList] = useState(false);
+
+  // 공정 및 라인
+  const [processStructure, setProcessStructure] = useState([]);
+  const [selectedLine, setSelectedLine] = useState("");
+  const [selectedProcess, setSelectedProcess] = useState("");
+  const [availableProcesses, setAvailableProcesses] = useState([]);
+
+  // 업체 검색
+  const [showVendorList, setShowVendorList] = useState(false);
+  const [filteredVendors, setFilteredVendors] = useState(VENDOR_LIST);
+
+  // 초기 로드
+  useEffect(() => {
+    fetchInitialData();
+    lotInputRef.current?.focus();
+  }, []);
+
+  const fetchInitialData = async () => {
+    try {
+      // 1. 최근 이력 조회
+      const historyData = await getRecentHistory();
+      if (historyData) setRecentList(historyData.slice(0, 5));
+
+      // 2. 통계 조회
+      const statData = await getTodayStats();
+      if (statData)
+        setStats({
+          inbound: statData.todayInbound,
+          outbound: statData.todayOutbound,
+        });
+
+      // 3. 담당자 목록 조회
+      const empData = await getEmployeeList();
+      console.log("👉 사원 목록 데이터:", empData);
+
+      if (empData && Array.isArray(empData)) {
+        setManagerList(empData);
+        setFilteredManagers(empData);
+      }
+
+      // 4. 공정 데이터 구성
+      organizeProcessData();
+    } catch (e) {
+      console.error("데이터 로딩 에러", e);
     }
   };
 
-  const loadComparison = (unit) => {
-    setActiveUnit(unit);
-    document
-      .getElementById("main-content-area")
-      ?.scrollTo({ top: 200, behavior: "smooth" });
+  const organizeProcessData = () => {
+    const lines = [
+      {
+        id: "1",
+        name: "A-18 (AREX #1)",
+        procs: [
+          { id: "PA-1", name: "Surface Prep" },
+          { id: "PA-2", name: "Optical Bonding" },
+          { id: "PA-3", name: "Core Assembly" },
+          { id: "PA-4", name: "Housing Form" },
+        ],
+      },
+      {
+        id: "2",
+        name: "A-24 (AREX #2)",
+        procs: [
+          { id: "PA-1", name: "Surface Prep" },
+          { id: "PA-2", name: "Optical Bonding" },
+          { id: "PA-3", name: "Core Assembly" },
+          { id: "PA-4", name: "Housing Form" },
+        ],
+      },
+      {
+        id: "3",
+        name: "C-LAB (Testing)",
+        procs: [
+          { id: "PC-1", name: "Calibration" },
+          { id: "PC-2", name: "Aging Burn-in" },
+          { id: "PC-3", name: "Reliability" },
+          { id: "PC-4", name: "Final Gate" },
+        ],
+      },
+    ];
+    setProcessStructure(lines);
+  };
+
+  // --- 이벤트 핸들러 ---
+
+  const handleScan = async (e) => {
+    if (e.key === "Enter" && inputs.lot) {
+      try {
+        const dataList = await getMaterialInfo(inputs.lot);
+        if (dataList && dataList.length > 0) {
+          const target = dataList[0];
+          setInputs((prev) => ({
+            ...prev,
+            item: target.matName,
+            qty: "",
+          }));
+          document.getElementById("qtyInput")?.focus();
+        } else {
+          setInputs((prev) => ({ ...prev, item: "" }));
+        }
+      } catch (error) {
+        console.error("스캔 실패:", error);
+        setInputs((prev) => ({ ...prev, item: "" }));
+      }
+    }
+  };
+
+  const handleManagerChange = (e) => {
+    const text = e.target.value;
+    setInputs({ ...inputs, manager: text });
+
+    // 검색 시에는 사번 초기화 (직접 타이핑 중이므로)
+    setSelectedEmpNum(null);
+
+    const filtered = managerList.filter(
+      (m) =>
+        m.name.includes(text) || String(m.employeeNum || m.id).includes(text),
+    );
+    setFilteredManagers(filtered);
+    setShowManagerList(true);
+  };
+
+  const selectManager = (manager) => {
+    const code = manager.employeeNum || "Unknown";
+    const label = `${manager.name} (${code})`;
+
+    setInputs({ ...inputs, manager: label });
+
+    // 🚨 [수정 포인트 1] 백엔드가 'findByEmployeeNumber'를 쓰므로 '사번'을 저장해야 함
+    console.log("선택된 사원 사번:", manager.employeeNum);
+    setSelectedEmpNum(manager.employeeNum);
+
+    setShowManagerList(false);
+  };
+
+  const handleVendorChange = (e) => {
+    const text = e.target.value;
+    setInputs({ ...inputs, vendor: text });
+    setFilteredVendors(
+      VENDOR_LIST.filter((v) =>
+        v.name.toLowerCase().includes(text.toLowerCase()),
+      ),
+    );
+    setShowVendorList(true);
+  };
+
+  const selectVendor = (vendor) => {
+    setInputs({ ...inputs, vendor: vendor.name });
+    setShowVendorList(false);
+  };
+
+  const handleLineSelect = (e) => {
+    const lineId = e.target.value;
+    setSelectedLine(lineId);
+    const lineData = processStructure.find((l) => l.id === lineId);
+    if (lineData) {
+      setAvailableProcesses(lineData.procs);
+      setSelectedProcess("");
+    } else {
+      setAvailableProcesses([]);
+      setSelectedProcess("");
+    }
+  };
+
+  const handleProcessSelect = (e) => {
+    setSelectedProcess(e.target.value);
+  };
+
+  // 🚀 [등록]
+  const handleRegister = async () => {
+    if (!inputs.item || !inputs.qty || !inputs.lot) {
+      return alert("자재명, LOT번호, 수량은 필수입니다.");
+    }
+
+    if (inputs.type === "OUT" && !selectedProcess) {
+      return alert("투입할 공정을 선택해주세요.");
+    }
+
+    if (!selectedEmpNum) {
+      return alert("담당자를 목록에서 선택해주세요.");
+    }
+
+    try {
+      const payload = {
+        materialName: inputs.item,
+        lotNumber: inputs.lot,
+        qty: Number(inputs.qty),
+        company: inputs.type === "IN" ? inputs.vendor : null,
+        type: inputs.type === "IN" ? "INBOUND" : "PRODUCTION_IN",
+        process: inputs.type === "OUT" ? selectedProcess : null,
+
+        // 🚨 [수정 포인트 2] 백엔드 DTO의 'employeeNum' 필드명에 맞춰서 전송
+        employeeNum: selectedEmpNum,
+      };
+
+      console.log("🚀 백엔드로 전송하는 Payload:", payload);
+
+      await registerMaterialInOut(payload);
+
+      alert("처리 완료!");
+
+      // 초기화
+      setInputs((prev) => ({
+        ...prev,
+        item: "",
+        lot: "",
+        qty: "",
+        currentQty: 0,
+      }));
+      // (편의상 담당자는 유지)
+
+      // 목록 갱신
+      const updatedHistory = await getRecentHistory();
+      if (updatedHistory) setRecentList(updatedHistory.slice(0, 5));
+
+      const statData = await getTodayStats();
+      if (statData)
+        setStats({
+          inbound: statData.todayInbound,
+          outbound: statData.todayOutbound,
+        });
+
+      lotInputRef.current.focus();
+    } catch (error) {
+      console.error(error);
+      alert("처리 실패: " + (error.response?.data?.message || "서버 오류"));
+    }
+  };
+
+  const styles = {
+    container: {
+      padding: "30px",
+      backgroundColor: COLORS.bg,
+      minHeight: "100vh",
+    },
+    header: {
+      marginBottom: "20px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    statsGrid: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr 1fr",
+      gap: "15px",
+      marginBottom: "20px",
+    },
+    inputSection: {
+      backgroundColor: COLORS.white,
+      borderRadius: "12px",
+      padding: "25px",
+      boxShadow: COLORS.cardShadow,
+      marginBottom: "20px",
+    },
+    sectionHeader: {
+      marginBottom: "20px",
+      paddingBottom: "15px",
+      borderBottom: "1px solid #f0f0f0",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    toggleGroup: { display: "flex", gap: "10px" },
+    toggleBtn: {
+      padding: "8px 20px",
+      borderRadius: "20px",
+      border: "none",
+      cursor: "pointer",
+      fontWeight: "bold",
+      fontSize: "13px",
+      transition: "0.2s",
+      boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+    },
+    formGrid: {
+      display: "grid",
+      gridTemplateColumns: "1fr 2fr 1.5fr",
+      rowGap: "20px",
+      columnGap: "20px",
+    },
+    gridCell: {
+      display: "flex",
+      flexDirection: "column",
+      gap: "8px",
+      width: "100%",
+    },
+    label: {
+      fontSize: "12px",
+      fontWeight: "bold",
+      color: "#666",
+      marginLeft: "4px",
+    },
+    inputWrapper: { position: "relative", width: "100%" },
+    inputIcon: {
+      position: "absolute",
+      left: "12px",
+      top: "50%",
+      transform: "translateY(-50%)",
+      color: "#999",
+      fontSize: "14px",
+      pointerEvents: "none",
+    },
+    arrowIcon: {
+      position: "absolute",
+      right: "12px",
+      top: "50%",
+      transform: "translateY(-50%)",
+      color: "#999",
+      fontSize: "12px",
+      pointerEvents: "none",
+    },
+    commonInput: {
+      width: "100%",
+      height: "40px",
+      padding: "0 12px 0 36px",
+      borderRadius: "8px",
+      border: `1px solid ${COLORS.border}`,
+      backgroundColor: COLORS.inputBg,
+      fontSize: "13px",
+      color: COLORS.text,
+      outline: "none",
+      boxSizing: "border-box",
+      transition: "all 0.2s",
+      fontFamily: "inherit",
+    },
+    dropdownList: {
+      position: "absolute",
+      top: "45px",
+      left: 0,
+      width: "100%",
+      backgroundColor: "#fff",
+      border: "1px solid #ddd",
+      borderRadius: "8px",
+      boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+      zIndex: 100,
+      maxHeight: "180px",
+      overflowY: "auto",
+    },
+    dropdownItem: {
+      padding: "12px",
+      fontSize: "13px",
+      borderBottom: "1px solid #f5f5f5",
+      cursor: "pointer",
+    },
+    actionBtn: {
+      width: "100%",
+      height: "40px",
+      borderRadius: "8px",
+      border: "none",
+      color: "#fff",
+      fontSize: "14px",
+      fontWeight: "bold",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "8px",
+      marginTop: "23px",
+    },
+    listSection: {
+      backgroundColor: COLORS.white,
+      borderRadius: "12px",
+      padding: "25px",
+      boxShadow: COLORS.cardShadow,
+    },
+    tableHeader: {
+      display: "flex",
+      padding: "12px 10px",
+      backgroundColor: "#FAFAFA",
+      borderRadius: "8px",
+      fontSize: "12px",
+      color: "#666",
+      fontWeight: "bold",
+      marginBottom: "10px",
+      borderBottom: "1px solid #eee",
+    },
+    row: {
+      display: "flex",
+      alignItems: "center",
+      padding: "12px 10px",
+      borderBottom: "1px solid #f5f5f5",
+    },
   };
 
   return (
     <>
       <style>{`
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #8C85FF; }
       `}</style>
 
       <div style={styles.container}>
-        {/* 사이드바 */}
-        <div style={styles.sidebar}>
-          <div style={styles.sidebarSection}>
-            <div style={styles.sidebarHeader}>
-              <h3>📅 Date Selection</h3>
+        {/* 헤더 */}
+        <div style={styles.header}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <FaBox size={22} color={COLORS.primary} />
+            <h2
+              style={{
+                margin: 0,
+                color: COLORS.text,
+                fontSize: "22px",
+                fontWeight: "bold",
+              }}
+            >
+              자재 입/출고 관리
+            </h2>
+          </div>
+          <button
+            onClick={() => navigate("/material/history")}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#fff",
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: "8px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontWeight: "bold",
+              color: "#555",
+              fontSize: "13px",
+            }}
+          >
+            <FaHistory /> 전체 내역
+          </button>
+        </div>
+
+        {/* 통계 카드 */}
+        <div style={styles.statsGrid}>
+          <StatCard
+            title="금일 입고"
+            value={stats.inbound}
+            unit="건"
+            icon={<FaTruckLoading />}
+            color={COLORS.success}
+          />
+          <StatCard
+            title="금일 출고"
+            value={stats.outbound}
+            unit="건"
+            icon={<FaDolly />}
+            color={COLORS.danger}
+          />
+          <StatCard
+            title="총 재고"
+            value="12,500"
+            unit="EA"
+            icon={<FaLayerGroup />}
+            color={COLORS.info}
+          />
+        </div>
+
+        {/* 입력 섹션 */}
+        <div style={styles.inputSection}>
+          <div style={styles.sectionHeader}>
+            <div>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "16px",
+                  fontWeight: "bold",
+                  color: COLORS.text,
+                }}
+              >
+                📋 자재 스캔 등록
+              </h3>
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: COLORS.subText,
+                  marginTop: "4px",
+                  display: "block",
+                }}
+              >
+                {inputs.type === "IN"
+                  ? "입고 처리를 위한 정보를 입력하세요."
+                  : "생산 투입을 위한 정보를 입력하세요."}
+              </span>
             </div>
-            <div style={{ padding: "15px" }}>
-              <div style={styles.dateInputWrapper}>
-                <FaCalendarAlt color="#666" />
+            <div style={styles.toggleGroup}>
+              <button
+                style={{
+                  ...styles.toggleBtn,
+                  backgroundColor:
+                    inputs.type === "IN" ? COLORS.success : "#f0f0f0",
+                  color: inputs.type === "IN" ? "#fff" : "#999",
+                }}
+                onClick={() => {
+                  setInputs({ ...inputs, type: "IN", vendor: "" });
+                  setSelectedLine("");
+                  setSelectedProcess("");
+                }}
+              >
+                입고 (IN)
+              </button>
+              <button
+                style={{
+                  ...styles.toggleBtn,
+                  backgroundColor:
+                    inputs.type === "OUT" ? COLORS.danger : "#f0f0f0",
+                  color: inputs.type === "OUT" ? "#fff" : "#999",
+                }}
+                onClick={() => {
+                  setInputs({ ...inputs, type: "OUT", vendor: "" });
+                  setSelectedLine("");
+                  setSelectedProcess("");
+                }}
+              >
+                출고 (OUT)
+              </button>
+            </div>
+          </div>
+
+          <div style={styles.formGrid}>
+            {/* 담당자 */}
+            <div style={styles.gridCell}>
+              <label style={styles.label}>담당자</label>
+              <div style={styles.inputWrapper}>
+                <FaUserTie style={styles.inputIcon} />
                 <input
-                  type="date"
-                  style={styles.dateInput}
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  style={styles.commonInput}
+                  placeholder="이름 검색"
+                  value={inputs.manager}
+                  onChange={handleManagerChange}
+                  onFocus={() => setShowManagerList(true)}
+                  onBlur={() =>
+                    setTimeout(() => setShowManagerList(false), 200)
+                  }
+                />
+                <FaCaretDown style={styles.arrowIcon} />
+                {showManagerList && (
+                  <div style={styles.dropdownList}>
+                    {filteredManagers.map((mgr, idx) => (
+                      <div
+                        key={mgr.employeeNum || idx}
+                        style={styles.dropdownItem}
+                        onClick={() => selectManager(mgr)}
+                      >
+                        <strong>{mgr.name}</strong>
+                        <span style={{ color: "#888", fontSize: "11px" }}>
+                          {" "}
+                          ({mgr.employeeNum})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Lot ID */}
+            <div style={styles.gridCell}>
+              <label style={styles.label}>Lot ID (바코드)</label>
+              <div style={styles.inputWrapper}>
+                <FaBarcode style={styles.inputIcon} />
+                <input
+                  ref={lotInputRef}
+                  style={{
+                    ...styles.commonInput,
+                    borderColor: COLORS.primary,
+                    backgroundColor: "#F9F9FF",
+                  }}
+                  placeholder="바코드를 스캔하세요"
+                  value={inputs.lot}
+                  onChange={(e) =>
+                    setInputs({ ...inputs, lot: e.target.value })
+                  }
+                  onKeyDown={handleScan}
                 />
               </div>
             </div>
-          </div>
 
-          <div style={styles.sidebarSection}>
-            <div style={styles.sidebarHeader}>
-              <h3>📦 Model Select</h3>
-            </div>
-            <div style={{ padding: "15px" }}>
-              <select
-                style={styles.selectInput}
-                value={selectedProductCode}
-                onChange={(e) => setSelectedProductCode(e.target.value)}
-              >
-                {PRODUCT_LIST.map((prod) => (
-                  <option key={prod.code} value={prod.code}>
-                    {prod.name}
-                  </option>
-                ))}
-              </select>
-              <div
-                style={{ marginTop: "8px", fontSize: "12px", color: "#666" }}
-              >
-                Target Line: <strong>{selectedProduct.target}</strong>
+            {/* 품목명 */}
+            <div style={styles.gridCell}>
+              <label style={styles.label}>품목명</label>
+              <div style={styles.inputWrapper}>
+                <FaBox style={styles.inputIcon} />
+                <input
+                  style={{ ...styles.commonInput, backgroundColor: "#f5f5f5" }}
+                  placeholder="스캔 시 자동 입력"
+                  value={inputs.item}
+                  onChange={(e) =>
+                    setInputs({ ...inputs, item: e.target.value })
+                  }
+                />
               </div>
             </div>
-          </div>
 
-          <div
-            style={{
-              flex: 1,
-              borderTop: `1px solid ${COLORS.border}`,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            <div style={styles.sidebarHeader}>
-              <h3
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                🕒 Batch History{" "}
-                <span style={{ fontSize: "11px", color: "#888" }}>
-                  ({currentBatchList.length})
-                </span>
-              </h3>
-            </div>
-            <div style={styles.listWrapper}>
-              {currentBatchList.length === 0 ? (
-                <div
-                  style={{
-                    padding: "20px",
-                    textAlign: "center",
-                    color: "#999",
-                    fontSize: "12px",
-                  }}
-                >
-                  No batches created yet.
-                </div>
-              ) : (
-                currentBatchList.map((batch) => (
-                  <div
-                    key={batch.id}
-                    onClick={() => setActiveBatchId(batch.id)}
-                    style={{
-                      ...styles.historyItem,
-                      backgroundColor:
-                        activeBatchId === batch.id ? "#E8F5E9" : "transparent",
-                      borderColor:
-                        activeBatchId === batch.id ? COLORS.ok : "#eee",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontWeight: "bold",
-                        fontSize: "12px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span>{batch.time}</span>
-                      <span style={{ fontSize: "10px", color: "#666" }}>
-                        {batch.id}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: "11px", marginTop: "4px" }}>
-                      NG:{" "}
-                      <span style={{ color: COLORS.ng, fontWeight: "bold" }}>
-                        {batch.ngCount}
-                      </span>{" "}
-                      | Hold:{" "}
-                      <span
-                        style={{ color: COLORS.warning, fontWeight: "bold" }}
-                      >
-                        {batch.holdCount}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 메인 콘텐츠 */}
-        <div id="main-content-area" style={styles.mainContent}>
-          <div style={styles.topBar}>
-            <div>
-              <h2 style={styles.pageTitle}>
-                {selectedProduct.name}
-                {activeBatchId && (
-                  <span style={styles.batchBadge}>{activeBatchId}</span>
-                )}
-              </h2>
-              {currentBatch && (
-                <div style={styles.statsRow}>
-                  <span>
-                    Total: <strong>200</strong>
-                  </span>
-                  <span style={{ color: COLORS.ok }}>
-                    OK:{" "}
-                    <strong>
-                      {
-                        currentBatch.data.filter((d) => d.status === "OK")
-                          .length
-                      }
-                    </strong>
-                  </span>
-                  <span style={{ color: COLORS.ng }}>
-                    NG: <strong>{currentBatch.ngCount}</strong>
-                  </span>
-                  <span style={{ color: COLORS.warning }}>
-                    HOLD: <strong>{currentBatch.holdCount}</strong>
-                  </span>
-                </div>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: "10px" }}>
-              <div style={styles.filterGroup}>
-                <button
-                  style={
-                    filterType === "ALL"
-                      ? styles.activeFilter
-                      : styles.filterBtn
+            {/* 수량 */}
+            <div style={styles.gridCell}>
+              <label style={styles.label}>
+                {inputs.type === "IN" ? "입고 수량" : "투입 수량"}
+              </label>
+              <div style={styles.inputWrapper}>
+                <FaLayerGroup style={styles.inputIcon} />
+                <input
+                  id="qtyInput"
+                  type="number"
+                  style={styles.commonInput}
+                  placeholder={
+                    inputs.currentQty ? `현재고: ${inputs.currentQty}` : "0"
                   }
-                  onClick={() => setFilterType("ALL")}
-                >
-                  ALL
-                </button>
-                <button
-                  style={
-                    filterType === "NG"
-                      ? { ...styles.activeFilter, background: COLORS.ng }
-                      : styles.filterBtn
+                  value={inputs.qty}
+                  onChange={(e) =>
+                    setInputs({ ...inputs, qty: e.target.value })
                   }
-                  onClick={() => setFilterType("NG")}
-                >
-                  NG
-                </button>
-                <button
-                  style={
-                    filterType === "HOLD"
-                      ? { ...styles.activeFilter, background: COLORS.warning }
-                      : styles.filterBtn
-                  }
-                  onClick={() => setFilterType("HOLD")}
-                >
-                  HOLD
-                </button>
+                  onKeyDown={(e) => e.key === "Enter" && handleRegister()}
+                />
               </div>
-              <button style={styles.refreshBtn} onClick={createNewBatch}>
-                <FaSave /> Create & Save Batch
-              </button>
             </div>
-          </div>
 
-          {currentBatch ? (
-            <div style={styles.gridContainer}>
-              {filteredData.map((unit) => {
-                const isSelected = activeUnit?.id === unit.id;
-                let bgColor = COLORS.ok;
-                if (unit.status === "NG") bgColor = COLORS.ng;
-                else if (unit.status === "HOLD_P") bgColor = COLORS.holdPrimary;
-                else if (unit.status === "HOLD_N")
-                  bgColor = COLORS.holdNeighbor;
-
-                return (
-                  <div
-                    key={unit.id}
-                    onClick={() => setActiveUnit(unit)}
-                    title={`Seq: ${unit.seq} / Status: ${unit.status}`}
-                    style={{
-                      ...styles.gridItem,
-                      backgroundColor: bgColor,
-                      boxShadow: isSelected
-                        ? "0 0 0 3px #2d3436 inset"
-                        : "none",
-                      transform: isSelected ? "scale(1.15)" : "scale(1)",
-                      zIndex: isSelected ? 10 : 1,
-                      opacity: filterType !== "ALL" ? 1 : isSelected ? 1 : 0.8,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "9px",
-                        color: "white",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {unit.seq}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div style={styles.emptyState}>
-              <FaBoxOpen size={40} color="#ddd" />
-              <p>
-                No batch data found for this date.
-                <br />
-                Click "Create & Save Batch" to generate data.
-              </p>
-            </div>
-          )}
-
-          {/* 상세 분석 패널 */}
-          {activeUnit ? (
-            <div style={styles.detailPanel}>
-              <div style={styles.detailHeader}>
-                <div style={{ display: "flex", alignItems: "center" }}>
-                  <h3 style={styles.detailTitle}>
-                    <FaMicroscope /> Unit Analysis : {activeUnit.id}
-                  </h3>
-                  <span
-                    style={{
-                      ...styles.statusTag,
-                      backgroundColor:
-                        activeUnit.status === "OK"
-                          ? COLORS.ok
-                          : activeUnit.status === "NG"
-                            ? COLORS.ng
-                            : COLORS.warning,
-                    }}
-                  >
-                    {activeUnit.status === "HOLD_P"
-                      ? "PRIMARY HOLD"
-                      : activeUnit.status === "HOLD_N"
-                        ? "NEIGHBOR HOLD"
-                        : activeUnit.status}
-                  </span>
-                  {activeUnit.status !== "OK" && (
-                    <span style={styles.defectTag}>
-                      Cause: {activeUnit.cause}
-                    </span>
+            {/* 업체/공정 선택 */}
+            <div style={styles.gridCell}>
+              <label style={styles.label}>
+                {inputs.type === "IN" ? "공급 업체" : "투입 공정"}
+              </label>
+              {inputs.type === "IN" ? (
+                <div style={styles.inputWrapper}>
+                  <FaSearch style={styles.inputIcon} />
+                  <input
+                    style={styles.commonInput}
+                    placeholder="업체 검색"
+                    value={inputs.vendor}
+                    onChange={handleVendorChange}
+                    onFocus={() => setShowVendorList(true)}
+                    onBlur={() =>
+                      setTimeout(() => setShowVendorList(false), 200)
+                    }
+                  />
+                  {showVendorList && (
+                    <div style={styles.dropdownList}>
+                      {filteredVendors.map((v) => (
+                        <div
+                          key={v.id}
+                          style={styles.dropdownItem}
+                          onClick={() => selectVendor(v)}
+                        >
+                          <strong>{v.name}</strong>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-                <button
-                  style={styles.pinBtn}
-                  onClick={() => toggleCompare(activeUnit)}
-                >
-                  <FaThumbtack /> Pin to Compare
-                </button>
-              </div>
-
-              <div style={styles.chartRow}>
-                {/* 🚨 수정: minWidth={0} 추가 */}
-                <div style={styles.chartBox}>
-                  <h4 style={{ ...styles.chartTitle, color: COLORS.primary }}>
-                    <FaWaveSquare /> Vibration
-                  </h4>
-                  <div style={{ width: "100%", height: "150px" }}>
-                    <ResponsiveContainer minWidth={0}>
-                      <ComposedChart data={activeUnit.vibData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="time" fontSize={10} tickLine={false} />
-                        <YAxis domain={[0, 3]} fontSize={10} width={20} />
-                        <Tooltip />
-                        <ReferenceLine
-                          y={1.5}
-                          stroke="red"
-                          strokeDasharray="3 3"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke={COLORS.primary}
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </ComposedChart>
-                    </ResponsiveContainer>
+              ) : (
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <div style={styles.inputWrapper}>
+                    <FaIndustry style={styles.inputIcon} />
+                    <select
+                      style={{ ...styles.commonInput, appearance: "none" }}
+                      value={selectedLine}
+                      onChange={handleLineSelect}
+                    >
+                      <option value="">라인 선택</option>
+                      {processStructure.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                    <FaCaretDown style={styles.arrowIcon} />
+                  </div>
+                  <div style={styles.inputWrapper}>
+                    <FaCogs style={styles.inputIcon} />
+                    <select
+                      style={{ ...styles.commonInput, appearance: "none" }}
+                      value={selectedProcess}
+                      onChange={handleProcessSelect}
+                      disabled={!selectedLine}
+                    >
+                      <option value="">공정 코드 선택</option>
+                      {availableProcesses.map((p) => (
+                        <option key={p.id} value={p.name}>
+                          {p.id} ({p.name})
+                        </option>
+                      ))}
+                    </select>
+                    <FaCaretDown style={styles.arrowIcon} />
                   </div>
                 </div>
-
-                <div style={styles.chartBox}>
-                  <h4 style={{ ...styles.chartTitle, color: COLORS.warning }}>
-                    <FaArrowDown /> Drop Impact
-                  </h4>
-                  <div style={{ width: "100%", height: "150px" }}>
-                    <ResponsiveContainer minWidth={0}>
-                      <ComposedChart data={activeUnit.dropData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis
-                          dataKey="height"
-                          fontSize={10}
-                          tickLine={false}
-                        />
-                        <YAxis hide />
-                        <Tooltip cursor={{ fill: "#f0f0f0" }} />
-                        <Bar
-                          dataKey="impact"
-                          fill={COLORS.warning}
-                          barSize={20}
-                          radius={[4, 4, 0, 0]}
-                        >
-                          {activeUnit.dropData.map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={
-                                entry.impact > 80 ? COLORS.ng : COLORS.warning
-                              }
-                            />
-                          ))}
-                        </Bar>
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div style={styles.chartBox}>
-                  <h4 style={{ ...styles.chartTitle, color: COLORS.secondary }}>
-                    <FaTint /> Water (Pressure)
-                  </h4>
-                  <div style={{ width: "100%", height: "150px" }}>
-                    <ResponsiveContainer minWidth={0}>
-                      <ComposedChart data={activeUnit.waterData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="time" fontSize={10} tickLine={false} />
-                        <YAxis domain={[0, 110]} fontSize={10} width={25} />
-                        <Tooltip />
-                        <Area
-                          type="monotone"
-                          dataKey="pressure"
-                          stroke={COLORS.secondary}
-                          fill={`${COLORS.secondary}30`}
-                        />
-                        <ReferenceLine
-                          y={80}
-                          stroke="red"
-                          strokeDasharray="3 3"
-                          label="Min"
-                        />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
-          ) : (
-            currentBatch && (
-              <div
-                style={{
-                  marginTop: "20px",
-                  textAlign: "center",
-                  color: "#999",
-                  padding: "30px",
-                  border: "2px dashed #eee",
-                  borderRadius: "12px",
-                }}
-              >
-                Select a unit from the grid above to view details.
-              </div>
-            )
-          )}
-        </div>
 
-        {/* 하단 툴바 */}
-        {compareList.length > 0 && (
-          <div style={styles.compareBar}>
-            <div style={styles.compareHeader}>
-              <h4
-                style={{
-                  margin: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                }}
-              >
-                <FaBoxOpen /> Compare Tray ({compareList.length})
-              </h4>
+            <div style={styles.gridCell}>
               <button
-                style={styles.clearBtn}
-                onClick={() => setCompareList([])}
+                style={{
+                  ...styles.actionBtn,
+                  backgroundColor:
+                    inputs.type === "IN" ? COLORS.success : COLORS.danger,
+                }}
+                onClick={handleRegister}
               >
-                Clear All
+                <FaCheckCircle />{" "}
+                {inputs.type === "IN" ? "입고 확정" : "투입 확정"}
               </button>
             </div>
-            <div style={styles.compareWrapper}>
-              <div style={styles.compareGrid}>
-                {compareList.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => loadComparison(item)}
-                    style={{
-                      ...styles.compareCard,
-                      border:
-                        activeUnit?.id === item.id
-                          ? `2px solid ${COLORS.dark}`
-                          : `1px solid ${COLORS.border}`,
-                    }}
-                  >
-                    <div style={styles.compareCardHeader}>
-                      <span style={{ fontWeight: "bold", fontSize: "12px" }}>
-                        {item.id.split("-")[2]}
-                      </span>
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <FaTimes
-                          style={{ cursor: "pointer", color: "#999" }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleCompare(item);
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <div style={{ fontSize: "11px", marginBottom: "5px" }}>
-                      <span
-                        style={{
-                          color:
-                            item.status === "OK"
-                              ? COLORS.ok
-                              : item.status === "NG"
-                                ? COLORS.ng
-                                : COLORS.warning,
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {item.status}
-                      </span>
+          </div>
+        </div>
+
+        {/* 최근 내역 */}
+        <div style={styles.listSection}>
+          <div
+            style={{
+              marginBottom: "15px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "14px",
+              fontWeight: "bold",
+              color: COLORS.text,
+            }}
+          >
+            <FaSyncAlt /> 최근 처리 내역 (5건)
+          </div>
+          <div style={styles.tableHeader}>
+            <div style={{ flex: 0.6 }}>구분</div>
+            <div style={{ flex: 1.5 }}>일시</div>
+            <div style={{ flex: 2 }}>자재명 (Lot ID)</div>
+            <div style={{ flex: 1, textAlign: "right" }}>수량</div>
+            <div style={{ flex: 1, textAlign: "center" }}>담당자</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {recentList.map((item, idx) => {
+              const isIN = item.type === "입고" || item.type === "INBOUND";
+              return (
+                <div key={idx} style={styles.row}>
+                  <div style={{ flex: 0.6 }}>
+                    <span
+                      style={{
+                        backgroundColor: isIN ? "#E8F5E9" : "#FFEBEE",
+                        color: isIN ? COLORS.success : COLORS.danger,
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {item.type}
+                    </span>
+                  </div>
+                  <div style={{ flex: 1.5, fontSize: "12px", color: "#888" }}>
+                    {item.date ? new Date(item.date).toLocaleString() : "-"}
+                  </div>
+                  <div style={{ flex: 2 }}>
+                    <div style={{ fontWeight: "bold", fontSize: "13px" }}>
+                      {item.matName}
                     </div>
                     <div
                       style={{
-                        textAlign: "center",
-                        marginTop: "5px",
-                        fontSize: "18px",
-                        color: "#ccc",
+                        fontSize: "11px",
+                        color: COLORS.primary,
+                        fontFamily: "monospace",
                       }}
                     >
-                      <FaEye />
-                    </div>
-
-                    {/* 🚨 미니 차트에도 minWidth={0} 추가 */}
-                    <div style={{ width: "100%", height: "1px", opacity: 0 }}>
-                      {/* 차트 에러 방지용 더미 (레이아웃 잡는 용도) */}
-                      <ResponsiveContainer minWidth={0} height={10}>
-                        <LineChart data={[]} />
-                      </ResponsiveContainer>
+                      {item.lotNum}
                     </div>
                   </div>
-                ))}
+                  <div
+                    style={{
+                      flex: 1,
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      color: isIN ? COLORS.success : COLORS.danger,
+                    }}
+                  >
+                    {isIN ? "+" : "-"}{" "}
+                    {Number(Math.abs(item.changeQty || 0)).toLocaleString()}
+                  </div>
+                  <div
+                    style={{ flex: 1, textAlign: "center", fontSize: "12px" }}
+                  >
+                    {item.empName}
+                  </div>
+                </div>
+              );
+            })}
+            {recentList.length === 0 && (
+              <div
+                style={{
+                  padding: "20px",
+                  textAlign: "center",
+                  color: "#999",
+                  fontSize: "13px",
+                }}
+              >
+                데이터가 없습니다.
               </div>
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </>
   );
 };
 
-const styles = {
-  container: {
-    display: "flex",
-    height: "calc(100vh - 60px)",
-    backgroundColor: COLORS.bg,
-    overflow: "hidden",
-    position: "relative",
-  },
-  sidebar: {
-    width: "260px",
-    backgroundColor: COLORS.white,
-    borderRight: `1px solid ${COLORS.border}`,
-    display: "flex",
-    flexDirection: "column",
-  },
-  sidebarSection: { flexShrink: 0 },
-  sidebarHeader: {
-    padding: "15px 20px",
-    borderBottom: `1px solid ${COLORS.border}`,
-    backgroundColor: "#fafafa",
-  },
-  dateInputWrapper: {
-    display: "flex",
-    alignItems: "center",
-    backgroundColor: "#F5F7FA",
-    padding: "8px 12px",
-    borderRadius: "8px",
-    gap: "10px",
-  },
-  dateInput: {
-    border: "none",
-    background: "transparent",
-    outline: "none",
-    fontSize: "13px",
-    width: "100%",
-    fontFamily: "inherit",
-  },
-  selectInput: {
-    width: "100%",
-    padding: "10px",
-    borderRadius: "8px",
-    border: `1px solid ${COLORS.border}`,
-    backgroundColor: "#fff",
-    fontSize: "13px",
-    outline: "none",
-    cursor: "pointer",
-  },
-  listWrapper: { flex: 1, overflowY: "auto" },
-  historyItem: {
-    padding: "12px 20px",
-    marginBottom: "0",
-    cursor: "pointer",
-    borderBottom: "1px solid #f0f0f0",
-    transition: "0.2s",
-  },
-  mainContent: {
-    flex: 1,
-    padding: "20px 30px",
-    overflowY: "auto",
-    paddingBottom: "200px",
-  },
-  topBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginBottom: "20px",
-  },
-  pageTitle: {
-    fontSize: "22px",
-    fontWeight: "800",
-    margin: 0,
-    display: "flex",
-    alignItems: "center",
-  },
-  batchBadge: {
-    fontSize: "12px",
-    backgroundColor: COLORS.dark,
-    color: "white",
-    padding: "4px 8px",
-    borderRadius: "4px",
-    fontWeight: "normal",
-    marginLeft: "10px",
-  },
-  statsRow: {
-    display: "flex",
-    gap: "15px",
-    fontSize: "14px",
-    marginTop: "8px",
-  },
-  filterGroup: {
-    display: "flex",
-    gap: "5px",
-    backgroundColor: "#eee",
-    padding: "4px",
-    borderRadius: "6px",
-  },
-  filterBtn: {
-    border: "none",
-    padding: "6px 12px",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontSize: "12px",
-    backgroundColor: "transparent",
-    color: "#666",
-    fontWeight: "bold",
-  },
-  activeFilter: {
-    border: "none",
-    padding: "6px 12px",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontSize: "12px",
-    backgroundColor: COLORS.primary,
-    color: "white",
-    fontWeight: "bold",
-  },
-  refreshBtn: {
-    backgroundColor: COLORS.dark,
-    color: "white",
-    border: "none",
-    padding: "8px 16px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    fontWeight: "bold",
-  },
-  gridContainer: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "4px",
-    marginBottom: "20px",
-  },
-  gridItem: {
-    width: "26px",
-    height: "26px",
-    borderRadius: "4px",
-    cursor: "pointer",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    transition: "transform 0.1s",
-  },
-  detailPanel: {
-    backgroundColor: COLORS.white,
-    borderRadius: "12px",
-    padding: "20px",
-    boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
-    border: `1px solid ${COLORS.border}`,
-    animation: "fadeIn 0.3s",
-  },
-  detailHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "15px",
-  },
-  detailTitle: {
-    fontSize: "18px",
-    fontWeight: "bold",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    margin: 0,
-  },
-  statusTag: {
-    padding: "4px 10px",
-    borderRadius: "12px",
-    color: "white",
-    fontSize: "11px",
-    fontWeight: "bold",
-    marginLeft: "10px",
-  },
-  defectTag: {
-    fontSize: "12px",
-    color: COLORS.ng,
-    fontWeight: "bold",
-    marginLeft: "10px",
-    backgroundColor: "#FFEBEE",
-    padding: "4px 8px",
-    borderRadius: "4px",
-  },
-  pinBtn: {
-    backgroundColor: COLORS.white,
-    color: COLORS.dark,
-    border: `1px solid ${COLORS.dark}`,
-    padding: "6px 12px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    fontSize: "12px",
-    fontWeight: "bold",
-  },
-  chartRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
-    gap: "15px",
-  },
-  chartBox: {
-    backgroundColor: "#fff",
-    border: `1px solid #eee`,
-    borderRadius: "8px",
-    padding: "10px",
-  },
-  chartTitle: {
-    fontSize: "13px",
-    margin: "0 0 10px 0",
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-  },
-  emptyState: {
-    textAlign: "center",
-    padding: "60px",
-    color: "#bbb",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "10px",
-  },
-  compareBar: {
-    position: "fixed",
-    bottom: 0,
-    left: "260px",
-    right: 0,
-    height: "150px",
-    backgroundColor: "white",
-    borderTop: "3px solid #333",
-    boxShadow: "0 -5px 20px rgba(0,0,0,0.15)",
-    padding: "15px 30px",
-    display: "flex",
-    flexDirection: "column",
-    zIndex: 1000,
-  },
-  compareHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    marginBottom: "10px",
-  },
-  clearBtn: {
-    background: "none",
-    border: "none",
-    textDecoration: "underline",
-    cursor: "pointer",
-    color: "#666",
-    fontSize: "12px",
-  },
-  compareWrapper: { overflowX: "auto", paddingBottom: "10px" },
-  compareGrid: { display: "flex", gap: "15px" },
-  compareCard: {
-    minWidth: "160px",
-    backgroundColor: "#F5F7FA",
-    borderRadius: "8px",
-    padding: "10px",
-    border: `1px solid ${COLORS.border}`,
-    cursor: "pointer",
-    transition: "0.2s",
-  },
-  compareCardHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    fontSize: "12px",
-    color: "#666",
-    marginBottom: "4px",
-  },
-};
+const StatCard = ({ title, value, unit, icon, color }) => (
+  <div
+    style={{
+      backgroundColor: "#fff",
+      borderRadius: "12px",
+      padding: "20px",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+      display: "flex",
+      alignItems: "center",
+      gap: "15px",
+    }}
+  >
+    <div
+      style={{
+        width: "45px",
+        height: "45px",
+        borderRadius: "12px",
+        backgroundColor: `${color}15`,
+        color: color,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "20px",
+      }}
+    >
+      {icon}
+    </div>
+    <div>
+      <div style={{ fontSize: "12px", color: "#888" }}>{title}</div>
+      <div style={{ fontSize: "18px", fontWeight: "bold", color: "#333" }}>
+        {value}{" "}
+        <span style={{ fontSize: "12px", fontWeight: "normal" }}>{unit}</span>
+      </div>
+    </div>
+  </div>
+);
 
-export default ReliabilityTest;
+export default MaterialInout;
