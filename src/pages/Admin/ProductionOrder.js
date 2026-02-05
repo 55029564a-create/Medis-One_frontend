@@ -15,6 +15,7 @@ import {
   updateProductOrder,
   deleteProductOrder,
   getLines,
+  getProducts, // [필수] API 파일에 이 함수가 있는지 꼭 확인하세요!
 } from "../../api/productionApi";
 
 const THEME = {
@@ -33,14 +34,16 @@ const THEME = {
 const ProductionOrder = () => {
   const [orders, setOrders] = useState([]);
   const [lines, setLines] = useState([]);
+  const [products, setProducts] = useState([]); // 제품 목록
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
 
+  // 입력 폼 상태
   const [currentOrder, setCurrentOrder] = useState({
     id: null,
-    productId: 1,
-    lineId: 1,
+    productId: "", // 제품 ID
+    lineId: "", // 라인 ID
     targetQty: 0,
     deadline: "",
     worker: "",
@@ -54,14 +57,20 @@ const ProductionOrder = () => {
 
   const fetchData = async () => {
     try {
-      const [poData, lineData] = await Promise.all([
-        getProductOrders(),
-        getLines(),
-      ]);
-      setOrders(poData);
-      setLines(lineData);
+      // 1. 주문 목록 조회
+      const poData = await getProductOrders();
+      setOrders(poData || []); // 데이터가 없어도 빈 배열로 설정 (화면 안 깨지게)
+
+      // 2. 기초 데이터(라인, 제품) 조회
+      const lineData = await getLines();
+      setLines(lineData || []);
+
+      const prodData = await getProducts();
+      setProducts(prodData || []);
     } catch (err) {
-      console.error("데이터 로드 실패", err);
+      console.error("데이터 로드 실패:", err);
+      // 에러가 나더라도 기존 데이터가 날아가지 않도록 처리는 했으나,
+      // 근본적으로는 백엔드 서버가 켜져있고 API가 정상 동작해야 합니다.
     }
   };
 
@@ -70,8 +79,16 @@ const ProductionOrder = () => {
   const doneCount = orders.filter((o) => o.status === "COMPLETED").length;
 
   const handleSave = async () => {
-    if (!currentOrder.targetQty || !currentOrder.deadline)
-      return alert("필수 입력값 누락");
+    // 유효성 검사: 제품, 라인, 수량, 마감일 필수
+    if (
+      !currentOrder.productId ||
+      !currentOrder.lineId ||
+      !currentOrder.targetQty ||
+      !currentOrder.deadline
+    ) {
+      return alert("제품, 라인, 수량, 마감일은 필수 입력 항목입니다.");
+    }
+
     try {
       if (isEditMode) {
         await updateProductOrder(currentOrder.id, currentOrder);
@@ -81,7 +98,7 @@ const ProductionOrder = () => {
         alert("생산 계획이 등록되었습니다.");
       }
       setIsModalOpen(false);
-      fetchData();
+      fetchData(); // 저장 후 목록 새로고침
     } catch (err) {
       const msg =
         err.response?.data?.message || err.response?.data || err.message;
@@ -103,21 +120,28 @@ const ProductionOrder = () => {
     }
   };
 
+  // 모달 열기
   const openModal = (order = null) => {
     if (order) {
+      // [수정 모드]
       setIsEditMode(true);
       setCurrentOrder({
         ...order,
-        lineId: order.lineId || (lines.length > 0 ? lines[0].id : 1),
+        // 받아온 데이터에 ID가 있으면 그걸 쓰고, 없으면 목록의 첫 번째 값 (안전장치)
+        lineId: order.lineId || (lines.length > 0 ? lines[0].id : ""),
+        productId:
+          order.productId || (products.length > 0 ? products[0].id : ""),
       });
     } else {
+      // [등록 모드]
       setIsEditMode(false);
       setCurrentOrder({
         id: null,
-        productId: 1,
-        lineId: lines.length > 0 ? lines[0].id : 1,
+        // 기본값: 목록의 첫 번째 아이템 선택
+        productId: products.length > 0 ? products[0].id : "",
+        lineId: lines.length > 0 ? lines[0].id : "",
         targetQty: 0,
-        deadline: new Date().toISOString().split("T")[0],
+        deadline: new Date().toISOString().split("T")[0], // 오늘 날짜
         worker: "",
         instruction: "",
         requirements: "",
@@ -164,7 +188,6 @@ const ProductionOrder = () => {
         />
       </div>
 
-      {/* 리스트 영역 (가로 스크롤 지원) */}
       <div style={styles.tableWrapper}>
         <div style={styles.listHeader}>
           <div style={{ flex: 1.5, minWidth: "100px" }}>계획코드</div>
@@ -179,49 +202,59 @@ const ProductionOrder = () => {
         </div>
 
         <div style={styles.listContainer}>
-          {orders.map((order) => (
+          {orders.length > 0 ? (
+            orders.map((order) => (
+              <div
+                key={order.id}
+                style={styles.cardRow}
+                onClick={() => openModal(order)}
+              >
+                <div
+                  style={{
+                    flex: 1.5,
+                    minWidth: "100px",
+                    fontWeight: "bold",
+                    fontSize: "13px",
+                  }}
+                >
+                  {order.code}
+                </div>
+                <div style={{ flex: 2, minWidth: "150px" }}>
+                  {order.productName}
+                </div>
+                <div style={{ flex: 1.5, minWidth: "120px" }}>
+                  {order.lineName || "라인 미정"}
+                </div>
+                <div
+                  style={{
+                    flex: 1.5,
+                    minWidth: "120px",
+                    color: THEME.primary,
+                    fontWeight: "bold",
+                  }}
+                >
+                  {order.currentQty} / {order.targetQty}
+                </div>
+                <div style={{ flex: 1.5, minWidth: "100px" }}>
+                  {order.deadline}
+                </div>
+                <div style={{ flex: 1, minWidth: "80px" }}>
+                  <StatusBadge status={order.status} />
+                </div>
+                <div
+                  style={{ flex: 0.8, minWidth: "60px", textAlign: "center" }}
+                >
+                  <FaEdit color={THEME.subText} />
+                </div>
+              </div>
+            ))
+          ) : (
             <div
-              key={order.id}
-              style={styles.cardRow}
-              onClick={() => openModal(order)}
+              style={{ padding: "50px", textAlign: "center", color: "#aaa" }}
             >
-              <div
-                style={{
-                  flex: 1.5,
-                  minWidth: "100px",
-                  fontWeight: "bold",
-                  fontSize: "13px",
-                }}
-              >
-                {order.code}
-              </div>
-              <div style={{ flex: 2, minWidth: "150px" }}>
-                {order.productName}
-              </div>
-              <div style={{ flex: 1.5, minWidth: "120px" }}>
-                {order.lineName || "라인 미정"}
-              </div>
-              <div
-                style={{
-                  flex: 1.5,
-                  minWidth: "120px",
-                  color: THEME.primary,
-                  fontWeight: "bold",
-                }}
-              >
-                {order.currentQty} / {order.targetQty}
-              </div>
-              <div style={{ flex: 1.5, minWidth: "100px" }}>
-                {order.deadline}
-              </div>
-              <div style={{ flex: 1, minWidth: "80px" }}>
-                <StatusBadge status={order.status} />
-              </div>
-              <div style={{ flex: 0.8, minWidth: "60px", textAlign: "center" }}>
-                <FaEdit color={THEME.subText} />
-              </div>
+              데이터가 없습니다.
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -232,6 +265,26 @@ const ProductionOrder = () => {
               <h3>{isEditMode ? "계획 수정" : "신규 계획 등록"}</h3>
             </div>
             <div style={styles.modalBody}>
+              {/* [수정됨] 제품 선택 Select Box */}
+              <InputGroup label="생산 제품 (Product)">
+                <select
+                  name="productId"
+                  value={currentOrder.productId}
+                  onChange={handleInputChange}
+                  style={styles.select}
+                >
+                  {products.length === 0 && (
+                    <option value="">제품 목록 로딩 실패</option>
+                  )}
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.code})
+                    </option>
+                  ))}
+                </select>
+              </InputGroup>
+
+              {/* [수정됨] 라인 선택 Select Box */}
               <InputGroup label="생산 라인 (Line)">
                 <select
                   name="lineId"
@@ -239,13 +292,17 @@ const ProductionOrder = () => {
                   onChange={handleInputChange}
                   style={styles.select}
                 >
-                  {lines.map((line) => (
-                    <option key={line.id} value={line.id}>
-                      {line.name}
+                  {lines.length === 0 && (
+                    <option value="">라인 목록 로딩 실패</option>
+                  )}
+                  {lines.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
                     </option>
                   ))}
                 </select>
               </InputGroup>
+
               <div style={styles.row}>
                 <InputGroup label="목표 수량">
                   <input

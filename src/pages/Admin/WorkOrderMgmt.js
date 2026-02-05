@@ -139,7 +139,7 @@ const WorkOrderMgmt = () => {
       <div style={styles.header}>
         <div>
           <h2 style={styles.title}>📝 작업 지시 관리 (Work Order)</h2>
-          <p style={styles.subtitle}>현장 라인별 작업 할당 및 지시 (현장용)</p>
+          <p style={styles.subtitle}>현장 라인별 작업 할당 및 지시</p>
         </div>
         <button style={styles.addButton} onClick={handleAddNew}>
           <FaPlus /> 지시 작성

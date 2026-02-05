@@ -29,6 +29,12 @@ export const deleteProductOrder = async (id) => {
   return response.data;
 };
 
+// src/api/productionApi.js 에 추가
+export const getProducts = async () => {
+  const response = await client.get("/products"); // 혹은 /production/products 등 백엔드 주소에 맞게
+  return response.data;
+};
+
 // ==========================================
 // 2. [하위] 작업 지시 (WorkOrder) API
 // URL: http://localhost:8111/api/production
