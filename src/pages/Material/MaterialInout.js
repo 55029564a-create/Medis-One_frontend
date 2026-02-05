@@ -63,8 +63,8 @@ const MaterialInout = () => {
     manager: "",
   });
 
-  // 🚨 [추가] 선택된 사원의 진짜 ID를 저장할 State
-  const [selectedEmpId, setSelectedEmpId] = useState(null);
+  // 🚨 [수정] 이제 ID가 아니라 '사번(String)'을 저장합니다.
+  const [selectedEmpNum, setSelectedEmpNum] = useState(null);
 
   const [recentList, setRecentList] = useState([]);
   const [stats, setStats] = useState({ inbound: 0, outbound: 0 });
@@ -106,7 +106,7 @@ const MaterialInout = () => {
 
       // 3. 담당자 목록 조회
       const empData = await getEmployeeList();
-      console.log("👉 사원 목록 데이터:", empData); // 디버깅용
+      console.log("👉 사원 목록 데이터:", empData);
 
       if (empData && Array.isArray(empData)) {
         setManagerList(empData);
@@ -167,7 +167,7 @@ const MaterialInout = () => {
           setInputs((prev) => ({
             ...prev,
             item: target.matName,
-            qty: "", 
+            qty: "",
           }));
           document.getElementById("qtyInput")?.focus();
         } else {
@@ -183,13 +183,13 @@ const MaterialInout = () => {
   const handleManagerChange = (e) => {
     const text = e.target.value;
     setInputs({ ...inputs, manager: text });
-    
-    // 검색 시에는 ID 초기화 (직접 타이핑 중이므로)
-    setSelectedEmpId(null);
+
+    // 검색 시에는 사번 초기화 (직접 타이핑 중이므로)
+    setSelectedEmpNum(null);
 
     const filtered = managerList.filter(
       (m) =>
-        m.name.includes(text) || String(m.employeeNum || m.id).includes(text)
+        m.name.includes(text) || String(m.employeeNum || m.id).includes(text),
     );
     setFilteredManagers(filtered);
     setShowManagerList(true);
@@ -198,15 +198,13 @@ const MaterialInout = () => {
   const selectManager = (manager) => {
     const code = manager.employeeNum || "Unknown";
     const label = `${manager.name} (${code})`;
-    
-    // 화면에 보여줄 이름 설정
+
     setInputs({ ...inputs, manager: label });
-    
-    // 🚨 [중요] 선택한 사원의 '진짜 ID(PK)'를 따로 변수에 담습니다.
-    // 백엔드에서 내려준 데이터 구조에 id가 있는지, employeeId인지 확인하세요. (보통 id)
-    console.log("선택한 사원 정보:", manager); // 콘솔에서 ID가 제대로 찍히는지 확인용
-    setSelectedEmpId(manager.id); 
-    
+
+    // 🚨 [수정 포인트 1] 백엔드가 'findByEmployeeNumber'를 쓰므로 '사번'을 저장해야 함
+    console.log("선택된 사원 사번:", manager.employeeNum);
+    setSelectedEmpNum(manager.employeeNum);
+
     setShowManagerList(false);
   };
 
@@ -215,8 +213,8 @@ const MaterialInout = () => {
     setInputs({ ...inputs, vendor: text });
     setFilteredVendors(
       VENDOR_LIST.filter((v) =>
-        v.name.toLowerCase().includes(text.toLowerCase())
-      )
+        v.name.toLowerCase().includes(text.toLowerCase()),
+      ),
     );
     setShowVendorList(true);
   };
@@ -253,6 +251,10 @@ const MaterialInout = () => {
       return alert("투입할 공정을 선택해주세요.");
     }
 
+    if (!selectedEmpNum) {
+      return alert("담당자를 목록에서 선택해주세요.");
+    }
+
     try {
       const payload = {
         materialName: inputs.item,
@@ -261,13 +263,12 @@ const MaterialInout = () => {
         company: inputs.type === "IN" ? inputs.vendor : null,
         type: inputs.type === "IN" ? "INBOUND" : "PRODUCTION_IN",
         process: inputs.type === "OUT" ? selectedProcess : null,
-        
-        // 🚨 [수정] 여기에 선택한 사원 ID를 담아서 보냅니다.
-        // 백엔드가 이걸 받아주길 기도하며 보냅니다.
-        employeeId: selectedEmpId 
+
+        // 🚨 [수정 포인트 2] 백엔드 DTO의 'employeeNum' 필드명에 맞춰서 전송
+        employeeNum: selectedEmpNum,
       };
 
-      console.log("🚀 서버로 전송하는 데이터 확인:", payload); // 전송 직전 데이터 확인
+      console.log("🚀 백엔드로 전송하는 Payload:", payload);
 
       await registerMaterialInOut(payload);
 
@@ -281,7 +282,7 @@ const MaterialInout = () => {
         qty: "",
         currentQty: 0,
       }));
-      // (편의상 담당자는 유지하거나 초기화 가능. 여기선 유지)
+      // (편의상 담당자는 유지)
 
       // 목록 갱신
       const updatedHistory = await getRecentHistory();
@@ -469,7 +470,14 @@ const MaterialInout = () => {
         <div style={styles.header}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <FaBox size={22} color={COLORS.primary} />
-            <h2 style={{ margin: 0, color: COLORS.text, fontSize: "22px", fontWeight: "bold" }}>
+            <h2
+              style={{
+                margin: 0,
+                color: COLORS.text,
+                fontSize: "22px",
+                fontWeight: "bold",
+              }}
+            >
               자재 입/출고 관리
             </h2>
           </div>
@@ -495,27 +503,62 @@ const MaterialInout = () => {
 
         {/* 통계 카드 */}
         <div style={styles.statsGrid}>
-          <StatCard title="금일 입고" value={stats.inbound} unit="건" icon={<FaTruckLoading />} color={COLORS.success} />
-          <StatCard title="금일 출고" value={stats.outbound} unit="건" icon={<FaDolly />} color={COLORS.danger} />
-          <StatCard title="총 재고" value="12,500" unit="EA" icon={<FaLayerGroup />} color={COLORS.info} />
+          <StatCard
+            title="금일 입고"
+            value={stats.inbound}
+            unit="건"
+            icon={<FaTruckLoading />}
+            color={COLORS.success}
+          />
+          <StatCard
+            title="금일 출고"
+            value={stats.outbound}
+            unit="건"
+            icon={<FaDolly />}
+            color={COLORS.danger}
+          />
+          <StatCard
+            title="총 재고"
+            value="12,500"
+            unit="EA"
+            icon={<FaLayerGroup />}
+            color={COLORS.info}
+          />
         </div>
 
         {/* 입력 섹션 */}
         <div style={styles.inputSection}>
           <div style={styles.sectionHeader}>
             <div>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "bold", color: COLORS.text }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "16px",
+                  fontWeight: "bold",
+                  color: COLORS.text,
+                }}
+              >
                 📋 자재 스캔 등록
               </h3>
-              <span style={{ fontSize: "12px", color: COLORS.subText, marginTop: "4px", display: "block" }}>
-                {inputs.type === "IN" ? "입고 처리를 위한 정보를 입력하세요." : "생산 투입을 위한 정보를 입력하세요."}
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: COLORS.subText,
+                  marginTop: "4px",
+                  display: "block",
+                }}
+              >
+                {inputs.type === "IN"
+                  ? "입고 처리를 위한 정보를 입력하세요."
+                  : "생산 투입을 위한 정보를 입력하세요."}
               </span>
             </div>
             <div style={styles.toggleGroup}>
               <button
                 style={{
                   ...styles.toggleBtn,
-                  backgroundColor: inputs.type === "IN" ? COLORS.success : "#f0f0f0",
+                  backgroundColor:
+                    inputs.type === "IN" ? COLORS.success : "#f0f0f0",
                   color: inputs.type === "IN" ? "#fff" : "#999",
                 }}
                 onClick={() => {
@@ -529,7 +572,8 @@ const MaterialInout = () => {
               <button
                 style={{
                   ...styles.toggleBtn,
-                  backgroundColor: inputs.type === "OUT" ? COLORS.danger : "#f0f0f0",
+                  backgroundColor:
+                    inputs.type === "OUT" ? COLORS.danger : "#f0f0f0",
                   color: inputs.type === "OUT" ? "#fff" : "#999",
                 }}
                 onClick={() => {
@@ -555,7 +599,9 @@ const MaterialInout = () => {
                   value={inputs.manager}
                   onChange={handleManagerChange}
                   onFocus={() => setShowManagerList(true)}
-                  onBlur={() => setTimeout(() => setShowManagerList(false), 200)}
+                  onBlur={() =>
+                    setTimeout(() => setShowManagerList(false), 200)
+                  }
                 />
                 <FaCaretDown style={styles.arrowIcon} />
                 {showManagerList && (
@@ -567,7 +613,10 @@ const MaterialInout = () => {
                         onClick={() => selectManager(mgr)}
                       >
                         <strong>{mgr.name}</strong>
-                        <span style={{ color: "#888", fontSize: "11px" }}> ({mgr.employeeNum})</span>
+                        <span style={{ color: "#888", fontSize: "11px" }}>
+                          {" "}
+                          ({mgr.employeeNum})
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -582,10 +631,16 @@ const MaterialInout = () => {
                 <FaBarcode style={styles.inputIcon} />
                 <input
                   ref={lotInputRef}
-                  style={{ ...styles.commonInput, borderColor: COLORS.primary, backgroundColor: "#F9F9FF" }}
+                  style={{
+                    ...styles.commonInput,
+                    borderColor: COLORS.primary,
+                    backgroundColor: "#F9F9FF",
+                  }}
                   placeholder="바코드를 스캔하세요"
                   value={inputs.lot}
-                  onChange={(e) => setInputs({ ...inputs, lot: e.target.value })}
+                  onChange={(e) =>
+                    setInputs({ ...inputs, lot: e.target.value })
+                  }
                   onKeyDown={handleScan}
                 />
               </div>
@@ -600,23 +655,31 @@ const MaterialInout = () => {
                   style={{ ...styles.commonInput, backgroundColor: "#f5f5f5" }}
                   placeholder="스캔 시 자동 입력"
                   value={inputs.item}
-                  onChange={(e) => setInputs({ ...inputs, item: e.target.value })}
+                  onChange={(e) =>
+                    setInputs({ ...inputs, item: e.target.value })
+                  }
                 />
               </div>
             </div>
 
             {/* 수량 */}
             <div style={styles.gridCell}>
-              <label style={styles.label}>{inputs.type === "IN" ? "입고 수량" : "투입 수량"}</label>
+              <label style={styles.label}>
+                {inputs.type === "IN" ? "입고 수량" : "투입 수량"}
+              </label>
               <div style={styles.inputWrapper}>
                 <FaLayerGroup style={styles.inputIcon} />
                 <input
                   id="qtyInput"
                   type="number"
                   style={styles.commonInput}
-                  placeholder={inputs.currentQty ? `현재고: ${inputs.currentQty}` : "0"}
+                  placeholder={
+                    inputs.currentQty ? `현재고: ${inputs.currentQty}` : "0"
+                  }
                   value={inputs.qty}
-                  onChange={(e) => setInputs({ ...inputs, qty: e.target.value })}
+                  onChange={(e) =>
+                    setInputs({ ...inputs, qty: e.target.value })
+                  }
                   onKeyDown={(e) => e.key === "Enter" && handleRegister()}
                 />
               </div>
@@ -624,7 +687,9 @@ const MaterialInout = () => {
 
             {/* 업체/공정 선택 */}
             <div style={styles.gridCell}>
-              <label style={styles.label}>{inputs.type === "IN" ? "공급 업체" : "투입 공정"}</label>
+              <label style={styles.label}>
+                {inputs.type === "IN" ? "공급 업체" : "투입 공정"}
+              </label>
               {inputs.type === "IN" ? (
                 <div style={styles.inputWrapper}>
                   <FaSearch style={styles.inputIcon} />
@@ -634,12 +699,18 @@ const MaterialInout = () => {
                     value={inputs.vendor}
                     onChange={handleVendorChange}
                     onFocus={() => setShowVendorList(true)}
-                    onBlur={() => setTimeout(() => setShowVendorList(false), 200)}
+                    onBlur={() =>
+                      setTimeout(() => setShowVendorList(false), 200)
+                    }
                   />
                   {showVendorList && (
                     <div style={styles.dropdownList}>
                       {filteredVendors.map((v) => (
-                        <div key={v.id} style={styles.dropdownItem} onClick={() => selectVendor(v)}>
+                        <div
+                          key={v.id}
+                          style={styles.dropdownItem}
+                          onClick={() => selectVendor(v)}
+                        >
                           <strong>{v.name}</strong>
                         </div>
                       ))}
@@ -657,7 +728,9 @@ const MaterialInout = () => {
                     >
                       <option value="">라인 선택</option>
                       {processStructure.map((l) => (
-                        <option key={l.id} value={l.id}>{l.name}</option>
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
                       ))}
                     </select>
                     <FaCaretDown style={styles.arrowIcon} />
@@ -672,7 +745,9 @@ const MaterialInout = () => {
                     >
                       <option value="">공정 코드 선택</option>
                       {availableProcesses.map((p) => (
-                        <option key={p.id} value={p.name}>{p.id} ({p.name})</option>
+                        <option key={p.id} value={p.name}>
+                          {p.id} ({p.name})
+                        </option>
                       ))}
                     </select>
                     <FaCaretDown style={styles.arrowIcon} />
@@ -685,11 +760,13 @@ const MaterialInout = () => {
               <button
                 style={{
                   ...styles.actionBtn,
-                  backgroundColor: inputs.type === "IN" ? COLORS.success : COLORS.danger,
+                  backgroundColor:
+                    inputs.type === "IN" ? COLORS.success : COLORS.danger,
                 }}
                 onClick={handleRegister}
               >
-                <FaCheckCircle /> {inputs.type === "IN" ? "입고 확정" : "투입 확정"}
+                <FaCheckCircle />{" "}
+                {inputs.type === "IN" ? "입고 확정" : "투입 확정"}
               </button>
             </div>
           </div>
@@ -697,7 +774,17 @@ const MaterialInout = () => {
 
         {/* 최근 내역 */}
         <div style={styles.listSection}>
-          <div style={{ marginBottom: "15px", display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", fontWeight: "bold", color: COLORS.text }}>
+          <div
+            style={{
+              marginBottom: "15px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "14px",
+              fontWeight: "bold",
+              color: COLORS.text,
+            }}
+          >
             <FaSyncAlt /> 최근 처리 내역 (5건)
           </div>
           <div style={styles.tableHeader}>
@@ -713,11 +800,16 @@ const MaterialInout = () => {
               return (
                 <div key={idx} style={styles.row}>
                   <div style={{ flex: 0.6 }}>
-                    <span style={{
-                      backgroundColor: isIN ? "#E8F5E9" : "#FFEBEE",
-                      color: isIN ? COLORS.success : COLORS.danger,
-                      padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "bold"
-                    }}>
+                    <span
+                      style={{
+                        backgroundColor: isIN ? "#E8F5E9" : "#FFEBEE",
+                        color: isIN ? COLORS.success : COLORS.danger,
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: "bold",
+                      }}
+                    >
                       {item.type}
                     </span>
                   </div>
@@ -725,18 +817,49 @@ const MaterialInout = () => {
                     {item.date ? new Date(item.date).toLocaleString() : "-"}
                   </div>
                   <div style={{ flex: 2 }}>
-                    <div style={{ fontWeight: "bold", fontSize: "13px" }}>{item.matName}</div>
-                    <div style={{ fontSize: "11px", color: COLORS.primary, fontFamily: "monospace" }}>{item.lotNum}</div>
+                    <div style={{ fontWeight: "bold", fontSize: "13px" }}>
+                      {item.matName}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: COLORS.primary,
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {item.lotNum}
+                    </div>
                   </div>
-                  <div style={{ flex: 1, textAlign: "right", fontWeight: "bold", color: isIN ? COLORS.success : COLORS.danger }}>
-                    {isIN ? "+" : "-"} {Number(Math.abs(item.changeQty || 0)).toLocaleString()}
+                  <div
+                    style={{
+                      flex: 1,
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      color: isIN ? COLORS.success : COLORS.danger,
+                    }}
+                  >
+                    {isIN ? "+" : "-"}{" "}
+                    {Number(Math.abs(item.changeQty || 0)).toLocaleString()}
                   </div>
-                  <div style={{ flex: 1, textAlign: "center", fontSize: "12px" }}>{item.empName}</div>
+                  <div
+                    style={{ flex: 1, textAlign: "center", fontSize: "12px" }}
+                  >
+                    {item.empName}
+                  </div>
                 </div>
               );
             })}
             {recentList.length === 0 && (
-              <div style={{ padding: "20px", textAlign: "center", color: "#999", fontSize: "13px" }}>데이터가 없습니다.</div>
+              <div
+                style={{
+                  padding: "20px",
+                  textAlign: "center",
+                  color: "#999",
+                  fontSize: "13px",
+                }}
+              >
+                데이터가 없습니다.
+              </div>
             )}
           </div>
         </div>
@@ -746,14 +869,37 @@ const MaterialInout = () => {
 };
 
 const StatCard = ({ title, value, unit, icon, color }) => (
-  <div style={{ backgroundColor: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)", display: "flex", alignItems: "center", gap: "15px" }}>
-    <div style={{ width: "45px", height: "45px", borderRadius: "12px", backgroundColor: `${color}15`, color: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>
+  <div
+    style={{
+      backgroundColor: "#fff",
+      borderRadius: "12px",
+      padding: "20px",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+      display: "flex",
+      alignItems: "center",
+      gap: "15px",
+    }}
+  >
+    <div
+      style={{
+        width: "45px",
+        height: "45px",
+        borderRadius: "12px",
+        backgroundColor: `${color}15`,
+        color: color,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "20px",
+      }}
+    >
       {icon}
     </div>
     <div>
       <div style={{ fontSize: "12px", color: "#888" }}>{title}</div>
       <div style={{ fontSize: "18px", fontWeight: "bold", color: "#333" }}>
-        {value} <span style={{ fontSize: "12px", fontWeight: "normal" }}>{unit}</span>
+        {value}{" "}
+        <span style={{ fontSize: "12px", fontWeight: "normal" }}>{unit}</span>
       </div>
     </div>
   </div>
