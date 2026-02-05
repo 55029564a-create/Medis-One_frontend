@@ -286,6 +286,11 @@ const Sidebar = () => {
             label="생산 지시 관리"
             currentPath={location.pathname}
           />
+          <SubMenuItem
+            to="/admin/notices"
+            label="공지사항 관리"
+            currentPath={location.pathname}
+          />
         </MenuDropdown>
       </ul>
 

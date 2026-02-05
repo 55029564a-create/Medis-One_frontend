@@ -66,6 +66,7 @@ const EmployeeMgmt = lazy(() => import("./pages/Admin/EmployeeMgmt"));
 const ProcessMgmt = lazy(() => import("./pages/Admin/ProcessMgmt"));
 const WorkOrderMgmt = lazy(() => import("./pages/Admin/WorkOrderMgmt"));
 const ProductionOrder = lazy(() => import("./pages/Admin/ProductionOrder"));
+const NoticeAdmin = lazy(() => import("./pages/Admin/NoticeAdmin"));
 
 // 11. 지원 업무 (Support)
 const Notice = lazy(() => import("./pages/Support/Notice"));
@@ -166,7 +167,7 @@ const ROUTE_CONFIG = [
     element: <ProductionOrder />,
     name: "생산 지시(Admin)",
   },
-
+  { path: "/admin/notices", element: <NoticeAdmin />, name: "공지사항 관리" },
   // 지원
   { path: "/support/notice", element: <Notice />, name: "공지사항" },
   { path: "/support/cafeteria", element: <CafeteriaMenu />, name: "식단표" },

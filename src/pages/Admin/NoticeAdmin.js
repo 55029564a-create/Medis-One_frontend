@@ -2,12 +2,16 @@ import React, { useState, useEffect } from "react";
 import {
   FaBullhorn,
   FaSearch,
+  FaPen,
   FaChevronLeft,
   FaChevronRight,
   FaEye,
   FaTimes,
+  FaCheck,
   FaUser,
   FaCalendarAlt,
+  FaEdit,
+  FaTrash, // 수정, 삭제 아이콘 추가
 } from "react-icons/fa";
 
 const COLORS = {
@@ -19,17 +23,31 @@ const COLORS = {
   white: "#FFFFFF",
   danger: "#FF5252",
   headerBg: "#F8F9FD",
+  edit: "#4CAF50", // 수정 버튼 색 (초록)
 };
 
-const Notice = () => {
+const NoticeAdmin = () => {
   const [notices, setNotices] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  // 글쓰기/수정 모달 상태
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+
+  const [newNotice, setNewNotice] = useState({
+    title: "",
+    writer: "관리자",
+    content: "",
+    important: false,
+  });
 
   // 상세 보기 모달 상태
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedNotice, setSelectedNotice] = useState(null);
 
+  // 1. 목록 조회
   const fetchNotices = async () => {
     try {
       const token =
@@ -37,11 +55,7 @@ const Notice = () => {
       const response = await fetch(
         "http://localhost:8111/api/support/notices",
         {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: token ? `Bearer ${token}` : "",
-          },
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
         },
       );
       if (response.ok) {
@@ -61,6 +75,7 @@ const Notice = () => {
     fetchNotices();
   }, []);
 
+  // 상세 조회
   const handleNoticeClick = async (id) => {
     try {
       const token =
@@ -68,11 +83,7 @@ const Notice = () => {
       const response = await fetch(
         `http://localhost:8111/api/support/notices/${id}`,
         {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: token ? `Bearer ${token}` : "",
-          },
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
         },
       );
       if (response.ok) {
@@ -86,6 +97,107 @@ const Notice = () => {
     }
   };
 
+  // 저장 (등록 + 수정 통합)
+  const handleSave = async () => {
+    if (!newNotice.title || !newNotice.content) {
+      alert("제목과 내용을 입력해주세요.");
+      return;
+    }
+
+    try {
+      const token =
+        localStorage.getItem("accessToken") || localStorage.getItem("token");
+
+      let url = "http://localhost:8111/api/support/notices";
+      let method = "POST";
+
+      // 수정 모드면 URL과 Method 변경
+      if (isEditMode && editingId) {
+        url = `http://localhost:8111/api/support/notices/${editingId}`;
+        method = "PUT";
+      }
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify(newNotice),
+      });
+
+      if (response.ok) {
+        alert(isEditMode ? "수정되었습니다." : "등록되었습니다.");
+        closeModal();
+        fetchNotices();
+      } else {
+        alert("저장 실패");
+      }
+    } catch (error) {
+      console.error("저장 중 에러", error);
+    }
+  };
+
+  // 삭제 기능
+  const handleDelete = async (id, e) => {
+    e.stopPropagation(); // 부모 클릭(상세보기) 방지
+    if (!window.confirm("정말 이 공지사항을 삭제하시겠습니까?")) return;
+
+    try {
+      const token =
+        localStorage.getItem("accessToken") || localStorage.getItem("token");
+      const response = await fetch(
+        `http://localhost:8111/api/support/notices/${id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        },
+      );
+
+      if (response.ok) {
+        alert("삭제되었습니다.");
+        fetchNotices();
+      } else {
+        alert("삭제 실패");
+      }
+    } catch (error) {
+      console.error("삭제 중 에러", error);
+    }
+  };
+
+  // 수정 버튼 클릭 시
+  const openEditModal = (item, e) => {
+    e.stopPropagation(); // 부모 클릭 방지
+    setIsEditMode(true);
+    setEditingId(item.id);
+    setNewNotice({
+      title: item.title,
+      writer: item.writer,
+      content: item.content,
+      important: item.important,
+    });
+    setIsModalOpen(true);
+  };
+
+  // 모달 열기 (글쓰기)
+  const openCreateModal = () => {
+    setIsEditMode(false);
+    setEditingId(null);
+    setNewNotice({
+      title: "",
+      writer: "관리자",
+      content: "",
+      important: false,
+    });
+    setIsModalOpen(true);
+  };
+
+  // 모달 닫기
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  // 페이지네이션
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentNotices = notices.slice(indexOfFirstItem, indexOfLastItem);
@@ -96,7 +208,7 @@ const Notice = () => {
       <div style={styles.headerRow}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <FaBullhorn size={24} color={COLORS.primary} />
-          <h2 style={styles.pageTitle}>공지사항 (Support)</h2>
+          <h2 style={styles.pageTitle}>공지사항 관리 (Admin)</h2>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           <div style={styles.searchBox}>
@@ -107,6 +219,9 @@ const Notice = () => {
               style={styles.searchInput}
             />
           </div>
+          <button style={styles.writeButton} onClick={openCreateModal}>
+            <FaPen size={12} /> 글쓰기
+          </button>
         </div>
       </div>
 
@@ -119,6 +234,8 @@ const Notice = () => {
               <th style={{ ...styles.th, width: "100px" }}>작성자</th>
               <th style={{ ...styles.th, width: "120px" }}>작성일</th>
               <th style={{ ...styles.th, width: "80px" }}>조회</th>
+              {/* 관리용 열 추가 */}
+              <th style={{ ...styles.th, width: "100px" }}>관리</th>
             </tr>
           </thead>
           <tbody>
@@ -127,12 +244,14 @@ const Notice = () => {
                 key={item.id}
                 item={item}
                 onTitleClick={() => handleNoticeClick(item.id)}
+                onEdit={(e) => openEditModal(item, e)} // 수정 버튼 연결
+                onDelete={(e) => handleDelete(item.id, e)} // 삭제 버튼 연결
               />
             ))}
             {notices.length === 0 && (
               <tr>
                 <td
-                  colSpan="5"
+                  colSpan="6"
                   style={{
                     padding: "40px",
                     textAlign: "center",
@@ -179,6 +298,99 @@ const Notice = () => {
         </div>
       </div>
 
+      {/* 글쓰기/수정 모달 */}
+      {isModalOpen && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <div style={styles.modalHeader}>
+              <h3>{isEditMode ? "✏️ 공지사항 수정" : "📝 공지사항 작성"}</h3>
+              <button onClick={closeModal} style={styles.closeBtn}>
+                <FaTimes />
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  marginBottom: "10px",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  id="important"
+                  checked={newNotice.important}
+                  onChange={(e) =>
+                    setNewNotice({ ...newNotice, important: e.target.checked })
+                  }
+                  style={{
+                    marginRight: "8px",
+                    width: "18px",
+                    height: "18px",
+                    cursor: "pointer",
+                  }}
+                />
+                <label
+                  htmlFor="important"
+                  style={{
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    color: COLORS.danger,
+                  }}
+                >
+                  중요 공지 (필독) 설정
+                </label>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>제목</label>
+                <input
+                  type="text"
+                  style={styles.input}
+                  placeholder="제목 입력"
+                  value={newNotice.title}
+                  onChange={(e) =>
+                    setNewNotice({ ...newNotice, title: e.target.value })
+                  }
+                />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>작성자</label>
+                <input
+                  type="text"
+                  style={styles.input}
+                  value={newNotice.writer}
+                  onChange={(e) =>
+                    setNewNotice({ ...newNotice, writer: e.target.value })
+                  }
+                />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>내용</label>
+                <textarea
+                  rows="5"
+                  style={styles.textarea}
+                  placeholder="내용 입력..."
+                  value={newNotice.content}
+                  onChange={(e) =>
+                    setNewNotice({ ...newNotice, content: e.target.value })
+                  }
+                ></textarea>
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={closeModal} style={styles.cancelBtn}>
+                취소
+              </button>
+              <button onClick={handleSave} style={styles.saveBtn}>
+                <FaCheck style={{ marginRight: "5px" }} />{" "}
+                {isEditMode ? "수정완료" : "등록하기"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 상세 보기 모달 */}
       {isDetailOpen && selectedNotice && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
@@ -275,7 +487,8 @@ const Notice = () => {
   );
 };
 
-const NoticeRow = ({ item, onTitleClick }) => {
+// --- 행 컴포넌트 ---
+const NoticeRow = ({ item, onTitleClick, onEdit, onDelete }) => {
   const [hover, setHover] = useState(false);
   const isImportant = item.important;
   return (
@@ -287,7 +500,7 @@ const NoticeRow = ({ item, onTitleClick }) => {
       }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      onClick={onTitleClick}
+      onClick={onTitleClick} // 행 클릭 시 상세 보기
     >
       <td style={{ ...styles.td, color: COLORS.subText }}>{item.id}</td>
       <td style={{ ...styles.td, textAlign: "left" }}>
@@ -297,7 +510,6 @@ const NoticeRow = ({ item, onTitleClick }) => {
             style={{
               color: COLORS.text,
               fontWeight: isImportant ? "bold" : "normal",
-              textDecoration: hover ? "underline" : "none",
             }}
           >
             {item.title}
@@ -317,6 +529,18 @@ const NoticeRow = ({ item, onTitleClick }) => {
           }}
         >
           <FaEye size={12} /> {item.views}
+        </div>
+      </td>
+
+      {/* [수정/삭제 버튼 영역] */}
+      <td style={styles.td}>
+        <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
+          <button onClick={onEdit} style={styles.iconBtnEdit} title="수정">
+            <FaEdit />
+          </button>
+          <button onClick={onDelete} style={styles.iconBtnDelete} title="삭제">
+            <FaTrash />
+          </button>
         </div>
       </td>
     </tr>
@@ -356,6 +580,19 @@ const styles = {
     outline: "none",
     width: "100%",
     fontSize: "14px",
+  },
+  writeButton: {
+    backgroundColor: COLORS.primary,
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    padding: "8px 16px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontSize: "14px",
+    fontWeight: "bold",
   },
   card: {
     backgroundColor: "white",
@@ -461,6 +698,28 @@ const styles = {
     cursor: "pointer",
     color: "#999",
   },
+  modalBody: { display: "flex", flexDirection: "column", gap: "15px" },
+  formGroup: { display: "flex", flexDirection: "column", flex: 1 },
+  label: {
+    fontSize: "14px",
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: "5px",
+  },
+  input: {
+    padding: "10px",
+    borderRadius: "8px",
+    border: `1px solid ${COLORS.border}`,
+    fontSize: "14px",
+  },
+  textarea: {
+    padding: "10px",
+    borderRadius: "8px",
+    border: `1px solid ${COLORS.border}`,
+    fontSize: "14px",
+    resize: "none",
+  },
+  row: { display: "flex", gap: "15px" },
   modalFooter: {
     marginTop: "25px",
     display: "flex",
@@ -480,6 +739,33 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
+  cancelBtn: {
+    backgroundColor: "#f0f0f0",
+    color: "#333",
+    padding: "10px 20px",
+    borderRadius: "8px",
+    border: "none",
+    cursor: "pointer",
+  },
+  // 아이콘 버튼 스타일
+  iconBtnEdit: {
+    border: "none",
+    background: "transparent",
+    color: "#999",
+    cursor: "pointer",
+    fontSize: "16px",
+    padding: "5px",
+    transition: "color 0.2s",
+  },
+  iconBtnDelete: {
+    border: "none",
+    background: "transparent",
+    color: "#999",
+    cursor: "pointer",
+    fontSize: "16px",
+    padding: "5px",
+    transition: "color 0.2s",
+  },
 };
 
-export default Notice;
+export default NoticeAdmin;
