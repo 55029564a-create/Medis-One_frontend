@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   FaSearch,
   FaFolder,
-  FaFolderOpen,
+  FaFolderOpen, // 사용 안 됨 (제거 가능하지만 둠)
   FaPlus,
   FaEdit,
   FaSitemap,
@@ -10,8 +10,11 @@ import {
   FaCube,
   FaHistory,
   FaChevronRight,
-  FaChevronDown, // 트리 확장에 필요하여 추가
+  FaChevronDown, // 사용 안 됨
 } from "react-icons/fa";
+
+// 👇 [1. 추가] AuthContext 가져오기
+import { useAuth } from "../../context/AuthContext";
 
 // 🎨 테마 컬러
 const COLORS = {
@@ -94,6 +97,10 @@ const initialBomList = [
 ];
 
 const BomManagement = () => {
+  // 👇 [2. 추가] 로그인한 유저 정보 가져오기 & 관리자 여부 확인
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
+
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [bomData, setBomData] = useState([]);
   const [viewMode, setViewMode] = useState("FORWARD");
@@ -116,13 +123,20 @@ const BomManagement = () => {
             제품별 자재 명세 및 소요량을 관리합니다.
           </p>
         </div>
+
+        {/* 👇 [3. 변경] 관리자(isAdmin)일 때만 버튼 보여주기 */}
         <div style={styles.headerActions}>
-          <button style={styles.whiteBtn}>
-            <FaHistory /> 변경 이력
-          </button>
-          <button style={styles.primaryBtn}>
-            <FaPlus /> BOM 등록
-          </button>
+          {isAdmin && (
+            <>
+              <button style={styles.whiteBtn}>
+                <FaHistory /> 변경 이력
+              </button>
+              <button style={styles.primaryBtn}>
+                <FaPlus /> BOM 등록
+              </button>
+            </>
+          )}
+          {/* 사원일 경우 이 자리가 텅 비게 됩니다 (조회 전용) */}
         </div>
       </div>
 
@@ -367,9 +381,12 @@ const BomManagement = () => {
                         </td>
                         {/* 관리 버튼 */}
                         <td style={{ ...styles.td, textAlign: "center" }}>
-                          <button style={styles.iconBtn}>
-                            <FaEdit />
-                          </button>
+                          {/* 👇 [4. 추가] 여기도 관리자만 수정 버튼 보이게 */}
+                          {isAdmin && (
+                            <button style={styles.iconBtn}>
+                              <FaEdit />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
