@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaSearch,
   FaCalendarAlt,
@@ -11,13 +11,18 @@ import {
   FaClock,
 } from "react-icons/fa";
 
-// 🎨 디자인 테마 (기존 스타일 유지)
+// [변경] API 함수 임포트
+import {
+  getTodayWorkOrders,
+  getMonthlyWorkOrders,
+} from "../../api/productionApi";
+
 const COLORS = {
   primary: "#8C85FF",
   secondary: "#F3F1FF",
-  success: "#00C851", // 완료
-  warning: "#FFBB33", // 대기
-  info: "#33B5E5", // 진행중
+  success: "#00C851",
+  warning: "#FFBB33",
+  info: "#33B5E5",
   text: "#333",
   subText: "#888",
   border: "#E0E0E0",
@@ -25,72 +30,34 @@ const COLORS = {
   white: "#FFFFFF",
 };
 
-// 1. Mock Data (금일 및 월간 데이터)
-const todayData = [
-  {
-    id: "WO-260119-01",
-    date: "2026-01-19",
-    process: "Line-A (조립)",
-    worker: "김철수",
-    product: "27인치 LCD 패널",
-    qty: 500,
-    status: "Running",
-    desc: "패널 조립 시 베젤 유격 0.5mm 이내 관리 요망.",
-    note: "자재 입고 지연으로 10:00 시작함.",
-  },
-  {
-    id: "WO-260119-02",
-    date: "2026-01-19",
-    process: "Line-B (포장)",
-    worker: "이영희",
-    product: "메인보드 A타입",
-    qty: 1200,
-    status: "Waiting",
-    desc: "박스 포장 시 구성품(매뉴얼, 케이블) 누락 주의.",
-    note: "",
-  },
-];
-
-const monthData = [
-  {
-    id: "WO-260118-05",
-    date: "2026-01-18",
-    process: "Line-C (검사)",
-    worker: "박민수",
-    product: "전원 어댑터",
-    qty: 3000,
-    status: "Done",
-    desc: "전수 검사 실시, 불량품 별도 적재.",
-    note: "불량률 0.1% 달성.",
-  },
-  {
-    id: "WO-260115-01",
-    date: "2026-01-15",
-    process: "Line-A (조립)",
-    worker: "김철수",
-    product: "32인치 모니터",
-    qty: 400,
-    status: "Done",
-    desc: "신규 모델 시생산.",
-    note: "",
-  },
-  {
-    id: "WO-260110-03",
-    date: "2026-01-10",
-    process: "Line-B (가공)",
-    worker: "최가공",
-    product: "알루미늄 케이스",
-    qty: 800,
-    status: "Done",
-    desc: "절삭유 농도 확인 후 작업 시작.",
-    note: "",
-  },
-];
-
 const WorkOrder = () => {
   // 상태 관리
-  const [selectedOrder, setSelectedOrder] = useState(null); // 모달용 선택 데이터
+  const [todayData, setTodayData] = useState([]);
+  const [monthData, setMonthData] = useState([]);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // 데이터 조회
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [today, monthly] = await Promise.all([
+        getTodayWorkOrders(),
+        getMonthlyWorkOrders(),
+      ]);
+      setTodayData(today || []);
+      setMonthData(monthly || []);
+    } catch (error) {
+      console.error("작업 지시 로드 실패:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // 모달 열기
   const openModal = (order) => {
@@ -104,21 +71,22 @@ const WorkOrder = () => {
     setSelectedOrder(null);
   };
 
-  // 상태에 따른 뱃지 렌더링
+  // 상태 뱃지 (DB값 -> UI값 변환)
   const renderStatusBadge = (status) => {
     let color = COLORS.subText;
     let text = "대기";
     let icon = <FaClock />;
 
-    if (status === "Running") {
+    // DB Status: IN_PROGRESS, COMPLETED, WAIT
+    if (status === "IN_PROGRESS" || status === "Running") {
       color = COLORS.info;
       text = "진행중";
-      icon = <FaSpinner className="spin" />; // 회전 애니메이션용 클래스 필요 시 추가
-    } else if (status === "Done") {
+      icon = <FaSpinner className="spin" />;
+    } else if (status === "COMPLETED" || status === "Done") {
       color = COLORS.success;
       text = "완료";
       icon = <FaCheckCircle />;
-    } else if (status === "Waiting") {
+    } else if (status === "WAIT" || status === "Waiting") {
       color = COLORS.warning;
       text = "대기";
       icon = <FaClock />;
@@ -133,12 +101,25 @@ const WorkOrder = () => {
     );
   };
 
+  // DB DTO -> UI 렌더링용 변수 매핑 헬퍼
+  // DTO: code, deadline, lineName, worker, productName, targetQty, status, instruction, requirements
+  const mapOrder = (order) => ({
+    id: order.code,
+    date: order.deadline,
+    process: order.lineName || "라인 미정",
+    worker: order.worker,
+    product: order.productName,
+    qty: order.targetQty,
+    status: order.status,
+    desc: order.instruction,
+    note: order.requirements,
+  });
+
   return (
     <div style={styles.container}>
-      {/* 헤더 */}
       <div style={styles.header}>
         <div>
-          <h2 style={{ margin: 0, color: COLORS.text }}>📑 작업지시서 관리</h2>
+          <h2 style={{ margin: 0, color: COLORS.text }}>📑 작업 지시서</h2>
           <p
             style={{
               margin: "5px 0 0",
@@ -162,13 +143,13 @@ const WorkOrder = () => {
               금일 작업 지시 (Today)
             </h3>
             <span style={{ fontSize: "13px", color: COLORS.subText }}>
-              2026-01-19 (월)
+              {new Date().toLocaleDateString()}
             </span>
           </div>
 
           <div style={styles.listHeader}>
             <div style={{ width: "15%" }}>지시번호</div>
-            <div style={{ width: "15%" }}>공정</div>
+            <div style={{ width: "15%" }}>공정(라인)</div>
             <div style={{ width: "25%" }}>품목명</div>
             <div style={{ width: "15%" }}>목표 수량</div>
             <div style={{ width: "15%" }}>작업자</div>
@@ -176,51 +157,66 @@ const WorkOrder = () => {
           </div>
 
           <div style={styles.listBody}>
-            {todayData.map((order) => (
+            {todayData.length > 0 ? (
+              todayData.map((dto) => {
+                const order = mapOrder(dto);
+                return (
+                  <div
+                    key={order.id}
+                    style={styles.cardRow}
+                    onClick={() => openModal(order)}
+                  >
+                    <div
+                      style={{
+                        width: "15%",
+                        fontWeight: "bold",
+                        color: "#666",
+                      }}
+                    >
+                      {order.id}
+                    </div>
+                    <div style={{ width: "15%" }}>{order.process}</div>
+                    <div
+                      style={{
+                        width: "25%",
+                        fontWeight: "600",
+                        color: COLORS.text,
+                      }}
+                    >
+                      {order.product}
+                    </div>
+                    <div
+                      style={{
+                        width: "15%",
+                        color: COLORS.primary,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {order.qty.toLocaleString()} EA
+                    </div>
+                    <div
+                      style={{
+                        width: "15%",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <FaUserCircle color="#ccc" /> {order.worker}
+                    </div>
+                    <div style={{ width: "15%", textAlign: "center" }}>
+                      {renderStatusBadge(order.status)}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
               <div
-                key={order.id}
-                style={styles.cardRow}
-                onClick={() => openModal(order)}
+                style={{ textAlign: "center", padding: "30px", color: "#aaa" }}
               >
-                <div
-                  style={{ width: "15%", fontWeight: "bold", color: "#666" }}
-                >
-                  {order.id}
-                </div>
-                <div style={{ width: "15%" }}>{order.process}</div>
-                <div
-                  style={{
-                    width: "25%",
-                    fontWeight: "600",
-                    color: COLORS.text,
-                  }}
-                >
-                  {order.product}
-                </div>
-                <div
-                  style={{
-                    width: "15%",
-                    color: COLORS.primary,
-                    fontWeight: "bold",
-                  }}
-                >
-                  {order.qty.toLocaleString()} EA
-                </div>
-                <div
-                  style={{
-                    width: "15%",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  <FaUserCircle color="#ccc" /> {order.worker}
-                </div>
-                <div style={{ width: "15%", textAlign: "center" }}>
-                  {renderStatusBadge(order.status)}
-                </div>
+                금일 작업 지시가 없습니다.
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -244,9 +240,9 @@ const WorkOrder = () => {
           </div>
 
           <div style={styles.listHeader}>
-            <div style={{ width: "15%" }}>지시일자</div>
+            <div style={{ width: "15%" }}>마감일</div>
             <div style={{ width: "15%" }}>지시번호</div>
-            <div style={{ width: "15%" }}>공정</div>
+            <div style={{ width: "15%" }}>공정(라인)</div>
             <div style={{ width: "20%" }}>품목명</div>
             <div style={{ width: "10%" }}>수량</div>
             <div style={{ width: "10%" }}>작업자</div>
@@ -254,31 +250,50 @@ const WorkOrder = () => {
           </div>
 
           <div style={styles.listBody}>
-            {monthData.map((order) => (
+            {monthData.length > 0 ? (
+              monthData.map((dto) => {
+                const order = mapOrder(dto);
+                return (
+                  <div
+                    key={order.id}
+                    style={styles.cardRow}
+                    onClick={() => openModal(order)}
+                  >
+                    <div
+                      style={{ width: "15%", color: "#888", fontSize: "13px" }}
+                    >
+                      {order.date}
+                    </div>
+                    <div
+                      style={{
+                        width: "15%",
+                        fontWeight: "bold",
+                        color: "#666",
+                      }}
+                    >
+                      {order.id}
+                    </div>
+                    <div style={{ width: "15%" }}>{order.process}</div>
+                    <div style={{ width: "20%", fontWeight: "600" }}>
+                      {order.product}
+                    </div>
+                    <div style={{ width: "10%" }}>
+                      {order.qty.toLocaleString()}
+                    </div>
+                    <div style={{ width: "10%" }}>{order.worker}</div>
+                    <div style={{ width: "15%", textAlign: "center" }}>
+                      {renderStatusBadge(order.status)}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
               <div
-                key={order.id}
-                style={styles.cardRow}
-                onClick={() => openModal(order)}
+                style={{ textAlign: "center", padding: "30px", color: "#aaa" }}
               >
-                <div style={{ width: "15%", color: "#888", fontSize: "13px" }}>
-                  {order.date}
-                </div>
-                <div
-                  style={{ width: "15%", fontWeight: "bold", color: "#666" }}
-                >
-                  {order.id}
-                </div>
-                <div style={{ width: "15%" }}>{order.process}</div>
-                <div style={{ width: "20%", fontWeight: "600" }}>
-                  {order.product}
-                </div>
-                <div style={{ width: "10%" }}>{order.qty.toLocaleString()}</div>
-                <div style={{ width: "10%" }}>{order.worker}</div>
-                <div style={{ width: "15%", textAlign: "center" }}>
-                  {renderStatusBadge(order.status)}
-                </div>
+                월간 이력이 없습니다.
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
@@ -304,10 +319,9 @@ const WorkOrder = () => {
             </div>
 
             <div style={styles.modalBody}>
-              {/* 상단 요약 정보 */}
               <div style={styles.infoGrid}>
                 <InfoItem label="지시번호" value={selectedOrder.id} />
-                <InfoItem label="지시일자" value={selectedOrder.date} />
+                <InfoItem label="마감일자" value={selectedOrder.date} />
                 <InfoItem label="담당 공정" value={selectedOrder.process} />
                 <InfoItem label="담당자" value={selectedOrder.worker} />
                 <InfoItem label="생산 품목" value={selectedOrder.product} />
@@ -321,18 +335,13 @@ const WorkOrder = () => {
                   value={renderStatusBadge(selectedOrder.status)}
                 />
               </div>
-
               <hr style={styles.divider} />
-
-              {/* 상세 지시 사항 */}
               <div style={styles.detailBox}>
                 <label style={styles.label}>📢 작업 지시 사항</label>
                 <div style={styles.textBox}>
                   {selectedOrder.desc || "특이사항 없음"}
                 </div>
               </div>
-
-              {/* 비고/메모 */}
               <div style={styles.detailBox}>
                 <label style={styles.label}>📝 비고 / 특이사항</label>
                 <div
@@ -359,7 +368,7 @@ const WorkOrder = () => {
   );
 };
 
-// --- 서브 컴포넌트 ---
+// --- 서브 컴포넌트 & 스타일 ---
 const InfoItem = ({ label, value, highlight }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
     <span style={{ fontSize: "12px", color: COLORS.subText }}>{label}</span>
@@ -370,12 +379,11 @@ const InfoItem = ({ label, value, highlight }) => (
         color: highlight ? COLORS.primary : COLORS.text,
       }}
     >
-      {value}
+      {value || "-"}
     </span>
   </div>
 );
 
-// --- 스타일 정의 ---
 const styles = {
   container: {
     padding: "30px",
@@ -383,8 +391,6 @@ const styles = {
     minHeight: "100vh",
   },
   header: { marginBottom: "30px" },
-
-  // 섹션 스타일
   sectionContainer: {
     backgroundColor: COLORS.white,
     borderRadius: "16px",
@@ -406,8 +412,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
-
-  // 리스트 스타일 (Card Row)
   listHeader: {
     display: "flex",
     padding: "0 20px",
@@ -427,10 +431,7 @@ const styles = {
     border: `1px solid ${COLORS.border}`,
     transition: "transform 0.2s",
     cursor: "pointer",
-    ":hover": {
-      transform: "translateY(-2px)",
-      borderColor: COLORS.primary,
-    },
+    ":hover": { transform: "translateY(-2px)", borderColor: COLORS.primary },
   },
   badge: {
     display: "inline-flex",
@@ -440,8 +441,6 @@ const styles = {
     fontSize: "12px",
     fontWeight: "bold",
   },
-
-  // 검색창
   searchBox: {
     display: "flex",
     alignItems: "center",
@@ -458,8 +457,6 @@ const styles = {
     fontSize: "13px",
     width: "100%",
   },
-
-  // 모달 스타일
   modalOverlay: {
     position: "fixed",
     top: 0,
@@ -523,10 +520,7 @@ const styles = {
     color: "#333",
     border: `1px solid ${COLORS.border}`,
   },
-  modalFooter: {
-    display: "flex",
-    justifyContent: "flex-end",
-  },
+  modalFooter: { display: "flex", justifyContent: "flex-end" },
   confirmButton: {
     backgroundColor: COLORS.primary,
     color: COLORS.white,

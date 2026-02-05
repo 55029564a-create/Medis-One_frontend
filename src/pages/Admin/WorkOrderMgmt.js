@@ -236,7 +236,7 @@ const WorkOrderMgmt = () => {
               <h3>{isEditMode ? "작업 지시 수정" : "새 작업 지시"}</h3>
             </div>
             <div style={styles.modalBody}>
-              <InputGroup label="상위 생산 계획 (Parent Plan)">
+              <InputGroup label="상위 생산 지시 (Parent Plan)">
                 <select
                   style={styles.select}
                   name="productOrderId"
