@@ -65,6 +65,15 @@ export const deleteWorkOrder = async (id) => {
   return response.data;
 };
 
+// [신규 추가] 작업 실적 보고 전송
+export const reportWorkResult = async (id, data) => {
+  const response = await client.post(
+    `/production/work-orders/${id}/report`,
+    data,
+  );
+  return response.data;
+};
+
 // [중요] 라인 목록 조회 (공정 대신 사용)
 export const getLines = async () => {
   const response = await client.get("/production/lines");

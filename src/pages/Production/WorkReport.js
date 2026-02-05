@@ -11,6 +11,9 @@ import {
   FaCommentDots,
 } from "react-icons/fa";
 
+// [변경] API 연동
+import { getTodayWorkOrders, reportWorkResult } from "../../api/productionApi";
+
 const COLORS = {
   primary: "#8C85FF",
   secondary: "#F3F1FF",
@@ -26,11 +29,13 @@ const COLORS = {
 };
 
 const WorkReport = () => {
-  // 상태 관리
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [workOrders, setWorkOrders] = useState([]); // DB 데이터
 
-  // 입력 폼 상태
+  // 임시 이력 (새로고침하면 초기화됨 - 실제로는 DB Log 테이블 필요)
+  const [reportHistory, setReportHistory] = useState([]);
+
   const [inputs, setInputs] = useState({
     goodQty: "",
     badQty: "",
@@ -40,56 +45,44 @@ const WorkReport = () => {
     isShiftEnd: false,
   });
 
-  // 실시간 시계
+  // 시계
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 📝 4개 카드 복구
-  const [workOrders, setWorkOrders] = useState([
-    {
-      id: "WO-260120-A01",
-      line: "Line-A (Clean Room)",
-      product: "Zoll X Series",
-      targetQty: 500,
-      currentQty: 400, // 80%
-      status: "RUNNING",
-      manager: "김반장",
-    },
-    {
-      id: "WO-260120-B02",
-      line: "Line-B (Assy)",
-      product: "Propaq M",
-      targetQty: 1000,
-      currentQty: 950, // 95%
-      status: "RUNNING",
-      manager: "이조립",
-    },
-    {
-      id: "WO-260120-C03",
-      line: "Line-C (Packing)",
-      product: "Corpuls3",
-      targetQty: 2000,
-      currentQty: 200, // 10%
-      status: "PAUSED",
-      manager: "최포장",
-    },
-    {
-      id: "WO-260120-D04",
-      line: "Line-D (Inspection)",
-      product: "Propaq M",
-      targetQty: 1500,
-      currentQty: 75, // 5%
-      status: "PAUSED",
-      manager: "박검사",
-    },
-  ]);
+  // [변경] 데이터 로드 (금일 작업지시)
+  const fetchData = async () => {
+    try {
+      const data = await getTodayWorkOrders();
+      // 화면 필드명 매핑 (DTO -> UI)
+      const mapped = data.map((item) => ({
+        id: item.id, // DB PK
+        code: item.code, // 지시번호 (WO-...)
+        line: item.lineName || "미정",
+        product: item.productName,
+        targetQty: item.targetQty,
+        currentQty: item.currentQty,
+        status: item.status, // IN_PROGRESS, WAIT, COMPLETED
+        manager: item.worker,
+      }));
+      setWorkOrders(mapped);
 
-  const [reportHistory, setReportHistory] = useState([]);
+      // 선택된 주문 정보 갱신 (수량 업데이트 반영)
+      if (selectedOrder) {
+        const updated = mapped.find((o) => o.id === selectedOrder.id);
+        if (updated) setSelectedOrder(updated);
+      }
+    } catch (err) {
+      console.error("데이터 로드 실패:", err);
+    }
+  };
 
-  // 로직 함수
+  useEffect(() => {
+    fetchData();
+  }, []);
 
+  // 지시 선택
   const handleSelectOrder = (order) => {
     setSelectedOrder(order);
     setInputs({
@@ -102,6 +95,7 @@ const WorkReport = () => {
     });
   };
 
+  // 잔량 자동 입력
   const handleFillRemaining = () => {
     if (!selectedOrder) return;
     const remaining = selectedOrder.targetQty - selectedOrder.currentQty;
@@ -110,7 +104,8 @@ const WorkReport = () => {
     }
   };
 
-  const handleSubmit = () => {
+  // [변경] 실적 보고 제출
+  const handleSubmit = async () => {
     if (!selectedOrder) return;
 
     const addGood = Number(inputs.goodQty) || 0;
@@ -121,56 +116,50 @@ const WorkReport = () => {
       return alert("수량을 입력하거나 작업을 종료해주세요.");
     }
 
-    const newTotalQty = selectedOrder.currentQty + totalAdd;
-    const isShortfall = newTotalQty < selectedOrder.targetQty;
-
-    if (inputs.isShiftEnd && isShortfall && !inputs.shortfallReason.trim()) {
-      return alert("⚠️ 목표 수량 미달입니다. 미달 사유를 반드시 입력해주세요!");
-    }
-
-    const updatedOrders = workOrders.map((ord) => {
-      if (ord.id === selectedOrder.id) {
-        return {
-          ...ord,
-          currentQty: newTotalQty,
-          status: inputs.isShiftEnd ? "COMPLETED" : ord.status,
-        };
-      }
-      return ord;
-    });
-    setWorkOrders(updatedOrders);
-
-    const newReport = {
-      id: Date.now(),
-      time: new Date().toLocaleTimeString("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      orderId: selectedOrder.id,
-      product: selectedOrder.product,
-      addedGood: addGood,
-      addedBad: addBad,
-      totalResult: `${newTotalQty} / ${selectedOrder.targetQty}`,
-      note: inputs.isShiftEnd
-        ? isShortfall
-          ? `미달: ${inputs.shortfallReason}`
-          : "작업 완료"
-        : inputs.memo
-          ? inputs.memo
-          : "중간 보고",
+    // 서버로 보낼 데이터 (DTO 구조에 맞춤)
+    const reportData = {
+      goodQty: addGood,
+      badQty: addBad,
+      badReason: inputs.badReason,
+      memo: inputs.memo,
+      isShiftEnd: inputs.isShiftEnd,
+      shortfallReason: inputs.shortfallReason,
     };
-    setReportHistory([newReport, ...reportHistory]);
 
-    alert("✅ 실적이 보고되었습니다.");
+    try {
+      await reportWorkResult(selectedOrder.id, reportData); // API 호출
+      alert("✅ 실적이 보고되었습니다.");
 
-    setInputs({
-      goodQty: "",
-      badQty: "",
-      badReason: "def-01",
-      shortfallReason: "",
-      memo: "",
-      isShiftEnd: false,
-    });
+      // 화면 갱신
+      fetchData();
+
+      // 이력 추가 (화면 표시용)
+      const newReport = {
+        id: Date.now(),
+        time: new Date().toLocaleTimeString("ko-KR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        orderCode: selectedOrder.code,
+        addedGood: addGood,
+        addedBad: addBad,
+        totalResult: `${selectedOrder.currentQty + addGood} / ${selectedOrder.targetQty}`,
+        note: inputs.isShiftEnd ? "작업 종료" : inputs.memo || "중간 보고",
+      };
+      setReportHistory([newReport, ...reportHistory]);
+
+      // 입력 초기화
+      setInputs({
+        goodQty: "",
+        badQty: "",
+        badReason: "def-01",
+        shortfallReason: "",
+        memo: "",
+        isShiftEnd: false,
+      });
+    } catch (err) {
+      alert("보고 실패: " + (err.response?.data || err.message));
+    }
   };
 
   const calculatePrediction = () => {
@@ -185,13 +174,13 @@ const WorkReport = () => {
     <div style={styles.container}>
       <div style={styles.header}>
         <div>
-          <h2 style={styles.title}>📊 생산 실적 보고 (MES)</h2>
+          <h2 style={styles.title}>📊 생산 실적 보고</h2>
           <p style={styles.subtitle}>
             현장 작업 지시별 실적 등록 및 특이사항 보고
           </p>
         </div>
         <div style={styles.clockBox}>
-          <FaClock style={{ marginRight: "8px" }} />
+          <FaClock style={{ marginRight: "8px" }} />{" "}
           {currentTime.toLocaleString()}
         </div>
       </div>
@@ -203,78 +192,91 @@ const WorkReport = () => {
             <FaClipboardList /> 금일 작업 지시 목록
           </div>
           <div style={styles.orderList}>
-            {workOrders.map((order) => {
-              const progress = Math.min(
-                (order.currentQty / order.targetQty) * 100,
-                100,
-              );
-              const isSelected = selectedOrder?.id === order.id;
+            {workOrders.length === 0 ? (
+              <div
+                style={{ padding: "20px", textAlign: "center", color: "#999" }}
+              >
+                오늘 작업 지시가 없습니다.
+              </div>
+            ) : (
+              workOrders.map((order) => {
+                const progress = Math.min(
+                  (order.currentQty / order.targetQty) * 100,
+                  100,
+                );
+                const isSelected = selectedOrder?.id === order.id;
 
-              return (
-                <div
-                  key={order.id}
-                  onClick={() => handleSelectOrder(order)}
-                  style={{
-                    ...styles.orderCard,
-                    border: isSelected
-                      ? `2px solid ${COLORS.primary}`
-                      : `1px solid ${COLORS.border}`,
-                    backgroundColor: isSelected ? "#F3F1FF" : "white",
-                  }}
-                >
-                  <div style={styles.cardTop}>
-                    <span style={styles.lineBadge}>{order.line}</span>
-                    <span
-                      style={{
-                        ...styles.statusBadge,
-                        backgroundColor:
-                          order.status === "RUNNING"
-                            ? COLORS.success
-                            : order.status === "COMPLETED"
-                              ? COLORS.primary
-                              : COLORS.warning,
-                      }}
-                    >
-                      {order.status}
-                    </span>
-                  </div>
-                  <div style={styles.productName}>{order.product}</div>
-                  <div style={styles.orderId}>{order.id}</div>
+                // 상태값 한글 변환
+                let statusText = "대기";
+                let statusColor = COLORS.warning;
+                if (order.status === "IN_PROGRESS") {
+                  statusText = "진행중";
+                  statusColor = COLORS.success;
+                }
+                if (order.status === "COMPLETED") {
+                  statusText = "완료";
+                  statusColor = COLORS.primary;
+                }
 
-                  <div style={styles.progressContainer}>
-                    <div style={styles.progressInfo}>
-                      <span>
-                        달성률: <strong>{Math.round(progress)}%</strong>
-                      </span>
-                      <span>
-                        {order.currentQty} / {order.targetQty} ea
-                      </span>
-                    </div>
-                    <div style={styles.progressBarBg}>
-                      <div
+                return (
+                  <div
+                    key={order.id}
+                    onClick={() => handleSelectOrder(order)}
+                    style={{
+                      ...styles.orderCard,
+                      border: isSelected
+                        ? `2px solid ${COLORS.primary}`
+                        : `1px solid ${COLORS.border}`,
+                      backgroundColor: isSelected ? "#F3F1FF" : "white",
+                    }}
+                  >
+                    <div style={styles.cardTop}>
+                      <span style={styles.lineBadge}>{order.line}</span>
+                      <span
                         style={{
-                          ...styles.progressBarFill,
-                          width: `${progress}%`,
+                          ...styles.statusBadge,
+                          backgroundColor: statusColor,
                         }}
-                      ></div>
+                      >
+                        {statusText}
+                      </span>
+                    </div>
+                    <div style={styles.productName}>{order.product}</div>
+                    <div style={styles.orderId}>{order.code}</div>
+                    <div style={styles.progressContainer}>
+                      <div style={styles.progressInfo}>
+                        <span>
+                          달성률: <strong>{Math.round(progress)}%</strong>
+                        </span>
+                        <span>
+                          {order.currentQty} / {order.targetQty} ea
+                        </span>
+                      </div>
+                      <div style={styles.progressBarBg}>
+                        <div
+                          style={{
+                            ...styles.progressBarFill,
+                            width: `${progress}%`,
+                          }}
+                        ></div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* [우측] 입력 폼 및 이력 */}
+        {/* [우측] 입력 폼 */}
         <div style={styles.rightPanel}>
           <div style={styles.formCard}>
             <h3 style={styles.formTitle}>📝 실적 등록 및 종료</h3>
-
             {selectedOrder ? (
               <>
                 <div style={styles.infoSummary}>
                   <div>
-                    <strong>지시번호:</strong> {selectedOrder.id}
+                    <strong>지시번호:</strong> {selectedOrder.code}
                   </div>
                   <div>
                     <strong>제품명:</strong> {selectedOrder.product}
@@ -284,7 +286,6 @@ const WorkReport = () => {
                   </div>
                 </div>
 
-                {/* 예측 시뮬레이션 바 */}
                 <div style={styles.predictionBox}>
                   <div
                     style={{
@@ -388,13 +389,13 @@ const WorkReport = () => {
 
                 <div style={{ marginTop: "15px" }}>
                   <label style={styles.label}>
-                    <FaCommentDots style={{ marginRight: "5px" }} />
-                    특이사항 메모
+                    <FaCommentDots style={{ marginRight: "5px" }} /> 특이사항
+                    메모
                   </label>
                   <input
                     type="text"
                     style={styles.textInput}
-                    placeholder="예: 설비 소음 발생, 자재 박스 교체 등"
+                    placeholder="예: 설비 소음 발생 등"
                     value={inputs.memo}
                     onChange={(e) =>
                       setInputs({ ...inputs, memo: e.target.value })
@@ -433,7 +434,7 @@ const WorkReport = () => {
                       </p>
                       <textarea
                         style={styles.textarea}
-                        placeholder="예: 자재 부족, 설비 고장 등..."
+                        placeholder="사유 입력..."
                         value={inputs.shortfallReason}
                         onChange={(e) =>
                           setInputs({
@@ -459,7 +460,7 @@ const WorkReport = () => {
 
           <div style={styles.historyCard}>
             <div style={styles.panelHeader}>
-              <FaHistory /> 금일 실적 보고 내역
+              <FaHistory /> 금일 실적 보고 내역 (세션)
             </div>
             <div style={styles.tableWrapper}>
               <table style={styles.table}>
@@ -491,7 +492,7 @@ const WorkReport = () => {
                     reportHistory.map((log) => (
                       <tr key={log.id}>
                         <td style={styles.td}>{log.time}</td>
-                        <td style={styles.td}>{log.orderId}</td>
+                        <td style={styles.td}>{log.orderCode}</td>
                         <td style={styles.td}>
                           <span style={{ color: COLORS.success }}>
                             +{log.addedGood}
@@ -518,6 +519,7 @@ const WorkReport = () => {
   );
 };
 
+// ... 스타일 정의 (기존과 동일하게 유지)
 const styles = {
   container: {
     padding: "20px",
@@ -552,15 +554,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
-
-  layout: {
-    display: "flex",
-    gap: "20px",
-    flex: 1,
-    overflow: "hidden",
-  },
-
-  // 좌측 패널
+  layout: { display: "flex", gap: "20px", flex: 1, overflow: "hidden" },
   leftPanel: {
     flex: "0 0 350px",
     backgroundColor: "white",
@@ -643,8 +637,6 @@ const styles = {
     borderRadius: "3px",
     transition: "width 0.3s ease",
   },
-
-  // 우측 패널
   rightPanel: {
     flex: 1,
     display: "flex",
@@ -734,7 +726,6 @@ const styles = {
     fontSize: "14px",
   },
   divider: { height: "1px", backgroundColor: COLORS.border, margin: "20px 0" },
-
   checkSection: { marginBottom: "15px" },
   checkboxLabel: {
     display: "flex",
@@ -743,7 +734,6 @@ const styles = {
     fontWeight: "bold",
     cursor: "pointer",
   },
-
   warningBox: {
     backgroundColor: "#FFF4F4",
     border: `1px solid ${COLORS.danger}`,
@@ -769,7 +759,6 @@ const styles = {
     fontSize: "14px",
     boxSizing: "border-box",
   },
-
   submitBtn: {
     width: "100%",
     padding: "15px",
@@ -785,7 +774,6 @@ const styles = {
     justifyContent: "center",
     gap: "10px",
   },
-
   emptyState: {
     padding: "60px",
     textAlign: "center",
@@ -793,8 +781,6 @@ const styles = {
     border: "2px dashed #eee",
     borderRadius: "8px",
   },
-
-  // 이력 리스트
   historyCard: {
     backgroundColor: "white",
     borderRadius: "12px",
@@ -804,10 +790,7 @@ const styles = {
     boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
     overflow: "hidden",
   },
-  tableWrapper: {
-    flex: 1,
-    overflowY: "auto",
-  },
+  tableWrapper: { flex: 1, overflowY: "auto" },
   table: { width: "100%", borderCollapse: "collapse", fontSize: "13px" },
   th: {
     padding: "12px",
