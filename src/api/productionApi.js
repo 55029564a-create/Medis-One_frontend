@@ -31,7 +31,7 @@ export const deleteProductOrder = async (id) => {
 
 // src/api/productionApi.js 에 추가
 export const getProducts = async () => {
-  const response = await client.get("/products"); // 혹은 /production/products 등 백엔드 주소에 맞게
+  const response = await client.get("/production"); // 혹은 /production/products 등 백엔드 주소에 맞게
   return response.data;
 };
 
@@ -83,6 +83,15 @@ export const getEquipmentList = async () => {
   return response.data;
 };
 
+// ==========================================
+// [신규 추가] 생산 지시서 (ProductionSchedule) 조회
+// URL: http://localhost:8111/api/production/plans
+// ==========================================
+export const getProductionPlans = async () => {
+  const response = await client.get("/production/plans");
+  return response.data;
+};
+
 // --- [공정 마스터 관리] ---
 
 // 공정 목록 조회
@@ -106,5 +115,17 @@ export const updateProcess = async (id, data) => {
 // 공정 삭제
 export const deleteProcess = async (id) => {
   const response = await client.delete(`/production/processes/${id}`);
+  return response.data;
+};
+
+// [신규 추가] 금일 작업 지시 조회
+export const getTodayWorkOrders = async () => {
+  const response = await client.get("/production/work-orders/today");
+  return response.data;
+};
+
+// [신규 추가] 월간 작업 지시 조회
+export const getMonthlyWorkOrders = async () => {
+  const response = await client.get("/production/work-orders/monthly");
   return response.data;
 };

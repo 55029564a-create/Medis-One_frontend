@@ -95,7 +95,7 @@ const ProductionOrder = () => {
         alert("수정되었습니다.");
       } else {
         await createProductOrder(currentOrder);
-        alert("생산 계획이 등록되었습니다.");
+        alert("생산 지시가 등록되었습니다.");
       }
       setIsModalOpen(false);
       fetchData(); // 저장 후 목록 새로고침
@@ -159,11 +159,11 @@ const ProductionOrder = () => {
     <div style={styles.container}>
       <div style={styles.header}>
         <div>
-          <h2 style={styles.title}>📅 생산 계획 관리 (Product Order)</h2>
+          <h2 style={styles.title}>📅 생산 지시 관리 (Product Order)</h2>
           <p style={styles.subtitle}>월간/주간 생산 계획 수립 (관리자용)</p>
         </div>
         <button style={styles.addButton} onClick={() => openModal()}>
-          <FaPlus /> 계획 등록
+          <FaPlus /> 지시 등록
         </button>
       </div>
 
@@ -190,7 +190,7 @@ const ProductionOrder = () => {
 
       <div style={styles.tableWrapper}>
         <div style={styles.listHeader}>
-          <div style={{ flex: 1.5, minWidth: "100px" }}>계획코드</div>
+          <div style={{ flex: 1.5, minWidth: "100px" }}>지시코드</div>
           <div style={{ flex: 2, minWidth: "150px" }}>제품명</div>
           <div style={{ flex: 1.5, minWidth: "120px" }}>라인</div>
           <div style={{ flex: 1.5, minWidth: "120px" }}>진척도</div>
@@ -262,7 +262,7 @@ const ProductionOrder = () => {
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
             <div style={styles.modalHeader}>
-              <h3>{isEditMode ? "계획 수정" : "신규 계획 등록"}</h3>
+              <h3>{isEditMode ? "지시 수정" : "신규 지시 등록"}</h3>
             </div>
             <div style={styles.modalBody}>
               {/* [수정됨] 제품 선택 Select Box */}
@@ -284,7 +284,7 @@ const ProductionOrder = () => {
                 </select>
               </InputGroup>
 
-              {/* [수정됨] 라인 선택 Select Box */}
+              {/* [수정됨] 라인 선택 Select Box - AREX 라인만 필터링 */}
               <InputGroup label="생산 라인 (Line)">
                 <select
                   name="lineId"
@@ -293,13 +293,16 @@ const ProductionOrder = () => {
                   style={styles.select}
                 >
                   {lines.length === 0 && (
-                    <option value="">라인 목록 로딩 실패</option>
+                    <option value="">라인 목록 로딩 중...</option>
                   )}
-                  {lines.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
+                  {lines
+                    // ▼▼▼ [핵심 수정] 이름에 'AREX'가 포함된 라인만 보여주기 ▼▼▼
+                    .filter((l) => l.name.includes("AREX"))
+                    .map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
                 </select>
               </InputGroup>
 
