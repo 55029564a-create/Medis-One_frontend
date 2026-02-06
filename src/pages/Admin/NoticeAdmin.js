@@ -31,7 +31,6 @@ const NoticeAdmin = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // ★ [추가] 검색어 상태 관리
   const [searchTerm, setSearchTerm] = useState("");
 
   // 글쓰기/수정 모달 상태
@@ -198,7 +197,6 @@ const NoticeAdmin = () => {
     setIsModalOpen(false);
   };
 
-  // ★ [추가] 검색 필터링 로직
   const filteredNotices = notices.filter((item) => {
     const searchLower = searchTerm.toLowerCase();
     // 제목 또는 작성자에 검색어가 포함되어 있는지 확인
@@ -208,7 +206,6 @@ const NoticeAdmin = () => {
     );
   });
 
-  // ★ [수정] 페이지네이션 대상을 'filteredNotices'로 변경
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentNotices = filteredNotices.slice(
@@ -217,7 +214,6 @@ const NoticeAdmin = () => {
   );
   const totalPages = Math.ceil(filteredNotices.length / itemsPerPage);
 
-  // ★ [추가] 검색어 변경 시 페이지 리셋
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);

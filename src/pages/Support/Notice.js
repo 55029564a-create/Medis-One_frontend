@@ -30,7 +30,7 @@ const Notice = () => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedNotice, setSelectedNotice] = useState(null);
 
-  // ★ [추가] 검색어 상태 관리
+  // 검색어 상태 관리
   const [searchTerm, setSearchTerm] = useState("");
 
   const fetchNotices = async () => {
@@ -89,7 +89,6 @@ const Notice = () => {
     }
   };
 
-  // ★ [추가] 검색 필터링 로직
   const filteredNotices = notices.filter((item) => {
     const searchLower = searchTerm.toLowerCase();
     // 제목 또는 작성자에 검색어가 포함되어 있는지 확인
@@ -99,7 +98,6 @@ const Notice = () => {
     );
   });
 
-  // ★ [수정] 페이지네이션 대상을 'filteredNotices'로 변경
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentNotices = filteredNotices.slice(
@@ -108,7 +106,7 @@ const Notice = () => {
   );
   const totalPages = Math.ceil(filteredNotices.length / itemsPerPage);
 
-  // ★ [추가] 검색어 변경 시 페이지를 1페이지로 리셋
+  // 검색어 변경 시 페이지를 1페이지로 리셋
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
@@ -127,7 +125,7 @@ const Notice = () => {
               type="text"
               placeholder="제목, 작성자 검색"
               style={styles.searchInput}
-              // ★ [추가] 검색어 입력 연결
+              //  입력 연결
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
