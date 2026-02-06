@@ -132,7 +132,6 @@ const Sidebar = () => {
         </MenuDropdown>
 
         {/* 3. Production (생산) */}
-        {/* ✨ 수정됨: 생산계획, 제품관리 + 작업지시, 생산보고 이동해옴 */}
         <MenuDropdown
           title="Production"
           icon={<FaIndustry size={20} />}
@@ -143,11 +142,6 @@ const Sidebar = () => {
           <SubMenuItem
             to="/production/schedule"
             label="생산 계획"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
-            to="/production/product"
-            label="제품 관리"
             currentPath={location.pathname}
           />
           <SubMenuItem
@@ -163,7 +157,6 @@ const Sidebar = () => {
         </MenuDropdown>
 
         {/* 4. Process (공정) */}
-        {/* ✨ 수정됨: BOM 관리 이동해옴, 설비 모니터링 유지 */}
         <MenuDropdown
           title="Process"
           icon={<FaMicrochip size={20} />}
@@ -179,6 +172,12 @@ const Sidebar = () => {
           <SubMenuItem
             to="/equipment"
             label="설비 모니터링"
+            currentPath={location.pathname}
+          />
+          {/* ★ [수정] 설비 모니터링 아래로 이동 완료! */}
+          <SubMenuItem
+            to="/process/line-monitoring"
+            label="라인 모니터링"
             currentPath={location.pathname}
           />
         </MenuDropdown>

@@ -35,11 +35,12 @@ const InventoryHistory = lazy(
 const ProductionSchedule = lazy(
   () => import("./pages/Production/ProductionSchedule"),
 );
-const ProductMgmt = lazy(() => import("./pages/Production/ProductMgmt"));
+// const ProductMgmt = lazy(() => import("./pages/Production/ProductMgmt")); // [삭제] 라인 모니터링으로 변경됨
 const WorkOrder = lazy(() => import("./pages/Production/WorkOrder"));
 const WorkReport = lazy(() => import("./pages/Production/WorkReport"));
 
 // 6. 공정 관리 (Process)
+const LineMonitoring = lazy(() => import("./pages/Process/LineMonitoring")); // [추가] 라인 모니터링
 const BomManagement = lazy(() => import("./pages/Process/BomManagement"));
 
 // 7. 설비 관리 (Equipment) - 작업 중인 폴더 유지
@@ -116,7 +117,7 @@ const ROUTE_CONFIG = [
     element: <ProductionSchedule />,
     name: "생산 일정",
   },
-  { path: "/production/product", element: <ProductMgmt />, name: "제품 관리" },
+  // { path: "/production/product", element: <ProductMgmt />, name: "제품 관리" }, // [삭제]
   {
     path: "/production/work-order",
     element: <WorkOrder />,
@@ -125,6 +126,11 @@ const ROUTE_CONFIG = [
   { path: "/production/report", element: <WorkReport />, name: "생산 보고" }, // Process 메뉴 하위지만 파일은 Production 폴더
 
   // 공정 (Process 폴더)
+  {
+    path: "/process/line-monitoring",
+    element: <LineMonitoring />,
+    name: "라인 모니터링",
+  }, // [추가]
   { path: "/process/bom", element: <BomManagement />, name: "BOM 관리" },
 
   // 설비 (Equipment 폴더)
