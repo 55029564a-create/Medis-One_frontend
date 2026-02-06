@@ -454,7 +454,7 @@ const InventoryCurrent = () => {
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
-                  data={pieData} // 수정: categoryStats -> pieData
+                  data={pieData}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -462,17 +462,12 @@ const InventoryCurrent = () => {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {pieData.map(
-                    (
-                      entry,
-                      index, // 수정: categoryStats -> pieData
-                    ) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={PIE_COLORS[index % PIE_COLORS.length]}
-                      />
-                    ),
-                  )}
+                  {pieData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={PIE_COLORS[index % PIE_COLORS.length]}
+                    />
+                  ))}
                 </Pie>
                 <Tooltip />
                 <Legend verticalAlign="bottom" height={36} />
@@ -490,7 +485,6 @@ const InventoryCurrent = () => {
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={barData} barSize={20}>
                 {" "}
-                {/* 수정: stockComparison -> barData */}
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
@@ -506,13 +500,13 @@ const InventoryCurrent = () => {
                 <Tooltip cursor={{ fill: "transparent" }} />
                 <Legend />
                 <Bar
-                  dataKey="qty" // 수정: current -> qty
+                  dataKey="qty"
                   name="현재고"
                   fill={CHART_COLORS.primary}
                   radius={[4, 4, 0, 0]}
                 />
                 <Bar
-                  dataKey="safeQty" // 수정: safe -> safeQty
+                  dataKey="safeQty"
                   name="안전재고"
                   fill={CHART_COLORS.warning}
                   radius={[4, 4, 0, 0]}
@@ -562,7 +556,6 @@ const InventoryCurrent = () => {
                 </tr>
               </thead>
               <tbody>
-                {/* 수정: filteredData -> itemList (백엔드에서 필터링해오기 때문) */}
                 {itemList && itemList.length > 0 ? (
                   itemList.map((item) => {
                     const percent = (item.qty / item.safeQty) * 100;

@@ -142,14 +142,12 @@ const InventoryHistory = () => {
             기간별 자재 및 제품의 입/출고 내역을 상세하게 조회합니다.
           </p>
         </div>
-        <button style={styles.excelButton}>
-          <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
-        </button>
       </div>
 
-      {/* 필터 바 (Toolbar) */}
+      {/* 필터 바 (Toolbar) - space-between으로 양 끝 배치 */}
       <div style={styles.toolbar}>
-        <div style={styles.filterGroup}>
+        {/* [왼쪽 그룹] 날짜, 타입, 검색창 */}
+        <div style={styles.leftControls}>
           {/* 날짜 선택 */}
           <div style={styles.datePicker}>
             <FaCalendarAlt color={COLORS.subText} />
@@ -195,17 +193,24 @@ const InventoryHistory = () => {
               출고
             </button>
           </div>
+
+          {/* 검색창 */}
+          <div style={styles.searchBox}>
+            <FaSearch color={COLORS.subText} />
+            <input
+              placeholder="품목명, 코드, 담당자 검색"
+              style={styles.searchInput}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
 
-        {/* 검색창 */}
-        <div style={styles.searchBox}>
-          <FaSearch color={COLORS.subText} />
-          <input
-            placeholder="품목명, 코드, 담당자 검색"
-            style={styles.searchInput}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        {/* [오른쪽 그룹] 엑셀 다운로드 버튼 (혼자 우측 끝) */}
+        <div>
+          <button style={styles.excelButton}>
+            <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
+          </button>
         </div>
       </div>
 
@@ -318,7 +323,7 @@ const InventoryHistory = () => {
   );
 };
 
-// --- 스타일 정의 ---
+// --- 스타일 ---
 const styles = {
   container: {
     padding: "30px",
@@ -332,6 +337,8 @@ const styles = {
     alignItems: "center",
     marginBottom: "25px",
   },
+
+  // 엑셀 버튼 스타일
   excelButton: {
     backgroundColor: "#217346",
     color: "#fff",
@@ -342,10 +349,12 @@ const styles = {
     display: "flex",
     alignItems: "center",
     fontWeight: "bold",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
+    fontSize: "14px",
+    whiteSpace: "nowrap",
   },
 
-  // 툴바 (필터 및 검색)
+  // 툴바
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
@@ -354,7 +363,15 @@ const styles = {
     flexWrap: "wrap",
     gap: "15px",
   },
-  filterGroup: { display: "flex", gap: "15px", alignItems: "center" },
+
+  // 왼쪽 컨트롤 그룹 (날짜, 타입, 검색창을 하나로 묶음)
+  leftControls: {
+    display: "flex",
+    gap: "15px",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+
   datePicker: {
     display: "flex",
     alignItems: "center",
@@ -403,10 +420,10 @@ const styles = {
     display: "flex",
     alignItems: "center",
     backgroundColor: COLORS.white,
-    borderRadius: "20px",
+    borderRadius: "12px",
     padding: "10px 20px",
     border: `1px solid ${COLORS.border}`,
-    width: "300px",
+    width: "250px",
   },
   searchInput: {
     border: "none",
