@@ -77,35 +77,43 @@ const ProductionSchedule = () => {
   const progressRate =
     totalPlan === 0 ? 0 : Math.round((totalDone / totalPlan) * 100);
 
-  // [핸들러] 상세 모달 열기
+  // 상세 모달 열기
   const openDetailModal = (item) => {
     setSelectedSchedule(item);
   };
 
-  // [핸들러] 상세 모달 닫기
+  // 상세 모달 닫기
   const closeDetailModal = () => {
     setSelectedSchedule(null);
   };
 
-  // 엑셀 다운로드 핸들러
+  // 생산 계획 전용 엑셀 다운로드 로직
   const handleDownloadExcel = () => {
+    // 1. 헤더 수정 (생산 계획에 맞는 컬럼명)
     const headers = [
       "지시일자,라인,품목명,계획수량,생산수량,진척률,담당자,상태",
     ];
+
+    // 2. 데이터 매핑 (filteredSchedules 사용)
     const rows = filteredSchedules.map((item) => {
       const rate =
         item.planQty > 0 ? Math.round((item.doneQty / item.planQty) * 100) : 0;
+      // 쉼표가 포함될 수 있는 데이터는 따옴표 처리 등의 로직이 필요할 수 있으나 여기선 단순 처리
       return `${item.date},${item.line},${item.product},${item.planQty},${item.doneQty},${rate}%,${item.manager},${item.status}`;
     });
 
+    // 3. CSV 생성
     const csvContent =
       "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
+
+    // 4. 다운로드 실행
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
+
     link.setAttribute(
       "download",
-      `생산계획_${new Date().toISOString().slice(0, 10)}.csv`,
+      `생산지시서_${new Date().toISOString().slice(0, 10)}.csv`,
     );
     document.body.appendChild(link);
     link.click();
@@ -187,10 +195,12 @@ const ProductionSchedule = () => {
           </div>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
+          {/* 새로고침 버튼 */}
           <button style={styles.refreshBtn} onClick={fetchSchedules}>
             <FaSyncAlt /> 새로고침
           </button>
 
+          {/* 엑셀 다운로드 버튼 */}
           <button style={styles.excelButton} onClick={handleDownloadExcel}>
             <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
           </button>
@@ -266,14 +276,12 @@ const ProductionSchedule = () => {
             </div>
 
             <div style={styles.modalBody}>
-              {/* 상단 정보 그리드 */}
               <div style={styles.infoGrid}>
                 <InfoItem
                   label="지시번호"
                   value={`WO-${selectedSchedule.id}`}
                 />
-                <InfoItem label="지시일자" value={selectedSchedule.date} />{" "}
-                {/* 또는 생성일 */}
+                <InfoItem label="지시일자" value={selectedSchedule.date} />
                 <InfoItem label="담당 라인" value={selectedSchedule.line} />
                 <InfoItem label="담당자" value={selectedSchedule.manager} />
                 <InfoItem
@@ -289,7 +297,6 @@ const ProductionSchedule = () => {
                 />
               </div>
 
-              {/* 상태 표시 */}
               <div style={{ margin: "20px 0" }}>
                 <span
                   style={{
@@ -305,7 +312,6 @@ const ProductionSchedule = () => {
 
               <div style={styles.divider}></div>
 
-              {/* 지시 사항 */}
               <div style={styles.section}>
                 <h4 style={styles.sectionTitle}>
                   <FaBullhorn /> 작업 지시 사항
@@ -316,7 +322,6 @@ const ProductionSchedule = () => {
                 </div>
               </div>
 
-              {/* 비고/특이사항 */}
               <div style={styles.section}>
                 <h4 style={styles.sectionTitle}>
                   <FaEdit /> 비고 / 특이사항
@@ -354,8 +359,6 @@ const ScheduleRow = ({ item, onOpen }) => {
       : 0;
   return (
     <tr style={styles.tbodyTr} onClick={onOpen}>
-      {" "}
-      {/* 행 클릭 시 모달 오픈 */}
       <td style={styles.td}>
         {item.emergency ? (
           <span style={styles.emergencyBadge}>URGENT</span>
@@ -686,18 +689,6 @@ const styles = {
     color: THEME.primary,
     fontWeight: "bold",
   },
-  outlineBtn: {
-    backgroundColor: THEME.white,
-    color: THEME.text,
-    border: `1px solid ${THEME.border}`,
-    padding: "10px 20px",
-    borderRadius: "10px",
-    fontWeight: "600",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-  },
-
   refreshBtn: {
     backgroundColor: THEME.primary,
     color: "#fff",
@@ -712,9 +703,8 @@ const styles = {
     boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
     transition: "background 0.2s",
   },
-  // 엑셀 버튼 스타일
   excelButton: {
-    backgroundColor: "#217346", // 엑셀 초록색
+    backgroundColor: "#217346",
     color: "#fff",
     border: "none",
     padding: "10px 20px",

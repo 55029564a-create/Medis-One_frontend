@@ -124,6 +124,35 @@ const InventoryHistory = () => {
     setFilteredData(result);
   }, [startDate, endDate, filterType, searchTerm, historyData]);
 
+  // 엑셀 다운로드 핸들러
+  const handleDownloadExcel = () => {
+    // 1. CSV 헤더 생성
+    const headers = ["이력ID,일자,시간,구분,품목명,품목코드,수량,작업자,위치"];
+
+    // 2. 데이터 매핑 (화면에 보이는 filteredData 기준)
+    const rows = filteredData.map((item) => {
+      const typeText = item.type === "IN" ? "입고" : "출고";
+      // 쉼표가 데이터에 있을 경우를 대비해 필요시 처리 가능하나, 현재 데이터는 안전함
+      return `${item.id},${item.date},${item.time},${typeText},${item.item},${item.code},${item.qty},${item.worker},${item.location}`;
+    });
+
+    // 3. CSV 내용 조합 (\uFEFF는 한글 깨짐 방지용 BOM)
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
+
+    // 4. 가상의 링크 생성 및 클릭하여 다운로드 실행
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `입출고이력_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div style={styles.container}>
       {/* 헤더 */}
@@ -144,7 +173,7 @@ const InventoryHistory = () => {
         </div>
       </div>
 
-      {/* 필터 바 (Toolbar) - space-between으로 양 끝 배치 */}
+      {/* 필터 바 - space-between으로 양 끝 배치 */}
       <div style={styles.toolbar}>
         {/* [왼쪽 그룹] 날짜, 타입, 검색창 */}
         <div style={styles.leftControls}>
@@ -206,9 +235,8 @@ const InventoryHistory = () => {
           </div>
         </div>
 
-        {/* [오른쪽 그룹] 엑셀 다운로드 버튼 (혼자 우측 끝) */}
         <div>
-          <button style={styles.excelButton}>
+          <button style={styles.excelButton} onClick={handleDownloadExcel}>
             <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
           </button>
         </div>
@@ -364,7 +392,6 @@ const styles = {
     gap: "15px",
   },
 
-  // 왼쪽 컨트롤 그룹 (날짜, 타입, 검색창을 하나로 묶음)
   leftControls: {
     display: "flex",
     gap: "15px",
