@@ -278,163 +278,209 @@ const StatusBadge = ({ status }) => {
 };
 
 const styles = {
-  container: { padding: "30px", backgroundColor: COLORS.bg, minHeight: "100%" },
-  header: { marginBottom: "20px" },
+  // ✅ [수정] 박스 사이즈 계산 방식 변경 및 여백 축소
+  container: {
+    padding: "20px", // 30px -> 20px 축소
+    backgroundColor: COLORS.bg,
+    minHeight: "100vh", // % 대신 vh 사용
+    boxSizing: "border-box", // 패딩이 너비에 포함되도록 설정 (스크롤 방지 핵심)
+    width: "100%",
+    maxWidth: "100%", // 부모 영역 넘침 방지
+    overflowX: "hidden", // 가로 스크롤 강제 숨김
+  },
+
+  header: { marginBottom: "15px" },
   pageTitle: {
-    fontSize: "24px",
+    fontSize: "20px", // 24px -> 20px 축소
     fontWeight: "bold",
     color: COLORS.text,
-    marginBottom: "5px",
+    marginBottom: "4px",
+    margin: 0,
   },
-  pageSubtitle: { fontSize: "14px", color: COLORS.gray },
-  searchSection: { marginBottom: "30px" },
+  pageSubtitle: { fontSize: "13px", color: COLORS.gray, marginTop: "4px" },
+
+  searchSection: { marginBottom: "20px" },
   searchBar: {
     display: "flex",
     alignItems: "center",
     backgroundColor: "white",
-    padding: "10px 20px",
-    borderRadius: "50px",
-    boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
+    padding: "8px 15px", // 패딩 축소
+    borderRadius: "8px", // 둥근 모서리 약간 각지게 수정 (공간 절약)
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
     width: "100%",
-    maxWidth: "600px",
+    maxWidth: "500px", // 검색창 최대 너비 줄임
+    border: `1px solid ${COLORS.border}`,
   },
   searchInput: {
     flex: 1,
     border: "none",
     outline: "none",
-    fontSize: "16px",
+    fontSize: "14px", // 폰트 사이즈 조절
     marginLeft: "10px",
   },
   searchBtn: {
     backgroundColor: COLORS.primary,
     color: "white",
     border: "none",
-    padding: "8px 20px",
-    borderRadius: "20px",
+    padding: "6px 16px",
+    borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "bold",
     display: "flex",
     alignItems: "center",
+    fontSize: "13px",
     gap: "5px",
   },
-  loadingArea: { textAlign: "center", padding: "50px", color: "#999" },
+
+  loadingArea: {
+    textAlign: "center",
+    padding: "40px",
+    color: "#999",
+    fontSize: "14px",
+  },
+
+  // ✅ [수정] 레이아웃 구조 개선 (반응형 대응)
   resultContainer: {
     display: "flex",
-    gap: "20px",
-    flexWrap: "wrap",
+    gap: "15px", // 간격 20px -> 15px 축소
+    flexWrap: "wrap", // 화면 좁으면 아래로 떨어지게 설정
     alignItems: "flex-start",
+    width: "100%",
   },
   emptyState: {
     textAlign: "center",
-    padding: "80px",
+    padding: "60px",
     color: "#ccc",
-    fontSize: "18px",
+    fontSize: "16px",
     border: "2px dashed #e0e0e0",
     borderRadius: "12px",
     width: "100%",
+    boxSizing: "border-box",
   },
-  leftPanel: { flex: "1", minWidth: "300px", position: "sticky", top: "20px" },
-  rightPanel: { flex: "2", minWidth: "400px" },
+
+  // ✅ [수정] 패널 너비 조정 (최소 너비를 줄여서 가로 스크롤 방지)
+  leftPanel: {
+    flex: "1 1 280px", // 기본 280px, 공간 부족하면 줄어듦
+    minWidth: "250px", // 300px -> 250px로 축소
+    maxWidth: "350px", // 너무 넓어지지 않게 제한
+    position: "sticky",
+    top: "20px",
+  },
+  rightPanel: {
+    flex: "999 1 400px", // 남은 공간을 꽉 채우되
+    minWidth: "300px", // 최소 300px까지만 줄어듦 (400px -> 300px 축소)
+    width: "100%", // 모바일 대응
+  },
+
   card: {
     backgroundColor: "white",
-    borderRadius: "12px",
-    padding: "25px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+    borderRadius: "10px",
+    padding: "20px", // 내부 패딩 25px -> 20px 축소
+    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+    border: `1px solid ${COLORS.border}`,
   },
   cardHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "20px",
+    marginBottom: "15px",
+    paddingBottom: "10px",
+    borderBottom: "1px solid #f0f0f0",
   },
   cardTitle: {
-    fontSize: "16px",
+    fontSize: "15px",
     fontWeight: "bold",
     color: "#333",
     display: "flex",
     alignItems: "center",
-    gap: "8px",
+    gap: "6px",
     margin: 0,
   },
+
   lotIdBox: {
     backgroundColor: "#F8F9FA",
-    padding: "15px",
-    borderRadius: "8px",
+    padding: "12px",
+    borderRadius: "6px",
     textAlign: "center",
-    marginBottom: "20px",
+    marginBottom: "15px",
     border: `1px solid ${COLORS.border}`,
   },
-  infoGrid: { display: "flex", flexDirection: "column" },
+
+  infoGrid: { display: "flex", flexDirection: "column", gap: "2px" },
   specialInfo: {
-    marginTop: "20px",
-    padding: "15px",
+    marginTop: "15px",
+    padding: "12px",
     backgroundColor: "#FFF8E1",
-    borderRadius: "8px",
+    borderRadius: "6px",
     border: `1px solid ${COLORS.warning}30`,
   },
   iconRow: {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
-    marginBottom: "5px",
-    fontSize: "13px",
-    fontWeight: "bold",
+    gap: "8px",
+    marginBottom: "4px",
+    fontSize: "12px",
+    fontWeight: "600",
+    color: "#555",
   },
 
   // Timeline Styles
-  timeline: { padding: "10px 0 0 10px" },
+  timeline: { padding: "5px 0 0 5px" },
   timelineItem: {
     position: "relative",
-    paddingBottom: "30px",
-    paddingLeft: "30px",
+    paddingBottom: "25px", // 간격 축소
+    paddingLeft: "25px",
   },
   timelineLine: {
     position: "absolute",
-    left: "9px",
-    top: "0",
-    bottom: "0",
+    left: "7px",
+    top: "5px",
+    bottom: "-5px",
     width: "2px",
-    backgroundColor: "#eee",
+    backgroundColor: "#e0e0e0",
   },
   timelineDotStart: {
     position: "absolute",
-    left: "2px",
-    top: "5px",
-    width: "16px",
-    height: "16px",
+    left: "0",
+    top: "4px",
+    width: "14px", // 점 크기 축소
+    height: "14px",
     borderRadius: "50%",
     backgroundColor: COLORS.success,
-    border: "3px solid white",
+    border: "2px solid white",
     boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-    zIndex: 1,
+    zIndex: 2,
   },
   timelineDot: {
     position: "absolute",
-    left: "2px",
-    top: "5px",
+    left: "0",
+    top: "4px",
     width: "16px",
     height: "16px",
     borderRadius: "50%",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 1,
+    zIndex: 2,
+    backgroundColor: "white",
+    border: "1px solid #eee", // 경계선 추가로 명확하게
   },
   timelineContent: {
     backgroundColor: "#fff",
-    padding: "15px",
-    borderRadius: "8px",
+    padding: "12px", // 패딩 축소
+    borderRadius: "6px",
     border: "1px solid #eee",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+    fontSize: "13px",
   },
   stepTitle: {
     fontWeight: "bold",
-    fontSize: "14px",
+    fontSize: "13px",
     color: "#333",
-    marginBottom: "4px",
+    marginBottom: "3px",
   },
   stepDesc: {
-    fontSize: "12px",
+    fontSize: "11px", // 폰트 축소
     color: "#666",
     display: "flex",
     alignItems: "center",
@@ -442,33 +488,34 @@ const styles = {
   },
 
   productBadge: {
-    marginTop: "8px",
-    padding: "8px",
+    marginTop: "6px",
+    padding: "4px 8px",
     backgroundColor: "#F3F1FF",
-    borderRadius: "6px",
-    fontSize: "12px",
-    display: "inline-block",
+    borderRadius: "4px",
+    fontSize: "11px",
+    display: "inline-flex",
+    alignItems: "center",
     border: `1px solid ${COLORS.primary}30`,
+    width: "fit-content",
   },
   infoText: {
-    marginTop: "5px",
-    fontSize: "11px",
-    color: "#aaa",
+    marginTop: "4px",
+    fontSize: "10px",
+    color: "#bbb",
     fontStyle: "italic",
   },
 
   row: {
     display: "flex",
     justifyContent: "space-between",
-    padding: "8px 0",
-    borderBottom: "1px solid #f5f5f5",
+    padding: "6px 0",
+    borderBottom: "1px solid #f9f9f9",
   },
   badge: {
-    fontSize: "11px",
+    fontSize: "10px",
     fontWeight: "bold",
-    padding: "4px 8px",
-    borderRadius: "6px",
+    padding: "3px 8px",
+    borderRadius: "4px",
   },
 };
-
 export default LotTracking;
