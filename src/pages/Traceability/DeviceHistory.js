@@ -1,28 +1,25 @@
 import React, { useState } from "react";
+import client from "../../api/client";
 import {
   FaSearch,
-  FaFilePdf,
   FaPrint,
   FaCheckCircle,
   FaClipboardList,
   FaMicrochip,
   FaBox,
-  FaFileSignature, // [수정] FaUserSignature -> FaFileSignature로 변경
+  FaFileSignature,
   FaBarcode,
 } from "react-icons/fa";
 
-// 🎨 MedisOne 테마
+// 🎨 스타일 상수
 const COLORS = {
   primary: "#8C85FF",
   bg: "#F5F6FA",
   white: "#FFFFFF",
   success: "#00C851",
-  warning: "#FFBB33",
-  danger: "#FF4444",
   text: "#333",
   gray: "#666",
   border: "#E0E0E0",
-  headerBg: "#2C3E50",
 };
 
 const DeviceHistory = () => {
@@ -30,91 +27,30 @@ const DeviceHistory = () => {
   const [dhrData, setDhrData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // 📝 [Mock Data] 전자 DHR 데이터베이스
-  const MOCK_DHR = {
-    "SN-260121-0042": {
-      info: {
-        model: "MED-24-4K-PRO",
-        desc: "24인치 4K 수술용 모니터 (Endoscopy)",
-        mfgDate: "2026-01-21 14:30",
-        orderNo: "WO-260120-01",
-        customer: "Samsung Medical Center",
-        status: "RELEASED", // 출하 승인 완료
-        qaManager: "Dr. Park (QA-01)",
-      },
-      // 1. 자재 투입 이력 (Genealogy)
-      bom: [
-        { part: "LCD Panel", lot: "LOT-PNL-251201", supplier: "LG Display" },
-        { part: "Main Board", lot: "LOT-PCB-260115", supplier: "MedisOne SMT" },
-        { part: "Power Unit", lot: "LOT-PWR-260101", supplier: "Delta" },
-        { part: "Ag Cover Glass", lot: "LOT-GLS-260105", supplier: "Asahi" },
-      ],
-      // 2. 공정 이력 (Process Traveler)
-      history: [
-        {
-          step: "100",
-          name: "Incoming Inspection",
-          date: "2026-01-19 09:00",
-          result: "PASS",
-          operator: "Kim",
-          data: "OK",
-        },
-        {
-          step: "200",
-          name: "Optical Bonding",
-          date: "2026-01-20 10:30",
-          result: "PASS",
-          operator: "Lee",
-          data: "Vac: -98kPa",
-        },
-        {
-          step: "300",
-          name: "Assembly",
-          date: "2026-01-20 14:00",
-          result: "PASS",
-          operator: "Choi",
-          data: "Torque: 4.5",
-        },
-        {
-          step: "400",
-          name: "Aging Test (24hr)",
-          date: "2026-01-21 10:00",
-          result: "PASS",
-          operator: "System",
-          data: "Max: 45°C",
-        },
-        {
-          step: "500",
-          name: "DICOM Calibration",
-          date: "2026-01-21 13:00",
-          result: "PASS",
-          operator: "Park",
-          data: "Gamma 2.2",
-        },
-        {
-          step: "600",
-          name: "Final QA & Packing",
-          date: "2026-01-21 14:30",
-          result: "PASS",
-          operator: "Dr. Park",
-          data: "Approved",
-        },
-      ],
-    },
-  };
-
-  const handleSearch = (e) => {
+  // 📡 서버 통신 함수
+  const handleSearch = async (e) => {
     e.preventDefault();
     if (!serialNo) return;
+
     setLoading(true);
     setDhrData(null);
 
-    // 검색 시뮬레이션
-    setTimeout(() => {
-      const data = MOCK_DHR[serialNo] || MOCK_DHR["SN-260121-0042"];
-      setDhrData(data);
+    try {
+      // ✅ [핵심] 백엔드 Controller 주소와 정확히 일치 (/trace/sn/{code})
+      // Controller: @GetMapping("/sn/{snCode}")
+      const response = await client.get(`/trace/sn/${serialNo}`);
+
+      console.log("✅ 서버 응답 데이터:", response.data);
+      setDhrData(response.data);
+    } catch (error) {
+      console.error("❌ 조회 에러:", error);
+      // 백엔드가 500을 주더라도 프론트는 멈추지 않고 알림만 띄움
+      alert(
+        "데이터 조회 중 오류가 발생했습니다. (시리얼 번호 또는 서버 상태 확인)",
+      );
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (
@@ -129,10 +65,7 @@ const DeviceHistory = () => {
         </div>
         <div style={styles.btnGroup}>
           <button style={styles.printBtn} onClick={() => window.print()}>
-            <FaPrint /> Print DHR
-          </button>
-          <button style={styles.exportBtn}>
-            <FaFilePdf /> Export PDF
+            <FaPrint /> Print Report
           </button>
         </div>
       </div>
@@ -143,7 +76,7 @@ const DeviceHistory = () => {
           <FaBarcode size={20} color={COLORS.gray} />
           <input
             type="text"
-            placeholder="Scan Serial No. (e.g., SN-260121-0042)"
+            placeholder="Scan Serial No. (e.g. SN-260205-01-A-02)"
             style={styles.searchInput}
             value={serialNo}
             onChange={(e) => setSerialNo(e.target.value)}
@@ -154,9 +87,9 @@ const DeviceHistory = () => {
         </form>
       </div>
 
-      {/* 3. DHR 리포트 영역 */}
+      {/* 3. 리포트 영역 */}
       {loading ? (
-        <div style={styles.loading}>Retrieving eDHR Data...</div>
+        <div style={styles.loading}>데이터 조회 중...</div>
       ) : dhrData ? (
         <div style={styles.reportContainer}>
           {/* (A) 마스터 정보 (Device Master Record) */}
@@ -169,52 +102,54 @@ const DeviceHistory = () => {
             </div>
 
             <div style={styles.infoGrid}>
-              <InfoItem label="Model Name" value={dhrData.info.model} bold />
+              {/* ✅ DTO 변수명 매칭: productName, serialCode, productCode ... */}
+              <InfoItem label="Product Name" value={dhrData.productName} bold />
               <InfoItem
                 label="Serial Number"
-                value={serialNo || "SN-260121-0042"}
+                value={dhrData.serialCode}
                 bold
                 color={COLORS.primary}
               />
-              <InfoItem label="Description" value={dhrData.info.desc} />
-              <InfoItem label="Mfg Date" value={dhrData.info.mfgDate} />
-              <InfoItem label="Work Order" value={dhrData.info.orderNo} />
-              <InfoItem label="Customer" value={dhrData.info.customer} />
+              <InfoItem label="Product Code" value={dhrData.productCode} />
+              <InfoItem label="Work Order" value={dhrData.workOrderCode} />
+              <InfoItem
+                label="Finished Date"
+                value={dhrData.finishedAt || "진행 중 (In Progress)"}
+              />
             </div>
 
             <div style={styles.signatureBox}>
-              {/* [수정] FaFileSignature 아이콘 사용 */}
               <FaFileSignature size={24} color={COLORS.primary} />
               <div>
                 <div style={{ fontSize: "12px", color: "#888" }}>
-                  Electronically Signed by:
+                  Electronically Signed by System
                 </div>
-                <div style={{ fontWeight: "bold" }}>
-                  {dhrData.info.qaManager}
-                </div>
+                <div style={{ fontWeight: "bold" }}>MedisOne MES</div>
               </div>
             </div>
           </div>
 
           <div style={styles.contentRow}>
-            {/* (B) 자재 투입 이력 (BOM) */}
+            {/* (B) 자재 투입 이력 (BOM Traceability) */}
             <div style={styles.bomCard}>
               <h3 style={styles.cardTitle}>
-                <FaBox /> Material Traceability
+                <FaBox /> Material Traceability (BOM)
               </h3>
+
               <table style={styles.table}>
                 <thead>
                   <tr style={styles.thRow}>
-                    <th style={styles.th}>Part Name</th>
-                    <th style={styles.th}>LOT ID</th>
+                    <th style={styles.th}>Material / Kit</th>
+                    <th style={styles.th}>Lot ID</th>
                     <th style={styles.th}>Supplier</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dhrData.bom.map((item, idx) => (
+                  {/* ✅ DTO 변수명 매칭: matLots (List) */}
+                  {(dhrData.matLots || []).map((lot, idx) => (
                     <tr key={idx} style={styles.tr}>
                       <td style={{ ...styles.td, fontWeight: "bold" }}>
-                        {item.part}
+                        {lot.materialName}
                       </td>
                       <td
                         style={{
@@ -223,46 +158,81 @@ const DeviceHistory = () => {
                           fontFamily: "monospace",
                         }}
                       >
-                        {item.lot}
+                        {lot.logCode}
                       </td>
                       <td style={{ ...styles.td, color: "#666" }}>
-                        {item.supplier}
+                        {lot.company}
                       </td>
                     </tr>
                   ))}
+                  {(!dhrData.matLots || dhrData.matLots.length === 0) && (
+                    <tr>
+                      <td
+                        colSpan="3"
+                        style={{
+                          padding: "20px",
+                          textAlign: "center",
+                          color: "#ccc",
+                        }}
+                      >
+                        - 투입 자재 없음 -
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
 
-            {/* (C) 공정 진행 이력 (Process Traveler) */}
+            {/* (C) 공정 기록 (Process Traveler) */}
             <div style={styles.historyCard}>
               <h3 style={styles.cardTitle}>
                 <FaClipboardList /> Process Traveler
               </h3>
               <div style={styles.timeline}>
-                {dhrData.history.map((step, idx) => (
+                {/* ✅ DTO 변수명 매칭: prodLogs (List) */}
+                {(dhrData.prodLogs || []).map((log, idx) => (
                   <div key={idx} style={styles.timelineItem}>
-                    <div style={styles.stepBadge}>{step.step}</div>
+                    <div style={styles.stepBadge}>{idx + 1}</div>
                     <div style={styles.stepContent}>
                       <div style={styles.stepHeader}>
-                        <span style={styles.stepName}>{step.name}</span>
-                        <span style={styles.stepTime}>{step.date}</span>
+                        {/* processName, createdAt */}
+                        <span style={styles.stepName}>{log.processName}</span>
+                        <span style={styles.stepTime}>{log.createdAt}</span>
                       </div>
                       <div style={styles.stepData}>
+                        {/* result, operatorName, data */}
                         <span>
                           Result:{" "}
-                          <strong style={{ color: COLORS.success }}>
-                            {step.result}
+                          <strong
+                            style={{
+                              color:
+                                log.result === "PASS" ? COLORS.success : "#333",
+                            }}
+                          >
+                            {log.result}
                           </strong>
                         </span>
                         <span style={styles.divider}>|</span>
-                        <span>Op: {step.operator}</span>
-                        <span style={styles.divider}>|</span>
-                        <span>Data: {step.data}</span>
+                        <span>Op: {log.operatorName}</span>
+                        <br />
+                        <span style={{ color: "#555", fontSize: "12px" }}>
+                          Data: {log.data || "-"}
+                        </span>
                       </div>
                     </div>
                   </div>
                 ))}
+                {(!dhrData.prodLogs || dhrData.prodLogs.length === 0) && (
+                  <div
+                    style={{
+                      padding: "20px",
+                      textAlign: "center",
+                      color: "#ccc",
+                    }}
+                  >
+                    - 공정 이력 없음 -
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -273,14 +243,14 @@ const DeviceHistory = () => {
             size={40}
             style={{ marginBottom: "15px", color: "#ddd" }}
           />
-          <p>시리얼 번호를 입력하여 DHR을 조회하세요.</p>
+          <p>시리얼 번호를 스캔하거나 입력하세요.</p>
         </div>
       )}
     </div>
   );
 };
 
-// --- 서브 컴포넌트 ---
+// --- 서브 컴포넌트 & 스타일 ---
 const InfoItem = ({ label, value, bold, color }) => (
   <div style={styles.infoItem}>
     <div style={styles.infoLabel}>{label}</div>
@@ -291,15 +261,13 @@ const InfoItem = ({ label, value, bold, color }) => (
         color: color || "#333",
       }}
     >
-      {value}
+      {value || "-"}
     </div>
   </div>
 );
 
-// --- 스타일 ---
 const styles = {
   container: { padding: "30px", backgroundColor: COLORS.bg, minHeight: "100%" },
-
   header: {
     display: "flex",
     justifyContent: "space-between",
@@ -313,7 +281,6 @@ const styles = {
     margin: 0,
   },
   subtitle: { fontSize: "14px", color: COLORS.gray, marginTop: "5px" },
-
   btnGroup: { display: "flex", gap: "10px" },
   printBtn: {
     display: "flex",
@@ -327,19 +294,6 @@ const styles = {
     cursor: "pointer",
     fontWeight: "bold",
   },
-  exportBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    backgroundColor: COLORS.danger,
-    color: "white",
-    border: "none",
-    padding: "10px 16px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  },
-
   searchSection: {
     marginBottom: "30px",
     display: "flex",
@@ -374,10 +328,7 @@ const styles = {
     alignItems: "center",
     gap: "5px",
   },
-
   loading: { textAlign: "center", padding: "50px", color: "#888" },
-
-  // 리포트 컨테이너
   reportContainer: {
     maxWidth: "1000px",
     margin: "0 auto",
@@ -385,8 +336,6 @@ const styles = {
     flexDirection: "column",
     gap: "20px",
   },
-
-  // (A) 마스터 정보
   masterCard: {
     backgroundColor: "white",
     borderRadius: "12px",
@@ -422,12 +371,10 @@ const styles = {
     fontSize: "12px",
     fontWeight: "bold",
   },
-
   infoGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" },
   infoItem: { borderBottom: "1px solid #f9f9f9", paddingBottom: "8px" },
   infoLabel: { fontSize: "12px", color: "#888", marginBottom: "4px" },
   infoValue: { fontSize: "15px" },
-
   signatureBox: {
     marginTop: "20px",
     backgroundColor: "#F9FAFB",
@@ -438,8 +385,6 @@ const styles = {
     gap: "15px",
     border: "1px dashed #ccc",
   },
-
-  // 하단 컨텐츠 (BOM + History)
   contentRow: { display: "flex", gap: "20px", flexWrap: "wrap" },
   bomCard: {
     flex: "1",
@@ -457,15 +402,11 @@ const styles = {
     padding: "25px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
   },
-
-  // 테이블
   table: { width: "100%", borderCollapse: "collapse" },
   thRow: { backgroundColor: "#f9f9f9", borderBottom: "1px solid #eee" },
   th: { padding: "10px", textAlign: "left", fontSize: "12px", color: "#666" },
   tr: { borderBottom: "1px solid #f5f5f5" },
   td: { padding: "10px", fontSize: "13px", color: "#333" },
-
-  // 타임라인
   timeline: { display: "flex", flexDirection: "column", gap: "15px" },
   timelineItem: { display: "flex", gap: "15px" },
   stepBadge: {
@@ -496,7 +437,6 @@ const styles = {
   stepTime: { fontSize: "11px", color: "#999" },
   stepData: { fontSize: "13px", color: "#555" },
   divider: { margin: "0 8px", color: "#ddd" },
-
   emptyState: {
     textAlign: "center",
     padding: "80px",
