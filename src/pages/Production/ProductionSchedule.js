@@ -4,7 +4,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaSearch,
-  FaFileDownload,
+  FaFileExcel,
   FaClipboardList,
   FaIndustry,
   FaClock,
@@ -17,6 +17,7 @@ import {
   FaTimes,
   FaBullhorn,
   FaEdit,
+  FaSyncAlt,
 } from "react-icons/fa";
 
 // [API] 함수 임포트
@@ -44,7 +45,7 @@ const ProductionSchedule = () => {
   const [schedules, setSchedules] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // [상태 추가] 상세 모달용 선택된 데이터
+  // 상세 모달용 선택된 데이터
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
   // 데이터 조회
@@ -84,6 +85,31 @@ const ProductionSchedule = () => {
   // [핸들러] 상세 모달 닫기
   const closeDetailModal = () => {
     setSelectedSchedule(null);
+  };
+
+  // 엑셀 다운로드 핸들러
+  const handleDownloadExcel = () => {
+    const headers = [
+      "지시일자,라인,품목명,계획수량,생산수량,진척률,담당자,상태",
+    ];
+    const rows = filteredSchedules.map((item) => {
+      const rate =
+        item.planQty > 0 ? Math.round((item.doneQty / item.planQty) * 100) : 0;
+      return `${item.date},${item.line},${item.product},${item.planQty},${item.doneQty},${rate}%,${item.manager},${item.status}`;
+    });
+
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `생산계획_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -161,11 +187,12 @@ const ProductionSchedule = () => {
           </div>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button style={styles.outlineBtn} onClick={fetchSchedules}>
-            🔄 새로고침
+          <button style={styles.refreshBtn} onClick={fetchSchedules}>
+            <FaSyncAlt /> 새로고침
           </button>
-          <button style={styles.outlineBtn}>
-            <FaFileDownload style={{ marginRight: "6px" }} /> 엑셀
+
+          <button style={styles.excelButton} onClick={handleDownloadExcel}>
+            <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
           </button>
         </div>
       </div>
@@ -218,7 +245,7 @@ const ProductionSchedule = () => {
         </div>
       )}
 
-      {/* [추가] 상세 정보 모달 */}
+      {/* 상세 정보 모달 */}
       {selectedSchedule && (
         <div style={styles.modalOverlay}>
           <div style={styles.detailModal}>
@@ -670,6 +697,34 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
+
+  refreshBtn: {
+    backgroundColor: THEME.primary,
+    color: "#fff",
+    border: "none",
+    padding: "10px 20px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontWeight: "bold",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+    transition: "background 0.2s",
+  },
+  // 엑셀 버튼 스타일
+  excelButton: {
+    backgroundColor: "#217346", // 엑셀 초록색
+    color: "#fff",
+    border: "none",
+    padding: "10px 20px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    fontWeight: "bold",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+  },
   tableContainer: {
     backgroundColor: THEME.white,
     borderRadius: "16px",
@@ -749,7 +804,7 @@ const styles = {
   },
   emptyState: { padding: "40px", textAlign: "center", color: THEME.gray },
 
-  // [신규] 상세 모달 스타일
+  // 상세 모달 스타일
   modalOverlay: {
     position: "fixed",
     top: 0,

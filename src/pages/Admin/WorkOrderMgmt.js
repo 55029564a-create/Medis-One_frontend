@@ -53,7 +53,7 @@ const WorkOrderMgmt = () => {
     fetchData();
   }, []);
 
-  // [신규 로직] 상위 계획 선택 시 제품과 수량 자동 세팅
+  // 상위 계획 선택 시 제품과 수량 자동 세팅
   const handleParentPlanChange = (e) => {
     const selectedId = e.target.value;
 
@@ -70,7 +70,7 @@ const WorkOrderMgmt = () => {
       setCurrentOrder({
         ...currentOrder,
         productOrderId: selectedId,
-        productId: selectedPlan.productId, // [중요] 상위 계획의 제품으로 자동 변경
+        productId: selectedPlan.productId, // 상위 계획의 제품으로 자동 변경
         targetQty: selectedPlan.targetQty - selectedPlan.currentQty, // 잔여 수량 자동 입력 (편의 기능)
         deadline: selectedPlan.deadline, // 마감일도 자동 입력
       });
@@ -265,8 +265,8 @@ const WorkOrderMgmt = () => {
                 <select
                   style={styles.select}
                   name="productOrderId"
-                  value={currentOrder.productOrderId || ""} // null 방지
-                  onChange={handleParentPlanChange} // [변경] 핸들러 교체
+                  value={currentOrder.productOrderId || ""}
+                  onChange={handleParentPlanChange}
                   disabled={isEditMode}
                 >
                   <option value="">(연결 안함 - 독립 지시)</option>
@@ -396,6 +396,7 @@ const styles = {
     margin: 0,
   },
   subtitle: { margin: "5px 0 0", color: COLORS.subText, fontSize: "14px" },
+
   addButton: {
     padding: "10px 20px",
     backgroundColor: COLORS.primary,
@@ -407,7 +408,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    boxShadow: "0 4px 10px rgba(140, 133, 255, 0.4)",
   },
 
   // 테이블 반응형 처리
