@@ -21,69 +21,69 @@ const COLORS = {
   white: "#FFFFFF",
 };
 
-// Mock Data
-const initialHistory = [
-  {
-    id: "HIS-260120-01",
-    date: "2026-01-20",
-    time: "14:30",
-    type: "IN",
-    item: "27인치 LCD 패널",
-    code: "M-001",
-    qty: 500,
-    worker: "김자재",
-    location: "A-01",
-  },
-  {
-    id: "HIS-260120-02",
-    date: "2026-01-20",
-    time: "11:15",
-    type: "OUT",
-    item: "나사 (M4)",
-    code: "M-005",
-    qty: 2000,
-    worker: "박생산",
-    location: "Line-A",
-  },
-  {
-    id: "HIS-260119-01",
-    date: "2026-01-19",
-    time: "09:20",
-    type: "IN",
-    item: "전원 케이블",
-    code: "M-002",
-    qty: 300,
-    worker: "이물류",
-    location: "B-02",
-  },
-  {
-    id: "HIS-260118-03",
-    date: "2026-01-18",
-    time: "16:45",
-    type: "OUT",
-    item: "27인치 LCD 패널",
-    code: "M-001",
-    qty: 100,
-    worker: "최조립",
-    location: "Line-B",
-  },
-  {
-    id: "HIS-260118-02",
-    date: "2026-01-18",
-    time: "13:00",
-    type: "IN",
-    item: "메인보드 A타입",
-    code: "M-003",
-    qty: 50,
-    worker: "김자재",
-    location: "A-03",
-  },
-];
+// // Mock Data
+// const initialHistory = [
+//   {
+//     id: "HIS-260120-01",
+//     date: "2026-01-20",
+//     time: "14:30",
+//     type: "IN",
+//     item: "27인치 LCD 패널",
+//     code: "M-001",
+//     qty: 500,
+//     worker: "김자재",
+//     location: "A-01",
+//   },
+//   {
+//     id: "HIS-260120-02",
+//     date: "2026-01-20",
+//     time: "11:15",
+//     type: "OUT",
+//     item: "나사 (M4)",
+//     code: "M-005",
+//     qty: 2000,
+//     worker: "박생산",
+//     location: "Line-A",
+//   },
+//   {
+//     id: "HIS-260119-01",
+//     date: "2026-01-19",
+//     time: "09:20",
+//     type: "IN",
+//     item: "전원 케이블",
+//     code: "M-002",
+//     qty: 300,
+//     worker: "이물류",
+//     location: "B-02",
+//   },
+//   {
+//     id: "HIS-260118-03",
+//     date: "2026-01-18",
+//     time: "16:45",
+//     type: "OUT",
+//     item: "27인치 LCD 패널",
+//     code: "M-001",
+//     qty: 100,
+//     worker: "최조립",
+//     location: "Line-B",
+//   },
+//   {
+//     id: "HIS-260118-02",
+//     date: "2026-01-18",
+//     time: "13:00",
+//     type: "IN",
+//     item: "메인보드 A타입",
+//     code: "M-003",
+//     qty: 50,
+//     worker: "김자재",
+//     location: "A-03",
+//   },
+// ];
 
 const InventoryHistory = () => {
   // --- 상태 관리 ---
-  const [historyData, setHistoryData] = useState(initialHistory);
-  const [filteredData, setFilteredData] = useState(initialHistory);
+  const [historyData, setHistoryData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
 
   // 필터 상태
   const [searchTerm, setSearchTerm] = useState("");
@@ -94,30 +94,58 @@ const InventoryHistory = () => {
   const [startDate, setStartDate] = useState("2026-01-01");
   const [endDate, setEndDate] = useState(today);
 
+  // --- 백엔드 데이터 호출 (추가) ---
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await fetch(
+          `http://localhost:8111/api/inventory/history?startDate=${startDate}&endDate=${endDate}&type=${filterType}`,
+        );
+        if (!response.ok) throw new Error("서버 응답 에러");
+        const data = await response.json();
+        setHistoryData(data);
+      } catch (error) {
+        console.error("데이터 로드 실패:", error);
+      }
+    };
+    fetchHistory();
+  }, []);
+
   // --- 필터링 로직 ---
   useEffect(() => {
-    let result = historyData;
+    // historyData가 진짜 배열인지 확인하고, 아니면 빈 배열을 기본값으로 씁니다.
+    let result = Array.isArray(historyData) ? historyData : [];
 
-    // 1. 날짜 필터
+    // 데이터가 없으면 필터링을 진행하지 않고 종료
+    if (result.length === 0) {
+      setFilteredData([]);
+      return;
+    }
+
+    // 1. 날짜 필터 (백엔드의 "2026-02-01T10:00:00" 형식을 잘라서 비교)
     if (startDate && endDate) {
-      result = result.filter(
-        (item) => item.date >= startDate && item.date <= endDate,
-      );
+      result = result.filter((item) => {
+        const itemDate = item.date.split("T")[0];
+        return itemDate >= startDate && itemDate <= endDate;
+      });
     }
 
-    // 2. 유형 필터 (입고/출고)
+    // 2. 유형 필터 (수량이 0보다 크면 입고, 작으면 출고로 판별)
     if (filterType !== "ALL") {
-      result = result.filter((item) => item.type === filterType);
+      result = result.filter((item) => {
+        const isIN = item.changeQty > 0;
+        return filterType === "IN" ? isIN : !isIN;
+      });
     }
 
-    // 3. 검색어 필터 (품목명, 코드, 작업자)
+    // 3. 검색어 필터 (품목명: matName, 로트번호: lotNum, 담당자: empName)
     if (searchTerm) {
       const lowerTerm = searchTerm.toLowerCase();
       result = result.filter(
         (item) =>
-          item.item.toLowerCase().includes(lowerTerm) ||
-          item.code.toLowerCase().includes(lowerTerm) ||
-          item.worker.toLowerCase().includes(lowerTerm),
+          item.matName.toLowerCase().includes(lowerTerm) ||
+          item.lotNum.toLowerCase().includes(lowerTerm) ||
+          item.empName.toLowerCase().includes(lowerTerm),
       );
     }
 
@@ -228,85 +256,94 @@ const InventoryHistory = () => {
 
         {/* 데이터 행 */}
         {filteredData.length > 0 ? (
-          filteredData.map((row) => (
-            <div key={row.id} style={styles.cardRow}>
-              {/* 일자 */}
-              <div
-                style={{
-                  width: "15%",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <span style={{ fontWeight: "bold", color: "#555" }}>
-                  {row.date}
-                </span>
-                <span style={{ fontSize: "12px", color: "#999" }}>
-                  {row.time}
-                </span>
-              </div>
+          filteredData.map((row, index) => {
+            // (row) => ( 에서 (row, index) => { 로 변경
+            // 1. 데이터 가공 (변수 선언은 반드시 { } 안에서 수행)
+            const isIncoming = row.changeQty > 0;
 
-              {/* 구분 (뱃지) */}
-              <div style={{ width: "10%", textAlign: "center" }}>
-                <span
-                  style={row.type === "IN" ? styles.badgeIn : styles.badgeOut}
+            // 날짜 데이터가 없을 경우를 대비한 방어 코드 포함
+            const dateParts = row.date ? row.date.split("T") : ["-", "-"];
+            const dateVal = dateParts[0];
+            const timeVal = dateParts[1] ? dateParts[1].substring(0, 5) : "";
+
+            return (
+              <div key={index} style={styles.cardRow}>
+                {/* 일자/시간 */}
+                <div
+                  style={{
+                    width: "15%",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
                 >
-                  {row.type === "IN" ? (
-                    <FaArrowDown size={10} />
-                  ) : (
-                    <FaArrowUp size={10} />
-                  )}
-                  {row.type === "IN" ? " 입고" : " 출고"}
-                </span>
-              </div>
-
-              {/* 품목 정보 */}
-              <div style={{ width: "25%" }}>
-                <div style={{ fontWeight: "600", color: COLORS.text }}>
-                  {row.item}
+                  <span style={{ fontWeight: "bold", color: "#555" }}>
+                    {dateVal}
+                  </span>
+                  <span style={{ fontSize: "12px", color: "#999" }}>
+                    {timeVal}
+                  </span>
                 </div>
-                <div style={{ fontSize: "12px", color: COLORS.primary }}>
-                  {row.code}
+
+                {/* 구분 (뱃지) */}
+                <div style={{ width: "10%", textAlign: "center" }}>
+                  <span style={isIncoming ? styles.badgeIn : styles.badgeOut}>
+                    {isIncoming ? (
+                      <FaArrowDown size={10} />
+                    ) : (
+                      <FaArrowUp size={10} />
+                    )}
+                    {isIncoming ? " 입고" : " 출고"}
+                  </span>
+                </div>
+
+                {/* 품목 정보 (matName, lotNum 매칭) */}
+                <div style={{ width: "25%" }}>
+                  <div style={{ fontWeight: "600", color: COLORS.text }}>
+                    {row.matName}
+                  </div>
+                  <div style={{ fontSize: "12px", color: COLORS.primary }}>
+                    {row.lotNum}
+                  </div>
+                </div>
+
+                {/* 수량 (changeQty 매칭) */}
+                <div
+                  style={{
+                    width: "15%",
+                    textAlign: "right",
+                    paddingRight: "20px",
+                    fontWeight: "bold",
+                    color: isIncoming ? COLORS.success : COLORS.danger,
+                  }}
+                >
+                  {isIncoming ? "+" : ""}
+                  {(row.changeQty || 0).toLocaleString()}
+                </div>
+
+                {/* 위치 (lineName 매칭) */}
+                <div style={{ width: "15%", fontSize: "14px", color: "#666" }}>
+                  {row.lineName || "-"}
+                </div>
+
+                {/* 담당자 (empName 매칭) */}
+                <div style={{ width: "10%", fontSize: "14px", color: "#555" }}>
+                  {row.empName}
+                </div>
+
+                {/* 이력 ID (원래 디자인 유지) */}
+                <div
+                  style={{
+                    width: "10%",
+                    textAlign: "right",
+                    fontSize: "12px",
+                    color: "#ccc",
+                  }}
+                >
+                  {row.lotNum}
                 </div>
               </div>
-
-              {/* 수량 */}
-              <div
-                style={{
-                  width: "15%",
-                  textAlign: "right",
-                  paddingRight: "20px",
-                  fontWeight: "bold",
-                  color: row.type === "IN" ? COLORS.success : COLORS.danger,
-                }}
-              >
-                {row.type === "IN" ? "+" : "-"}
-                {row.qty.toLocaleString()}
-              </div>
-
-              {/* 위치 */}
-              <div style={{ width: "15%", fontSize: "14px", color: "#666" }}>
-                {row.location}
-              </div>
-
-              {/* 담당자 */}
-              <div style={{ width: "10%", fontSize: "14px", color: "#555" }}>
-                {row.worker}
-              </div>
-
-              {/* ID */}
-              <div
-                style={{
-                  width: "10%",
-                  textAlign: "right",
-                  fontSize: "12px",
-                  color: "#ccc",
-                }}
-              >
-                {row.id}
-              </div>
-            </div>
-          ))
+            ); // return 끝
+          }) // map 끝
         ) : (
           <div style={styles.emptyState}>
             <FaFilter size={40} color="#ddd" style={{ marginBottom: 10 }} />
@@ -439,10 +476,10 @@ const styles = {
     boxShadow: "0 4px 15px rgba(0,0,0,0.03)",
     transition: "transform 0.2s",
     border: "1px solid transparent",
-    ":hover": {
-      transform: "translateY(-2px)",
-      borderColor: COLORS.primary,
-    },
+    // ":hover": {
+    //   transform: "translateY(-2px)",
+    //   borderColor: COLORS.primary,
+    // },
   },
   badgeIn: {
     display: "inline-flex",
