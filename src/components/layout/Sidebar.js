@@ -15,7 +15,6 @@ import {
   FaSitemap,
   FaMicrochip,
 } from "react-icons/fa";
-import { MdDashboard } from "react-icons/md";
 import logoImage from "../../assets/logo.png";
 
 // 🎨 MedisOne 테마 컬러
@@ -32,8 +31,6 @@ const Sidebar = () => {
   const navigate = useNavigate();
 
   const { user, logout } = useAuth();
-
-  // [수정 1] 외부 클릭 감지 useEffect 제거함 (이제 메인 화면 클릭해도 안 닫힘)
 
   const toggleSidebar = () => {
     setIsOpen(!isOpen);
@@ -93,11 +90,8 @@ const Sidebar = () => {
         )}
       </div>
 
-      {/* [수정 2] 메뉴 영역을 ul 태그로 감싸고 styles.menuList 적용 
-        flex: 1 속성 덕분에 이 영역이 남은 공간을 다 차지하여
-        프로필을 바닥으로 밀어냄
-      */}
       <ul style={styles.menuList}>
+        {/* 1. Material (자재) */}
         <MenuDropdown
           title="Material"
           icon={<FaBoxOpen size={20} />}
@@ -116,6 +110,8 @@ const Sidebar = () => {
             currentPath={location.pathname}
           />
         </MenuDropdown>
+
+        {/* 2. Inventory (재고) */}
         <MenuDropdown
           title="Inventory"
           icon={<FaWarehouse size={20} />}
@@ -134,6 +130,8 @@ const Sidebar = () => {
             currentPath={location.pathname}
           />
         </MenuDropdown>
+
+        {/* 3. Production (생산) */}
         <MenuDropdown
           title="Production"
           icon={<FaIndustry size={20} />}
@@ -142,21 +140,23 @@ const Sidebar = () => {
           onClick={() => toggleSubMenu("production")}
         >
           <SubMenuItem
-            to="/production/bom"
-            label="BOM 관리"
-            currentPath={location.pathname}
-          />
-          <SubMenuItem
             to="/production/schedule"
             label="생산 계획"
             currentPath={location.pathname}
           />
           <SubMenuItem
-            to="/production/product"
-            label="제품 관리"
+            to="/production/work-order"
+            label="작업 지시서"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/production/report"
+            label="생산 보고"
             currentPath={location.pathname}
           />
         </MenuDropdown>
+
+        {/* 4. Process (공정) */}
         <MenuDropdown
           title="Process"
           icon={<FaMicrochip size={20} />}
@@ -165,22 +165,24 @@ const Sidebar = () => {
           onClick={() => toggleSubMenu("process")}
         >
           <SubMenuItem
-            to="/process/order"
-            label="작업 지시서"
+            to="/process/bom"
+            label="BOM 관리"
             currentPath={location.pathname}
           />
-          <SubMenuItem
-            to="/process/report"
-            label="생산 보고"
-            currentPath={location.pathname}
-          />
-
           <SubMenuItem
             to="/equipment"
             label="설비 모니터링"
             currentPath={location.pathname}
           />
+          {/* ★ [수정] 설비 모니터링 아래로 이동 완료! */}
+          <SubMenuItem
+            to="/process/line-monitoring"
+            label="라인 모니터링"
+            currentPath={location.pathname}
+          />
         </MenuDropdown>
+
+        {/* 5. Quality (품질) */}
         <MenuDropdown
           title="Quality"
           icon={<FaCogs size={20} />}
@@ -214,6 +216,8 @@ const Sidebar = () => {
             currentPath={location.pathname}
           />
         </MenuDropdown>
+
+        {/* 6. Traceability (추적) */}
         <MenuDropdown
           title="Traceability"
           icon={<FaSitemap size={20} />}
@@ -232,6 +236,8 @@ const Sidebar = () => {
             currentPath={location.pathname}
           />
         </MenuDropdown>
+
+        {/* 7. Support (지원) */}
         <MenuDropdown
           title="Support"
           icon={<FaUtensils size={20} />}
@@ -250,6 +256,8 @@ const Sidebar = () => {
             currentPath={location.pathname}
           />
         </MenuDropdown>
+
+        {/* 8. Admin (관리자) */}
         <MenuDropdown
           title="Admin"
           icon={<FaUserCog size={20} />}
@@ -268,19 +276,24 @@ const Sidebar = () => {
             currentPath={location.pathname}
           />
           <SubMenuItem
+            to="/admin/production-order"
+            label="생산 지시 관리"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
             to="/admin/work-order"
             label="작업 지시 관리"
             currentPath={location.pathname}
           />
           <SubMenuItem
-            to="/admin/production-order"
-            label="생산 지시 관리"
+            to="/admin/notices"
+            label="공지사항 관리"
             currentPath={location.pathname}
           />
         </MenuDropdown>
       </ul>
 
-      {/* ================= BOTTOM (Profile) - 수정됨 ================= */}
+      {/* ================= BOTTOM (Profile) ================= */}
       <div style={styles.profileSection}>
         <div
           style={{
@@ -291,19 +304,14 @@ const Sidebar = () => {
             width: "100%",
           }}
         >
-          {/* 이름의 첫 글자를 아바타로 사용 */}
           <div style={styles.avatarCircle}>
             {user?.name ? user.name.charAt(0) : "G"}
           </div>
 
           {isOpen && (
             <div style={styles.userInfo}>
-              <div style={styles.userName}>
-                {/* user.name이 있으면 출력, 없으면 '이름 없음' */}
-                {user?.name || "이름 없음"}
-              </div>
+              <div style={styles.userName}>{user?.name || "이름 없음"}</div>
               <div style={styles.userDept}>
-                {/* 백엔드에서 보내준 부서명과 권한 표시 */}
                 {`${user?.dept || "부서미정"} | ${user?.role === "ADMIN" ? "관리자" : "사원"}`}
               </div>
             </div>
@@ -325,7 +333,6 @@ const Sidebar = () => {
 };
 
 // --- Sub Components ---
-// MenuDropdown, SubMenuItem 컴포넌트는 기존과 동일
 
 const MenuDropdown = ({
   title,
@@ -411,7 +418,7 @@ const styles = {
     height: "100vh",
     backgroundColor: BG_COLOR,
     display: "flex",
-    flexDirection: "column", // 세로 정렬
+    flexDirection: "column",
     transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     boxShadow: "4px 0 15px rgba(0,0,0,0.03)",
     borderRight: "1px solid #f0f0f0",
@@ -427,25 +434,7 @@ const styles = {
     justifyContent: "space-between",
     padding: "0 20px",
     borderBottom: "1px solid #f9f9f9",
-    flexShrink: 0, // 헤더 크기 고정
-  },
-  logoIcon: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "12px",
-    backgroundColor: THEME_COLOR,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    boxShadow: "0 4px 10px rgba(140, 133, 255, 0.3)",
     flexShrink: 0,
-  },
-  logoText: {
-    margin: 0,
-    color: "#333",
-    fontSize: "20px",
-    fontWeight: "800",
-    fontFamily: "'Nunito', sans-serif",
   },
   toggleBtn: {
     background: "transparent",
@@ -455,15 +444,14 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
-  // [수정] 메뉴 리스트 영역 스타일 (Flex 1로 남은 공간 차지)
   menuList: {
-    flex: 1, // 남은 공간을 모두 차지하여 프로필을 아래로 밈
+    flex: 1,
     padding: "15px",
     margin: 0,
-    overflowY: "auto", // 내용이 많으면 스크롤
+    overflowY: "auto",
     overflowX: "hidden",
-    scrollbarWidth: "none", // 스크롤바 숨김 (Firefox)
-    "&::-webkit-scrollbar": { display: "none" }, // 스크롤바 숨김 (Chrome)
+    scrollbarWidth: "none",
+    "&::-webkit-scrollbar": { display: "none" },
   },
   link: {
     display: "flex",
@@ -497,7 +485,6 @@ const styles = {
     marginRight: "10px",
     flexShrink: 0,
   },
-  // [수정] 프로필 영역 스타일 (아래 코드 스타일 반영)
   profileSection: {
     padding: "20px",
     borderTop: "1px solid #f0f0f0",
@@ -506,12 +493,11 @@ const styles = {
     backgroundColor: "#fff",
     flexShrink: 0,
   },
-  // [추가] 이니셜 아바타 스타일
   avatarCircle: {
     width: "40px",
     height: "40px",
     borderRadius: "50%",
-    backgroundColor: THEME_COLOR, // 테마 컬러 사용
+    backgroundColor: THEME_COLOR,
     color: "white",
     display: "flex",
     justifyContent: "center",
@@ -521,14 +507,12 @@ const styles = {
     flexShrink: 0,
     boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
   },
-  // [추가] 유저 정보 컨테이너
   userInfo: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
   },
-  // [추가] 이름 스타일
   userName: {
     fontWeight: "bold",
     fontSize: "14px",
@@ -536,7 +520,6 @@ const styles = {
     whiteSpace: "nowrap",
     marginBottom: "2px",
   },
-  // [추가] 부서/직급 스타일
   userDept: {
     fontSize: "11px",
     color: "#999",

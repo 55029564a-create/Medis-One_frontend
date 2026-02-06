@@ -5,7 +5,6 @@ import {
   registerMaterialInOut,
   getRecentHistory,
   getEmployeeList,
-  getProcessList,
   getTodayStats,
 } from "../../api/materialApi";
 import {
@@ -22,7 +21,6 @@ import {
   FaSearch,
   FaIndustry,
   FaCogs,
-  FaExclamationTriangle,
 } from "react-icons/fa";
 
 // 🎨 디자인 시스템
@@ -41,7 +39,7 @@ const COLORS = {
   inputBg: "#FFFFFF",
 };
 
-// 🏢 공급업체 (DB 없음, 하드코딩)
+// 🏢 공급업체
 const VENDOR_LIST = [
   { name: "ZOLL Medical", id: "V-001" },
   { name: "Samsung SDI", id: "V-002" },
@@ -65,16 +63,18 @@ const MaterialInout = () => {
     manager: "",
   });
 
-  const [dbStatus, setDbStatus] = useState("IDLE");
+  // 🚨 [수정] 이제 ID가 아니라 '사번(String)'을 저장합니다.
+  const [selectedEmpNum, setSelectedEmpNum] = useState(null);
+
   const [recentList, setRecentList] = useState([]);
   const [stats, setStats] = useState({ inbound: 0, outbound: 0 });
 
-  // 🔹 [DB 데이터] 담당자 목록
+  // 담당자 목록
   const [managerList, setManagerList] = useState([]);
   const [filteredManagers, setFilteredManagers] = useState([]);
   const [showManagerList, setShowManagerList] = useState(false);
 
-  // 🔹 [프론트 데이터] 공정 및 라인 구조
+  // 공정 및 라인
   const [processStructure, setProcessStructure] = useState([]);
   const [selectedLine, setSelectedLine] = useState("");
   const [selectedProcess, setSelectedProcess] = useState("");
@@ -104,24 +104,22 @@ const MaterialInout = () => {
           outbound: statData.todayOutbound,
         });
 
-      // 3. 담당자 목록 조회 (✅ 실제 DB 데이터 가져옴)
+      // 3. 담당자 목록 조회
       const empData = await getEmployeeList();
+      console.log("👉 사원 목록 데이터:", empData);
+
       if (empData && Array.isArray(empData)) {
         setManagerList(empData);
         setFilteredManagers(empData);
       }
 
-      // 4. 공정 목록 구성 (하드코딩 데이터 사용)
+      // 4. 공정 데이터 구성
       organizeProcessData();
-
-      setDbStatus("SUCCESS");
     } catch (e) {
       console.error("데이터 로딩 에러", e);
-      // 에러가 나도 화면이 멈추지 않게 처리
     }
   };
 
-  // 🏭 공정 데이터
   const organizeProcessData = () => {
     const lines = [
       {
@@ -160,41 +158,24 @@ const MaterialInout = () => {
 
   // --- 이벤트 핸들러 ---
 
-  // 🔍 [수정] 바코드 스캔 핸들러
   const handleScan = async (e) => {
     if (e.key === "Enter" && inputs.lot) {
       try {
-        // 1. API 호출 (이제 /info/LOT-001 형태로 날아감)
         const dataList = await getMaterialInfo(inputs.lot);
-        console.log("✅ 조회 결과:", dataList);
-
-        // 2. 데이터 처리
         if (dataList && dataList.length > 0) {
-          const target = dataList[0]; // 리스트의 첫 번째 데이터 꺼냄
-          setInputs((prev) => ({ ...prev, item: target.matName }));
-
+          const target = dataList[0];
           setInputs((prev) => ({
             ...prev,
-            // 🚨 백엔드 DTO 필드명(matName)과 일치시킴
             item: target.matName,
-
-            // DTO에 없는 정보는 빈값이나 기존값 유지
-            vendor: prev.vendor,
-            currentQty: 0,
             qty: "",
           }));
-
-          // 편의성: 수량 입력칸으로 이동
           document.getElementById("qtyInput")?.focus();
         } else {
-          // 데이터는 왔는데 비어있는 경우 (드문 케이스)
           setInputs((prev) => ({ ...prev, item: "" }));
         }
       } catch (error) {
         console.error("스캔 실패:", error);
-        // 404(없는 바코드) 에러가 나면 품목명 비워주기
         setInputs((prev) => ({ ...prev, item: "" }));
-        // 필요하다면 alert("존재하지 않는 바코드입니다."); 추가
       }
     }
   };
@@ -203,7 +184,9 @@ const MaterialInout = () => {
     const text = e.target.value;
     setInputs({ ...inputs, manager: text });
 
-    // [수정] m.employeeNumber -> m.employeeNum
+    // 검색 시에는 사번 초기화 (직접 타이핑 중이므로)
+    setSelectedEmpNum(null);
+
     const filtered = managerList.filter(
       (m) =>
         m.name.includes(text) || String(m.employeeNum || m.id).includes(text),
@@ -213,11 +196,15 @@ const MaterialInout = () => {
   };
 
   const selectManager = (manager) => {
-    // [수정] manager.employeeNumber -> manager.employeeNum
-    // (DTO에 id가 없으니 employeeNum을 우선 사용)
     const code = manager.employeeNum || "Unknown";
     const label = `${manager.name} (${code})`;
+
     setInputs({ ...inputs, manager: label });
+
+    // 🚨 [수정 포인트 1] 백엔드가 'findByEmployeeNumber'를 쓰므로 '사번'을 저장해야 함
+    console.log("선택된 사원 사번:", manager.employeeNum);
+    setSelectedEmpNum(manager.employeeNum);
+
     setShowManagerList(false);
   };
 
@@ -251,29 +238,37 @@ const MaterialInout = () => {
   };
 
   const handleProcessSelect = (e) => {
-    setSelectedProcess(e.target.value); // 여기선 공정 이름이 저장됨 (value={p.name})
+    setSelectedProcess(e.target.value);
   };
 
-  // 🚀 [등록] CreateLotHistoryReqDto 구조에 맞춰 전송
+  // 🚀 [등록]
   const handleRegister = async () => {
     if (!inputs.item || !inputs.qty || !inputs.lot) {
       return alert("자재명, LOT번호, 수량은 필수입니다.");
     }
 
-    // 🚨 [추가] 출고(OUT)일 때 공정 선택 안 했으면 멈춰!
     if (inputs.type === "OUT" && !selectedProcess) {
       return alert("투입할 공정을 선택해주세요.");
     }
 
+    if (!selectedEmpNum) {
+      return alert("담당자를 목록에서 선택해주세요.");
+    }
+
     try {
       const payload = {
-        materialName: inputs.item, // DTO: materialName
-        lotNumber: inputs.lot, // DTO: lotNumber
-        qty: Number(inputs.qty), // DTO: qty
-        company: inputs.type === "IN" ? inputs.vendor : null, // DTO: company
-        type: inputs.type === "IN" ? "INBOUND" : "PRODUCTION_IN", // DTO: type
-        process: inputs.type === "OUT" ? selectedProcess : null, // DTO: process (String Name)
+        materialName: inputs.item,
+        lotNumber: inputs.lot,
+        qty: Number(inputs.qty),
+        company: inputs.type === "IN" ? inputs.vendor : null,
+        type: inputs.type === "IN" ? "INBOUND" : "PRODUCTION_IN",
+        process: inputs.type === "OUT" ? selectedProcess : null,
+
+        // 🚨 [수정 포인트 2] 백엔드 DTO의 'employeeNum' 필드명에 맞춰서 전송
+        employeeNum: selectedEmpNum,
       };
+
+      console.log("🚀 백엔드로 전송하는 Payload:", payload);
 
       await registerMaterialInOut(payload);
 
@@ -287,8 +282,9 @@ const MaterialInout = () => {
         qty: "",
         currentQty: 0,
       }));
+      // (편의상 담당자는 유지)
 
-      // 목록 & 통계 갱신
+      // 목록 갱신
       const updatedHistory = await getRecentHistory();
       if (updatedHistory) setRecentList(updatedHistory.slice(0, 5));
 
@@ -592,7 +588,7 @@ const MaterialInout = () => {
           </div>
 
           <div style={styles.formGrid}>
-            {/* 담당자 드롭다운 */}
+            {/* 담당자 */}
             <div style={styles.gridCell}>
               <label style={styles.label}>담당자</label>
               <div style={styles.inputWrapper}>
@@ -611,15 +607,14 @@ const MaterialInout = () => {
                 {showManagerList && (
                   <div style={styles.dropdownList}>
                     {filteredManagers.map((mgr, idx) => (
-                      // [참고] DTO에 id가 없으면 idx나 employeeNum을 key로 써야 에러가 안 납니다.
                       <div
                         key={mgr.employeeNum || idx}
                         style={styles.dropdownItem}
                         onClick={() => selectManager(mgr)}
                       >
-                        <strong>{mgr.name}</strong>{" "}
-                        {/* [수정] mgr.employeeNumber -> mgr.employeeNum */}
+                        <strong>{mgr.name}</strong>
                         <span style={{ color: "#888", fontSize: "11px" }}>
+                          {" "}
                           ({mgr.employeeNum})
                         </span>
                       </div>
@@ -629,6 +624,7 @@ const MaterialInout = () => {
               </div>
             </div>
 
+            {/* Lot ID */}
             <div style={styles.gridCell}>
               <label style={styles.label}>Lot ID (바코드)</label>
               <div style={styles.inputWrapper}>
@@ -650,6 +646,7 @@ const MaterialInout = () => {
               </div>
             </div>
 
+            {/* 품목명 */}
             <div style={styles.gridCell}>
               <label style={styles.label}>품목명</label>
               <div style={styles.inputWrapper}>
@@ -665,6 +662,7 @@ const MaterialInout = () => {
               </div>
             </div>
 
+            {/* 수량 */}
             <div style={styles.gridCell}>
               <label style={styles.label}>
                 {inputs.type === "IN" ? "입고 수량" : "투입 수량"}
@@ -687,6 +685,7 @@ const MaterialInout = () => {
               </div>
             </div>
 
+            {/* 업체/공정 선택 */}
             <div style={styles.gridCell}>
               <label style={styles.label}>
                 {inputs.type === "IN" ? "공급 업체" : "투입 공정"}
@@ -746,8 +745,6 @@ const MaterialInout = () => {
                     >
                       <option value="">공정 코드 선택</option>
                       {availableProcesses.map((p) => (
-                        // 🚨 [수정] value={p.id} -> value={p.name} 으로 변경!
-                        // 백엔드가 이름으로 찾기 때문입니다.
                         <option key={p.id} value={p.name}>
                           {p.id} ({p.name})
                         </option>
@@ -775,7 +772,7 @@ const MaterialInout = () => {
           </div>
         </div>
 
-        {/* 최근 이력 리스트 */}
+        {/* 최근 내역 */}
         <div style={styles.listSection}>
           <div
             style={{
@@ -799,9 +796,7 @@ const MaterialInout = () => {
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             {recentList.map((item, idx) => {
-              // 🚀 MatLotHistoryResDto 매핑 (type: "입고", "출고" 등)
-              const isIN = item.type === "입고";
-
+              const isIN = item.type === "입고" || item.type === "INBOUND";
               return (
                 <div key={idx} style={styles.row}>
                   <div style={{ flex: 0.6 }}>

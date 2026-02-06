@@ -52,19 +52,48 @@ const ProcessBonding = () => {
   const [filter, setFilter] = useState("ALL");
 
   useEffect(() => {
-    const data = Array.from({ length: 50 }).map((_, i) => {
-      let vacuum = -98.0 + Math.random() * 4;
-      let gap = 0.15 + (Math.random() * 0.06 - 0.03);
-      let alignX = Math.random() * 0.08 - 0.04;
-      let alignY = Math.random() * 0.08 - 0.04;
-      let pressure = 2500 + (Math.random() * 300 - 150);
+    // 🏭 LOT 번호 포맷 (아까 만든 바코드 시스템과 통일)
+    const todayPrefix = "260205A01";
 
+    const data = Array.from({ length: 50 }).map((_, i) => {
+      // 🎲 1. 불량 발생 여부 결정 (3% 확률)
+      // Math.random()은 0~1 사이 난수. 0.97보다 크면(상위 3%) 불량으로 설정
+      const isForceNG = Math.random() > 0.97;
+
+      // 🛑 2. 기본값 생성 (일단은 무조건 '정상' 범위 안에서 예쁘게 생성)
+      // Vacuum: -98.0 ~ -96.0 (Limit: -95.0 보다 낮아야 함) -> 안전
+      let vacuum = -98.0 + Math.random() * 2.0;
+      // Gap: 0.145 ~ 0.155 (Spec: 0.13 ~ 0.17 / Target: 0.15) -> 아주 정밀하게
+      let gap = 0.145 + Math.random() * 0.01;
+      // Align: -0.02 ~ +0.02 (Limit: ±0.05) -> 안전
+      let alignX = Math.random() * 0.04 - 0.02;
+      let alignY = Math.random() * 0.04 - 0.02;
+      // Pressure: 2450 ~ 2550 (Limit: 2300 ~ 2700) -> 안전
+      let pressure = 2450 + Math.random() * 100;
+
+      // 💣 3. 만약 '불량 당첨(isForceNG)'이라면? -> 하나만 콕 집어서 망가뜨림
+      if (isForceNG) {
+        const failType = Math.floor(Math.random() * 4); // 0~3 중 하나 뽑기
+
+        if (failType === 0) {
+          vacuum = -94.0; // Vacuum NG (한계치 -95보다 높음)
+        } else if (failType === 1) {
+          gap = 0.18; // Gap NG (0.17 초과)
+        } else if (failType === 2) {
+          alignX = 0.06; // Align NG (0.05 초과)
+        } else {
+          pressure = 2200; // Pressure NG (2300 미만)
+        }
+      }
+
+      // 🔍 4. 판정 로직 (이제 수치가 확정되었으니 진짜 NG인지 검사)
       const isVacuumNG = vacuum > SPECS.vacuum.limit;
       const isGapNG = gap < SPECS.gap.min || gap > SPECS.gap.max;
       const isAlignNG =
         Math.max(Math.abs(alignX), Math.abs(alignY)) > SPECS.align.limit;
       const isPressureNG =
         pressure < SPECS.pressure.min || pressure > SPECS.pressure.max;
+
       const isNG = isVacuumNG || isGapNG || isAlignNG || isPressureNG;
 
       let ngType = "-";
@@ -76,7 +105,7 @@ const ProcessBonding = () => {
       }
 
       return {
-        id: `BND-240121-${1000 + i}`,
+        id: `${todayPrefix}${(1000 + i).toString()}`, // LOT 번호 유지
         timestamp: `14:${(59 - (i % 60)).toString().padStart(2, "0")}:15`,
         model: "MED-27-PRO",
         result: isNG ? "NG" : "PASS",
@@ -91,6 +120,7 @@ const ProcessBonding = () => {
         judgement: { isVacuumNG, isGapNG, isAlignNG, isPressureNG },
       };
     });
+
     setHistoryData(data);
     setSelectedLog(data[0]);
   }, []);

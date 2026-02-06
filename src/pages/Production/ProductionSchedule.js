@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaCalendarAlt,
   FaChevronLeft,
@@ -15,8 +15,12 @@ import {
   FaEllipsisV,
   FaUser,
   FaTimes,
-  FaCheck,
+  FaBullhorn,
+  FaEdit,
 } from "react-icons/fa";
+
+// [API] 함수 임포트
+import { getProductionPlans } from "../../api/productionApi";
 
 const THEME = {
   primary: "#8C85FF",
@@ -29,143 +33,57 @@ const THEME = {
   success: "#00C851",
   warning: "#FFBB33",
   danger: "#FF4444",
+  info: "#29B6F6",
 };
 
 const ProductionSchedule = () => {
-  const [currentDate, setCurrentDate] = useState("2026년 1월 3주차");
+  const [currentDate, setCurrentDate] = useState("2026년 2월 1주차");
   const [searchTerm, setSearchTerm] = useState("");
-
-  // 뷰 모드 상태 (기본값: 'list' -> 리스트가 먼저 보임)
   const [viewMode, setViewMode] = useState("list");
 
-  // 모달 상태
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [schedules, setSchedules] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // 입력 폼 상태
-  const [newPlan, setNewPlan] = useState({
-    date: "",
-    line: "Line-A",
-    product: "",
-    planQty: 0,
-    manager: "",
-    isEmergency: false,
-  });
+  // [상태 추가] 상세 모달용 선택된 데이터
+  const [selectedSchedule, setSelectedSchedule] = useState(null);
 
-  // Mock Data
-  const [schedules, setSchedules] = useState([
-    {
-      id: 1,
-      date: "2026-01-14",
-      line: "Line-A",
-      product: "Zoll X Series (Main Unit)",
-      planQty: 50,
-      doneQty: 35,
-      manager: "김철수",
-      status: "진행중",
-      isEmergency: true,
-      materialStatus: "Ready",
-    },
-    {
-      id: 2,
-      date: "2026-01-14",
-      line: "Line-B",
-      product: "Propaq M (Casing)",
-      planQty: 200,
-      doneQty: 0,
-      manager: "이영희",
-      status: "대기",
-      isEmergency: false,
-      materialStatus: "Shortage",
-    },
-    {
-      id: 3,
-      date: "2026-01-15",
-      line: "Line-A",
-      product: "32인치 4K 모니터",
-      planQty: 100,
-      doneQty: 0,
-      manager: "박지성",
-      status: "예정",
-      isEmergency: false,
-      materialStatus: "Ready",
-    },
-    {
-      id: 4,
-      date: "2026-01-15",
-      line: "Line-C",
-      product: "전원 어댑터 (12V)",
-      planQty: 2000,
-      doneQty: 2000,
-      manager: "최유리",
-      status: "완료",
-      isEmergency: false,
-      materialStatus: "Used",
-    },
-    {
-      id: 5,
-      date: "2026-01-16",
-      line: "Line-B",
-      product: "Corpuls3 (Sensor Module)",
-      planQty: 150,
-      doneQty: 0,
-      manager: "정민수",
-      status: "예정",
-      isEmergency: true,
-      materialStatus: "Checking",
-    },
-  ]);
+  // 데이터 조회
+  const fetchSchedules = async () => {
+    setIsLoading(true);
+    try {
+      const data = await getProductionPlans();
+      setSchedules(data || []);
+    } catch (error) {
+      console.error("데이터 로드 실패:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // 필터링
+  useEffect(() => {
+    fetchSchedules();
+  }, []);
+
   const filteredSchedules = schedules.filter(
     (item) =>
-      item.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.line.toLowerCase().includes(searchTerm.toLowerCase()),
+      (item.product &&
+        item.product.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.line && item.line.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
-  // KPI 계산
-  const totalPlan = schedules.reduce(
-    (acc, cur) => acc + parseInt(cur.planQty || 0),
-    0,
-  );
-  const totalDone = schedules.reduce(
-    (acc, cur) => acc + parseInt(cur.doneQty || 0),
-    0,
-  );
+  const totalPlan = schedules.reduce((acc, cur) => acc + (cur.planQty || 0), 0);
+  const totalDone = schedules.reduce((acc, cur) => acc + (cur.doneQty || 0), 0);
   const progressRate =
     totalPlan === 0 ? 0 : Math.round((totalDone / totalPlan) * 100);
 
-  // --- 핸들러 ---
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setNewPlan({
-      ...newPlan,
-      [name]: type === "checkbox" ? checked : value,
-    });
+  // [핸들러] 상세 모달 열기
+  const openDetailModal = (item) => {
+    setSelectedSchedule(item);
   };
 
-  const handleSave = () => {
-    if (!newPlan.date || !newPlan.product || !newPlan.planQty) {
-      alert("필수 항목(날짜, 품목명, 수량)을 입력해주세요.");
-      return;
-    }
-    const newItem = {
-      id: Date.now(),
-      ...newPlan,
-      doneQty: 0,
-      status: "예정",
-      materialStatus: "Checking",
-    };
-    setSchedules([newItem, ...schedules]);
-    setIsModalOpen(false);
-    setNewPlan({
-      date: "",
-      line: "Line-A",
-      product: "",
-      planQty: 0,
-      manager: "",
-      isEmergency: false,
-    });
-    alert("등록되었습니다.");
+  // [핸들러] 상세 모달 닫기
+  const closeDetailModal = () => {
+    setSelectedSchedule(null);
   };
 
   return (
@@ -174,7 +92,7 @@ const ProductionSchedule = () => {
       <div style={styles.header}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <FaCalendarAlt size={24} color={THEME.primary} />
-          <h2 style={styles.title}>주간 생산 계획</h2>
+          <h2 style={styles.title}>생산 지시서</h2>
         </div>
         <div style={styles.dateControl}>
           <button style={styles.iconBtn}>
@@ -190,7 +108,7 @@ const ProductionSchedule = () => {
       {/* 2. KPI Cards */}
       <div style={styles.kpiContainer}>
         <KpiCard
-          title="총 계획 수량"
+          title="총 지시 수량"
           value={`${totalPlan.toLocaleString()} EA`}
           icon={<FaClipboardList />}
           color={THEME.primary}
@@ -209,19 +127,18 @@ const ProductionSchedule = () => {
         />
       </div>
 
-      {/* 3. Toolbar (뷰 전환 버튼 포함) */}
+      {/* 3. Toolbar */}
       <div style={styles.toolbar}>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <div style={styles.searchBox}>
             <FaSearch color={THEME.gray} />
             <input
-              placeholder="검색..."
+              placeholder="품목명, 라인명 검색..."
               style={styles.searchInput}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {/* 뷰 모드 전환 버튼 */}
           <div style={styles.toggleContainer}>
             <button
               style={
@@ -243,29 +160,24 @@ const ProductionSchedule = () => {
             </button>
           </div>
         </div>
-
         <div style={{ display: "flex", gap: "10px" }}>
+          <button style={styles.outlineBtn} onClick={fetchSchedules}>
+            🔄 새로고침
+          </button>
           <button style={styles.outlineBtn}>
             <FaFileDownload style={{ marginRight: "6px" }} /> 엑셀
-          </button>
-          <button
-            style={styles.primaryBtn}
-            onClick={() => setIsModalOpen(true)}
-          >
-            + 계획 등록
           </button>
         </div>
       </div>
 
-      {/* 4. Main Content (조건부 렌더링: 리스트 또는 그리드) */}
+      {/* 4. Main Content */}
       {viewMode === "list" ? (
-        // [A] 리스트 뷰 (기존 테이블 형태)
         <div style={styles.tableContainer}>
           <table style={styles.table}>
             <thead>
               <tr style={styles.theadTr}>
                 <th style={styles.th}>긴급</th>
-                <th style={styles.th}>날짜</th>
+                <th style={styles.th}>마감일</th>
                 <th style={styles.th}>라인</th>
                 <th style={styles.th}>품목명</th>
                 <th style={styles.th}>자재</th>
@@ -278,128 +190,125 @@ const ProductionSchedule = () => {
             </thead>
             <tbody>
               {filteredSchedules.map((item) => (
-                <ScheduleRow key={item.id} item={item} />
+                <ScheduleRow
+                  key={item.id}
+                  item={item}
+                  onOpen={() => openDetailModal(item)}
+                />
               ))}
+              {filteredSchedules.length === 0 && (
+                <tr>
+                  <td colSpan="10" style={styles.emptyState}>
+                    {isLoading ? "로딩 중..." : "데이터가 없습니다."}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       ) : (
-        // [B] 그리드 뷰 (카드 형태)
         <div style={styles.gridContainer}>
           {filteredSchedules.map((item) => (
-            <ScheduleCard key={item.id} item={item} />
+            <ScheduleCard
+              key={item.id}
+              item={item}
+              onOpen={() => openDetailModal(item)}
+            />
           ))}
         </div>
       )}
 
-      {/* 5. Modal (등록 팝업) */}
-      {isModalOpen && (
+      {/* [추가] 상세 정보 모달 */}
+      {selectedSchedule && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
+          <div style={styles.detailModal}>
             <div style={styles.modalHeader}>
-              <h3>📝 신규 생산 계획 등록</h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                style={styles.closeBtn}
+              <h3
+                style={{
+                  margin: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
               >
+                <FaClipboardList color={THEME.primary} /> 생산 지시 상세 정보
+              </h3>
+              <button style={styles.closeBtn} onClick={closeDetailModal}>
                 <FaTimes />
               </button>
             </div>
+
             <div style={styles.modalBody}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>생산 일자</label>
-                <input
-                  type="date"
-                  name="date"
-                  value={newPlan.date}
-                  onChange={handleInputChange}
-                  style={styles.input}
+              {/* 상단 정보 그리드 */}
+              <div style={styles.infoGrid}>
+                <InfoItem
+                  label="지시번호"
+                  value={`WO-${selectedSchedule.id}`}
+                />
+                <InfoItem label="지시일자" value={selectedSchedule.date} />{" "}
+                {/* 또는 생성일 */}
+                <InfoItem label="담당 라인" value={selectedSchedule.line} />
+                <InfoItem label="담당자" value={selectedSchedule.manager} />
+                <InfoItem
+                  label="생산 품목"
+                  value={selectedSchedule.product}
+                  bold
+                />
+                <InfoItem
+                  label="목표 수량"
+                  value={`${selectedSchedule.planQty} EA`}
+                  color={THEME.primary}
+                  bold
                 />
               </div>
-              <div style={styles.row}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>라인</label>
-                  <select
-                    name="line"
-                    value={newPlan.line}
-                    onChange={handleInputChange}
-                    style={styles.select}
-                  >
-                    <option value="Line-A">Line-A (조립)</option>
-                    <option value="Line-B">Line-B (가공)</option>
-                    <option value="Line-C">Line-C (검사)</option>
-                  </select>
-                </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>긴급 여부</label>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      height: "45px",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      name="isEmergency"
-                      checked={newPlan.isEmergency}
-                      onChange={handleInputChange}
-                      style={{ width: "20px", height: "20px" }}
-                    />
-                    <span
-                      style={{
-                        marginLeft: "8px",
-                        color: newPlan.isEmergency ? THEME.danger : "#666",
-                      }}
-                    >
-                      긴급
-                    </span>
-                  </div>
+
+              {/* 상태 표시 */}
+              <div style={{ margin: "20px 0" }}>
+                <span
+                  style={{
+                    fontSize: "13px",
+                    color: THEME.gray,
+                    marginRight: "10px",
+                  }}
+                >
+                  현재 상태
+                </span>
+                <StatusBadge status={selectedSchedule.status} size="medium" />
+              </div>
+
+              <div style={styles.divider}></div>
+
+              {/* 지시 사항 */}
+              <div style={styles.section}>
+                <h4 style={styles.sectionTitle}>
+                  <FaBullhorn /> 작업 지시 사항
+                </h4>
+                <div style={styles.textBox}>
+                  패널 조립 시 베젤 유격 0.5mm 이내 관리 요망. (DB 데이터 연동
+                  필요)
                 </div>
               </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>품목명</label>
-                <input
-                  type="text"
-                  name="product"
-                  value={newPlan.product}
-                  onChange={handleInputChange}
-                  style={styles.input}
-                  placeholder="품목명 입력"
-                />
-              </div>
-              <div style={styles.row}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>수량</label>
-                  <input
-                    type="number"
-                    name="planQty"
-                    value={newPlan.planQty}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                  />
-                </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>담당자</label>
-                  <input
-                    type="text"
-                    name="manager"
-                    value={newPlan.manager}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                  />
+
+              {/* 비고/특이사항 */}
+              <div style={styles.section}>
+                <h4 style={styles.sectionTitle}>
+                  <FaEdit /> 비고 / 특이사항
+                </h4>
+                <div
+                  style={{
+                    ...styles.textBox,
+                    backgroundColor: "#FFF8E1",
+                    borderColor: "#FFECB3",
+                  }}
+                >
+                  자재 입고 지연으로 10:00 시작함. (DB 데이터 연동 필요)
                 </div>
               </div>
             </div>
+
             <div style={styles.modalFooter}>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                style={styles.cancelBtn}
-              >
-                취소
-              </button>
-              <button onClick={handleSave} style={styles.saveBtn}>
-                <FaCheck style={{ marginRight: "5px" }} /> 저장
+              <button style={styles.confirmBtn} onClick={closeDetailModal}>
+                확인
               </button>
             </div>
           </div>
@@ -409,16 +318,19 @@ const ProductionSchedule = () => {
   );
 };
 
-// [A] 리스트 뷰
-const ScheduleRow = ({ item }) => {
+// --- Sub Components ---
+
+const ScheduleRow = ({ item, onOpen }) => {
   const percent =
     item.planQty > 0
       ? Math.min(Math.round((item.doneQty / item.planQty) * 100), 100)
       : 0;
   return (
-    <tr style={styles.tbodyTr}>
+    <tr style={styles.tbodyTr} onClick={onOpen}>
+      {" "}
+      {/* 행 클릭 시 모달 오픈 */}
       <td style={styles.td}>
-        {item.isEmergency ? (
+        {item.emergency ? (
           <span style={styles.emergencyBadge}>URGENT</span>
         ) : (
           "-"
@@ -446,7 +358,13 @@ const ScheduleRow = ({ item }) => {
         <StatusBadge status={item.status} />
       </td>
       <td style={styles.td}>
-        <button style={styles.actionBtn}>
+        <button
+          style={styles.actionBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+        >
           <FaEllipsisV />
         </button>
       </td>
@@ -454,14 +372,13 @@ const ScheduleRow = ({ item }) => {
   );
 };
 
-// [B] 그리드 뷰
-const ScheduleCard = ({ item }) => {
+const ScheduleCard = ({ item, onOpen }) => {
   const percent =
     item.planQty > 0
       ? Math.min(Math.round((item.doneQty / item.planQty) * 100), 100)
       : 0;
   return (
-    <div style={styles.card}>
+    <div style={styles.card} onClick={onOpen}>
       <div
         style={{
           display: "flex",
@@ -470,12 +387,16 @@ const ScheduleCard = ({ item }) => {
         }}
       >
         <div style={{ display: "flex", gap: "8px" }}>
-          {item.isEmergency && (
-            <span style={styles.emergencyBadge}>URGENT</span>
-          )}
+          {item.emergency && <span style={styles.emergencyBadge}>URGENT</span>}
           <StatusBadge status={item.status} />
         </div>
-        <button style={styles.actionBtn}>
+        <button
+          style={styles.actionBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+        >
           <FaEllipsisV />
         </button>
       </div>
@@ -542,6 +463,21 @@ const ScheduleCard = ({ item }) => {
   );
 };
 
+const InfoItem = ({ label, value, color, bold }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+    <span style={{ fontSize: "12px", color: "#888" }}>{label}</span>
+    <span
+      style={{
+        fontSize: "15px",
+        color: color || "#333",
+        fontWeight: bold ? "bold" : "normal",
+      }}
+    >
+      {value || "-"}
+    </span>
+  </div>
+);
+
 const KpiCard = ({ title, value, icon, color }) => (
   <div style={styles.kpiCard}>
     <div
@@ -556,17 +492,22 @@ const KpiCard = ({ title, value, icon, color }) => (
   </div>
 );
 
-const StatusBadge = ({ status }) => {
+const StatusBadge = ({ status, size }) => {
   let style = { backgroundColor: "#eee", color: "#888" };
-  if (status === "진행중")
+  const s = status || "예정";
+  if (s === "진행중" || s === "IN_PROGRESS")
     style = { backgroundColor: `${THEME.primary}20`, color: THEME.primary };
-  if (status === "완료")
+  else if (s === "완료" || s === "COMPLETED")
     style = { backgroundColor: `${THEME.success}20`, color: THEME.success };
-  if (status === "대기")
+  else if (s === "대기" || s === "WAIT")
     style = { backgroundColor: `${THEME.warning}20`, color: THEME.warning };
-  if (status === "예정")
-    style = { backgroundColor: `${THEME.secondary}`, color: THEME.gray };
-  return <span style={{ ...styles.badge, ...style }}>{status}</span>;
+
+  const sizeStyle =
+    size === "medium"
+      ? { padding: "6px 12px", fontSize: "13px" }
+      : { padding: "5px 10px", fontSize: "11px" };
+
+  return <span style={{ ...styles.badge, ...style, ...sizeStyle }}>{s}</span>;
 };
 
 const MaterialBadge = ({ status }) => {
@@ -593,19 +534,23 @@ const MaterialBadge = ({ status }) => {
   );
 };
 
-// --- Styles ---
 const styles = {
   container: {
     padding: "30px",
     backgroundColor: THEME.bg,
     minHeight: "100vh",
-    fontFamily: "'Noto Sans KR', sans-serif",
+    display: "flex",
+    flexDirection: "column",
+    width: "100%",
+    boxSizing: "border-box",
   },
   header: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "25px",
+    flexWrap: "wrap",
+    gap: "10px",
   },
   title: { fontSize: "24px", fontWeight: "bold", color: THEME.text, margin: 0 },
   dateControl: {
@@ -632,10 +577,14 @@ const styles = {
     padding: "5px",
     fontSize: "14px",
   },
-
-  kpiContainer: { display: "flex", gap: "20px", marginBottom: "30px" },
+  kpiContainer: {
+    display: "flex",
+    gap: "20px",
+    marginBottom: "30px",
+    flexWrap: "wrap",
+  },
   kpiCard: {
-    flex: 1,
+    flex: "1 1 200px",
     backgroundColor: THEME.white,
     borderRadius: "16px",
     padding: "20px",
@@ -660,12 +609,13 @@ const styles = {
     fontWeight: "bold",
     color: THEME.text,
   },
-
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "20px",
+    flexWrap: "wrap",
+    gap: "10px",
   },
   searchBox: {
     display: "flex",
@@ -683,8 +633,6 @@ const styles = {
     width: "100%",
     fontSize: "14px",
   },
-
-  // Toggle Buttons
   toggleContainer: {
     display: "flex",
     backgroundColor: THEME.white,
@@ -711,17 +659,6 @@ const styles = {
     color: THEME.primary,
     fontWeight: "bold",
   },
-
-  primaryBtn: {
-    backgroundColor: THEME.primary,
-    color: "#fff",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "10px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    boxShadow: "0 4px 10px rgba(140, 133, 255, 0.3)",
-  },
   outlineBtn: {
     backgroundColor: THEME.white,
     color: THEME.text,
@@ -733,14 +670,13 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
-
-  // List View
   tableContainer: {
     backgroundColor: THEME.white,
     borderRadius: "16px",
     padding: "20px",
     boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
     overflowX: "auto",
+    flex: 1,
   },
   table: { width: "100%", borderCollapse: "collapse", minWidth: "1000px" },
   theadTr: { borderBottom: `2px solid ${THEME.border}` },
@@ -754,6 +690,7 @@ const styles = {
   tbodyTr: {
     borderBottom: `1px solid #f5f5f5`,
     transition: "background 0.2s",
+    cursor: "pointer",
     ":hover": { backgroundColor: "#fafafa" },
   },
   td: {
@@ -762,8 +699,6 @@ const styles = {
     color: THEME.text,
     verticalAlign: "middle",
   },
-
-  // Grid View
   gridContainer: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
@@ -775,10 +710,9 @@ const styles = {
     padding: "20px",
     boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
     transition: "transform 0.2s",
+    cursor: "pointer",
     ":hover": { transform: "translateY(-5px)" },
   },
-
-  // Badges & Bars
   badge: {
     padding: "5px 10px",
     borderRadius: "20px",
@@ -815,7 +749,7 @@ const styles = {
   },
   emptyState: { padding: "40px", textAlign: "center", color: THEME.gray },
 
-  // Modal
+  // [신규] 상세 모달 스타일
   modalOverlay: {
     position: "fixed",
     top: 0,
@@ -828,74 +762,67 @@ const styles = {
     alignItems: "center",
     zIndex: 1000,
   },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderRadius: "16px",
+  detailModal: {
     width: "500px",
     padding: "30px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+    backgroundColor: "white",
+    borderRadius: "20px",
+    boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
+    maxWidth: "90%",
+    maxHeight: "90vh",
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
   },
   modalHeader: {
+    marginBottom: "25px",
+    borderBottom: `1px solid ${THEME.border}`,
+    paddingBottom: "15px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "20px",
-    borderBottom: `1px solid ${THEME.border}`,
-    paddingBottom: "15px",
   },
   closeBtn: {
-    background: "transparent",
+    background: "none",
     border: "none",
-    fontSize: "20px",
     cursor: "pointer",
-    color: "#999",
+    fontSize: "18px",
+    color: THEME.gray,
   },
-  modalBody: { display: "flex", flexDirection: "column", gap: "15px" },
-  formGroup: { display: "flex", flexDirection: "column", flex: 1 },
-  label: {
-    fontSize: "13px",
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: "5px",
-  },
-  input: {
-    padding: "10px",
-    borderRadius: "8px",
-    border: `1px solid ${THEME.border}`,
+  modalBody: { flex: 1, display: "flex", flexDirection: "column", gap: "10px" },
+  infoGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" },
+  divider: { height: "1px", backgroundColor: "#eee", margin: "10px 0" },
+  section: { marginTop: "15px" },
+  sectionTitle: {
     fontSize: "14px",
-  },
-  select: {
-    padding: "10px",
-    borderRadius: "8px",
-    border: `1px solid ${THEME.border}`,
-    fontSize: "14px",
-  },
-  row: { display: "flex", gap: "15px" },
-  modalFooter: {
-    marginTop: "25px",
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "10px",
-    paddingTop: "20px",
-    borderTop: `1px solid ${THEME.border}`,
-  },
-  saveBtn: {
-    backgroundColor: THEME.primary,
-    color: "#fff",
-    padding: "10px 20px",
-    borderRadius: "8px",
-    border: "none",
     fontWeight: "bold",
-    cursor: "pointer",
+    marginBottom: "8px",
     display: "flex",
     alignItems: "center",
+    gap: "6px",
+    color: THEME.text,
   },
-  cancelBtn: {
-    backgroundColor: "#f0f0f0",
-    color: "#333",
-    padding: "10px 20px",
+  textBox: {
+    padding: "12px",
+    backgroundColor: "#F8F9FA",
     borderRadius: "8px",
+    border: "1px solid #E0E0E0",
+    fontSize: "13px",
+    color: "#555",
+    lineHeight: "1.5",
+  },
+  modalFooter: {
+    marginTop: "30px",
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+  confirmBtn: {
+    padding: "10px 25px",
+    backgroundColor: THEME.primary,
+    color: "white",
     border: "none",
+    borderRadius: "10px",
+    fontWeight: "bold",
     cursor: "pointer",
   },
 };
