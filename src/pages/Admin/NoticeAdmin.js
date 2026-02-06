@@ -11,7 +11,7 @@ import {
   FaUser,
   FaCalendarAlt,
   FaEdit,
-  FaTrash, // 수정, 삭제 아이콘 추가
+  FaTrash,
 } from "react-icons/fa";
 
 const COLORS = {
@@ -23,13 +23,16 @@ const COLORS = {
   white: "#FFFFFF",
   danger: "#FF5252",
   headerBg: "#F8F9FD",
-  edit: "#4CAF50", // 수정 버튼 색 (초록)
+  edit: "#4CAF50",
 };
 
 const NoticeAdmin = () => {
   const [notices, setNotices] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  // ★ [추가] 검색어 상태 관리
+  const [searchTerm, setSearchTerm] = useState("");
 
   // 글쓰기/수정 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -111,7 +114,6 @@ const NoticeAdmin = () => {
       let url = "http://localhost:8111/api/support/notices";
       let method = "POST";
 
-      // 수정 모드면 URL과 Method 변경
       if (isEditMode && editingId) {
         url = `http://localhost:8111/api/support/notices/${editingId}`;
         method = "PUT";
@@ -140,7 +142,7 @@ const NoticeAdmin = () => {
 
   // 삭제 기능
   const handleDelete = async (id, e) => {
-    e.stopPropagation(); // 부모 클릭(상세보기) 방지
+    e.stopPropagation();
     if (!window.confirm("정말 이 공지사항을 삭제하시겠습니까?")) return;
 
     try {
@@ -167,7 +169,7 @@ const NoticeAdmin = () => {
 
   // 수정 버튼 클릭 시
   const openEditModal = (item, e) => {
-    e.stopPropagation(); // 부모 클릭 방지
+    e.stopPropagation();
     setIsEditMode(true);
     setEditingId(item.id);
     setNewNotice({
@@ -192,16 +194,33 @@ const NoticeAdmin = () => {
     setIsModalOpen(true);
   };
 
-  // 모달 닫기
   const closeModal = () => {
     setIsModalOpen(false);
   };
 
-  // 페이지네이션
+  // ★ [추가] 검색 필터링 로직
+  const filteredNotices = notices.filter((item) => {
+    const searchLower = searchTerm.toLowerCase();
+    // 제목 또는 작성자에 검색어가 포함되어 있는지 확인
+    return (
+      item.title.toLowerCase().includes(searchLower) ||
+      item.writer.toLowerCase().includes(searchLower)
+    );
+  });
+
+  // ★ [수정] 페이지네이션 대상을 'filteredNotices'로 변경
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentNotices = notices.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(notices.length / itemsPerPage);
+  const currentNotices = filteredNotices.slice(
+    indexOfFirstItem,
+    indexOfLastItem,
+  );
+  const totalPages = Math.ceil(filteredNotices.length / itemsPerPage);
+
+  // ★ [추가] 검색어 변경 시 페이지 리셋
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   return (
     <div style={styles.container}>
@@ -217,6 +236,9 @@ const NoticeAdmin = () => {
               type="text"
               placeholder="제목, 작성자 검색"
               style={styles.searchInput}
+              // ★ [추가] 검색어 입력 연결
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <button style={styles.writeButton} onClick={openCreateModal}>
@@ -234,7 +256,6 @@ const NoticeAdmin = () => {
               <th style={{ ...styles.th, width: "100px" }}>작성자</th>
               <th style={{ ...styles.th, width: "120px" }}>작성일</th>
               <th style={{ ...styles.th, width: "80px" }}>조회</th>
-              {/* 관리용 열 추가 */}
               <th style={{ ...styles.th, width: "100px" }}>관리</th>
             </tr>
           </thead>
@@ -244,11 +265,11 @@ const NoticeAdmin = () => {
                 key={item.id}
                 item={item}
                 onTitleClick={() => handleNoticeClick(item.id)}
-                onEdit={(e) => openEditModal(item, e)} // 수정 버튼 연결
-                onDelete={(e) => handleDelete(item.id, e)} // 삭제 버튼 연결
+                onEdit={(e) => openEditModal(item, e)}
+                onDelete={(e) => handleDelete(item.id, e)}
               />
             ))}
-            {notices.length === 0 && (
+            {filteredNotices.length === 0 && (
               <tr>
                 <td
                   colSpan="6"
@@ -258,44 +279,50 @@ const NoticeAdmin = () => {
                     color: "#888",
                   }}
                 >
-                  등록된 공지사항이 없습니다.
+                  {searchTerm
+                    ? "검색 결과가 없습니다."
+                    : "등록된 공지사항이 없습니다."}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
 
-        <div style={styles.pagination}>
-          <button
-            style={styles.pageBtn}
-            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1}
-          >
-            <FaChevronLeft size={10} />
-          </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+        {filteredNotices.length > 0 && (
+          <div style={styles.pagination}>
             <button
-              key={number}
-              style={
-                currentPage === number
-                  ? { ...styles.pageBtn, ...styles.activePageBtn }
-                  : styles.pageBtn
-              }
-              onClick={() => setCurrentPage(number)}
+              style={styles.pageBtn}
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
             >
-              {number}
+              <FaChevronLeft size={10} />
             </button>
-          ))}
-          <button
-            style={styles.pageBtn}
-            onClick={() =>
-              setCurrentPage(Math.min(totalPages, currentPage + 1))
-            }
-            disabled={currentPage === totalPages || totalPages === 0}
-          >
-            <FaChevronRight size={10} />
-          </button>
-        </div>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+              (number) => (
+                <button
+                  key={number}
+                  style={
+                    currentPage === number
+                      ? { ...styles.pageBtn, ...styles.activePageBtn }
+                      : styles.pageBtn
+                  }
+                  onClick={() => setCurrentPage(number)}
+                >
+                  {number}
+                </button>
+              ),
+            )}
+            <button
+              style={styles.pageBtn}
+              onClick={() =>
+                setCurrentPage(Math.min(totalPages, currentPage + 1))
+              }
+              disabled={currentPage === totalPages || totalPages === 0}
+            >
+              <FaChevronRight size={10} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 글쓰기/수정 모달 */}
@@ -382,7 +409,7 @@ const NoticeAdmin = () => {
                 취소
               </button>
               <button onClick={handleSave} style={styles.saveBtn}>
-                <FaCheck style={{ marginRight: "5px" }} />{" "}
+                <FaCheck style={{ marginRight: "5px" }} />
                 {isEditMode ? "수정완료" : "등록하기"}
               </button>
             </div>
@@ -487,7 +514,6 @@ const NoticeAdmin = () => {
   );
 };
 
-// --- 행 컴포넌트 ---
 const NoticeRow = ({ item, onTitleClick, onEdit, onDelete }) => {
   const [hover, setHover] = useState(false);
   const isImportant = item.important;
@@ -500,7 +526,7 @@ const NoticeRow = ({ item, onTitleClick, onEdit, onDelete }) => {
       }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      onClick={onTitleClick} // 행 클릭 시 상세 보기
+      onClick={onTitleClick}
     >
       <td style={{ ...styles.td, color: COLORS.subText }}>{item.id}</td>
       <td style={{ ...styles.td, textAlign: "left" }}>
@@ -531,8 +557,6 @@ const NoticeRow = ({ item, onTitleClick, onEdit, onDelete }) => {
           <FaEye size={12} /> {item.views}
         </div>
       </td>
-
-      {/* [수정/삭제 버튼 영역] */}
       <td style={styles.td}>
         <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
           <button onClick={onEdit} style={styles.iconBtnEdit} title="수정">
@@ -719,7 +743,6 @@ const styles = {
     fontSize: "14px",
     resize: "none",
   },
-  row: { display: "flex", gap: "15px" },
   modalFooter: {
     marginTop: "25px",
     display: "flex",
@@ -747,7 +770,6 @@ const styles = {
     border: "none",
     cursor: "pointer",
   },
-  // 아이콘 버튼 스타일
   iconBtnEdit: {
     border: "none",
     background: "transparent",

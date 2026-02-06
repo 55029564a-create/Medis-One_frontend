@@ -30,6 +30,9 @@ const Notice = () => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedNotice, setSelectedNotice] = useState(null);
 
+  // ★ [추가] 검색어 상태 관리
+  const [searchTerm, setSearchTerm] = useState("");
+
   const fetchNotices = async () => {
     try {
       const token =
@@ -86,10 +89,29 @@ const Notice = () => {
     }
   };
 
+  // ★ [추가] 검색 필터링 로직
+  const filteredNotices = notices.filter((item) => {
+    const searchLower = searchTerm.toLowerCase();
+    // 제목 또는 작성자에 검색어가 포함되어 있는지 확인
+    return (
+      item.title.toLowerCase().includes(searchLower) ||
+      item.writer.toLowerCase().includes(searchLower)
+    );
+  });
+
+  // ★ [수정] 페이지네이션 대상을 'filteredNotices'로 변경
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentNotices = notices.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(notices.length / itemsPerPage);
+  const currentNotices = filteredNotices.slice(
+    indexOfFirstItem,
+    indexOfLastItem,
+  );
+  const totalPages = Math.ceil(filteredNotices.length / itemsPerPage);
+
+  // ★ [추가] 검색어 변경 시 페이지를 1페이지로 리셋
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   return (
     <div style={styles.container}>
@@ -105,6 +127,9 @@ const Notice = () => {
               type="text"
               placeholder="제목, 작성자 검색"
               style={styles.searchInput}
+              // ★ [추가] 검색어 입력 연결
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
@@ -129,7 +154,7 @@ const Notice = () => {
                 onTitleClick={() => handleNoticeClick(item.id)}
               />
             ))}
-            {notices.length === 0 && (
+            {filteredNotices.length === 0 && (
               <tr>
                 <td
                   colSpan="5"
@@ -139,44 +164,50 @@ const Notice = () => {
                     color: "#888",
                   }}
                 >
-                  등록된 공지사항이 없습니다.
+                  {searchTerm
+                    ? "검색 결과가 없습니다."
+                    : "등록된 공지사항이 없습니다."}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
 
-        <div style={styles.pagination}>
-          <button
-            style={styles.pageBtn}
-            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1}
-          >
-            <FaChevronLeft size={10} />
-          </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+        {filteredNotices.length > 0 && (
+          <div style={styles.pagination}>
             <button
-              key={number}
-              style={
-                currentPage === number
-                  ? { ...styles.pageBtn, ...styles.activePageBtn }
-                  : styles.pageBtn
-              }
-              onClick={() => setCurrentPage(number)}
+              style={styles.pageBtn}
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
             >
-              {number}
+              <FaChevronLeft size={10} />
             </button>
-          ))}
-          <button
-            style={styles.pageBtn}
-            onClick={() =>
-              setCurrentPage(Math.min(totalPages, currentPage + 1))
-            }
-            disabled={currentPage === totalPages || totalPages === 0}
-          >
-            <FaChevronRight size={10} />
-          </button>
-        </div>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+              (number) => (
+                <button
+                  key={number}
+                  style={
+                    currentPage === number
+                      ? { ...styles.pageBtn, ...styles.activePageBtn }
+                      : styles.pageBtn
+                  }
+                  onClick={() => setCurrentPage(number)}
+                >
+                  {number}
+                </button>
+              ),
+            )}
+            <button
+              style={styles.pageBtn}
+              onClick={() =>
+                setCurrentPage(Math.min(totalPages, currentPage + 1))
+              }
+              disabled={currentPage === totalPages || totalPages === 0}
+            >
+              <FaChevronRight size={10} />
+            </button>
+          </div>
+        )}
       </div>
 
       {isDetailOpen && selectedNotice && (
