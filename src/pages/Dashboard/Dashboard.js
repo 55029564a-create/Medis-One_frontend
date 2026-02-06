@@ -1,5 +1,4 @@
-import React from "react";
-// 차트 라이브러리 (설치: npm install recharts)
+import React, { useState, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -13,8 +12,6 @@ import {
   Pie,
   Cell,
 } from "recharts";
-// 아이콘 (설치: npm install react-icons)
-// yarn add react-icons
 import {
   FaIndustry,
   FaCogs,
@@ -26,8 +23,8 @@ import {
   FaCommentDots,
 } from "react-icons/fa";
 import { MdVerifiedUser } from "react-icons/md";
+import { getDashboardData } from "../../api/dashboardApi";
 
-// 🎨 디자인 테마 컬러
 const COLORS = {
   primary: "#8C85FF",
   secondary: "#F3F1FF",
@@ -39,36 +36,44 @@ const COLORS = {
   background: "#F5F6FA",
   cardBg: "#FFFFFF",
 };
+const PIE_COLORS = ["#8C85FF", "#FFBB33", "#FF4444", "#00C851", "#33B5E5"];
 
-// --- Mock Data ---
-const hourlyProductionData = [
-  { time: "09시", target: 100, actual: 95 },
-  { time: "10시", target: 100, actual: 100 },
-  { time: "11시", target: 100, actual: 85 },
-  { time: "12시", target: 100, actual: 40 },
-  { time: "13시", target: 100, actual: 90 },
-  { time: "14시", target: 100, actual: 92 },
-  { time: "15시", target: 100, actual: 88 },
-];
-
-const defectTypeData = [
-  { name: "이물질", value: 45 },
-  { name: "찍힘", value: 30 },
-  { name: "색감불량", value: 15 },
-  { name: "기타", value: 10 },
-];
-const PIE_COLORS = ["#8C85FF", "#FFBB33", "#FF4444", "#00C851"];
-
-// ==============================================
-// 🖥️ 메인 대시보드
-// ==============================================
 const Dashboard = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const result = await getDashboardData();
+      setData(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading || !data)
+    return (
+      <div style={{ padding: "50px", textAlign: "center" }}>
+        대시보드 로딩중...
+      </div>
+    );
+
   return (
     <div style={styles.container}>
-      {/* 헤더 */}
+      {/* Header */}
       <div style={styles.header}>
         <div>
-          <h2 style={{ margin: 0, color: COLORS.text }}>Dashboard</h2>
+          <h2 style={{ margin: 0, color: COLORS.text }}>
+            Smart Factory Dashboard
+          </h2>
           <p
             style={{
               margin: "5px 0 0",
@@ -76,46 +81,41 @@ const Dashboard = () => {
               fontSize: "14px",
             }}
           >
-            2026-01-16 (금) | 14:00 기준 실시간 모니터링
+            {new Date().toLocaleDateString()} | 실시간 통합 모니터링
           </p>
         </div>
       </div>
 
-      {/* 1. KPI Cards (상단) */}
+      {/* 1. KPI Cards */}
       <div style={styles.grid4}>
         <KpiCard
           title="금일 생산 달성률"
-          value="85.4%"
-          subText="목표 1,000 / 현재 854 EA"
+          value={data.productionKpi.value}
+          subText={data.productionKpi.subText}
           icon={<FaIndustry />}
           color={COLORS.primary}
         />
         <KpiCard
           title="설비 가동률"
-          value="92.3%"
-          subText="가동 12 / 대기 1 / 고장 0"
+          value={data.equipmentKpi.value}
+          subText={data.equipmentKpi.subText}
           icon={<FaCogs />}
           color={COLORS.success}
         />
         <KpiCard
           title="실시간 불량률"
-          value="0.02%"
-          subText="목표 0.1% 미만 달성 중"
+          value={data.defectKpi.value}
+          subText={data.defectKpi.subText}
           icon={<FaExclamationTriangle />}
-          color={COLORS.primary}
+          color={COLORS.danger}
           isHighlight
         />
         <CleanRoomCard temp="23.5°C" humid="45.0%" cleanClass="Class 100" />
       </div>
 
-      {/* ⭐ 2. Main Charts (중단) ⭐ 
-          여기에 zIndex: 50을 부여하여 하단 영역(zIndex: 1)보다 무조건 위에 그려지게 함 
-      */}
-      <div style={{ ...styles.gridChart }}>
-        {/* 막대 차트 */}
+      {/* 2. Main Charts */}
+      <div style={styles.gridChart}>
         <div style={{ ...styles.card, overflow: "visible" }}>
-          {" "}
-          {/* 툴팁 잘림 방지 */}
           <div style={styles.cardHeader}>
             <h3>📊 시간대별 생산 현황</h3>
             <span style={styles.badge}>Live</span>
@@ -123,18 +123,15 @@ const Dashboard = () => {
           <div style={{ height: "320px", width: "100%" }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={hourlyProductionData}
+                data={data.hourlyProduction}
                 margin={{ top: 20, right: 10, left: -20, bottom: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="time" tick={{ fontSize: 12 }} />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
-                {/* allowEscapeViewBox: 차트 영역 밖으로 툴팁 탈출 허용 */}
                 <Tooltip
                   cursor={{ fill: "transparent" }}
                   contentStyle={styles.tooltip}
-                  allowEscapeViewBox={{ x: true, y: true }}
-                  // wrapperStyle={{ zIndex: 100 }}
                 />
                 <Legend />
                 <Bar
@@ -145,7 +142,7 @@ const Dashboard = () => {
                   barSize={20}
                 />
                 <Bar
-                  dataKey="actual"
+                  dataKey="value"
                   name="실적"
                   fill={COLORS.primary}
                   radius={[4, 4, 0, 0]}
@@ -156,16 +153,15 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* 도넛 차트 */}
         <div style={{ ...styles.card, overflow: "visible" }}>
           <div style={styles.cardHeader}>
-            <h3>🍩 금일 불량 유형</h3>
+            <h3>🍩 상세 불량 유형 (현상)</h3>
           </div>
           <div style={{ height: "320px", width: "100%" }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={defectTypeData}
+                  data={data.defectTypes}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -173,17 +169,14 @@ const Dashboard = () => {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {defectTypeData.map((entry, index) => (
+                  {data.defectTypes.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}
                       fill={PIE_COLORS[index % PIE_COLORS.length]}
                     />
                   ))}
                 </Pie>
-                <Tooltip
-                  allowEscapeViewBox={{ x: true, y: true }}
-                  // wrapperStyle={{ zIndex: 100 }}
-                />
+                <Tooltip />
                 <Legend verticalAlign="bottom" height={36} />
               </PieChart>
             </ResponsiveContainer>
@@ -191,63 +184,131 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* ⭐ 3. Bottom Widgets (하단) ⭐ 
-          zIndex: 1로 설정하여 차트 영역보다 아래에 깔리게 함
-      */}
-      <div style={{ ...styles.grid3, position: "relative" }}>
-        {/* 자재 */}
+      {/* 3. Bottom Widgets */}
+      <div style={styles.grid3}>
+        {/* [A구역] ② 생산 라인 가동 현황 (상단 전체 배치 & 가로 카드형) */}
+        <div style={{ ...styles.card, gridColumn: "1 / -1" }}>
+          <div style={styles.cardHeader}>
+            <h3>🏭 생산 라인 가동 현황</h3>
+          </div>
+          <div style={styles.lineGrid}>
+            {" "}
+            {/* Grid Layout 적용 */}
+            {(data.lineStatus || []).map((line, idx) => (
+              <div key={idx} style={styles.lineCard}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      background:
+                        line.status === "RUN" ? COLORS.success : "#E0E0E0",
+                      boxShadow:
+                        line.status === "RUN"
+                          ? `0 0 8px ${COLORS.success}`
+                          : "none",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontWeight: "bold",
+                      fontSize: "16px",
+                      color: line.status === "RUN" ? COLORS.text : "#999",
+                    }}
+                  >
+                    {line.name}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "#888",
+                    marginBottom: "15px",
+                    height: "20px",
+                  }}
+                >
+                  {line.description}
+                </div>
+
+                <div style={styles.lineCardFooter}>
+                  <div style={{ fontSize: "12px", color: "#666" }}>
+                    가동 설비:{" "}
+                    <b
+                      style={{
+                        color: line.status === "RUN" ? COLORS.primary : "#999",
+                      }}
+                    >
+                      {line.runningEquipment}
+                    </b>{" "}
+                    / {line.totalEquipment}
+                  </div>
+                  <div
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: "bold",
+                      backgroundColor:
+                        line.status === "RUN"
+                          ? `${COLORS.success}15`
+                          : "#F5F5F5",
+                      color: line.status === "RUN" ? COLORS.success : "#999",
+                    }}
+                  >
+                    {line.status === "RUN" ? "가동중" : "대기"}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {(!data.lineStatus || data.lineStatus.length === 0) && (
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  padding: "20px",
+                  textAlign: "center",
+                  color: "#999",
+                }}
+              >
+                등록된 라인 정보가 없습니다.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* [B구역] ① 자재 이슈 알림 */}
         <div style={styles.card}>
           <div style={styles.cardHeader}>
-            <h3>⚠️ 자재 유효기간 알림</h3>
+            <h3>⚠️ 자재 이슈 알림</h3>
           </div>
           <ul style={styles.list}>
-            <ListItem
-              status="danger"
-              text="[Expired] UV-Resin (Lot.2301)"
-              sub="폐기 대상"
-            />
-            <ListItem
-              status="warning"
-              text="[D-3] Panel Adhesive (Lot.2405)"
-              sub="긴급 사용 요망"
-            />
-            <ListItem
-              status="success"
-              text="[Normal] Polarizer Film A"
-              sub="재고 충분"
-            />
+            {data.materialAlerts.length === 0 ? (
+              <li
+                style={{ padding: "20px", textAlign: "center", color: "#999" }}
+              >
+                이슈 없음
+              </li>
+            ) : (
+              data.materialAlerts.map((alert, i) => (
+                <ListItem
+                  key={i}
+                  status={alert.status}
+                  text={alert.text}
+                  sub={alert.sub}
+                />
+              ))
+            )}
           </ul>
         </div>
 
-        {/* 설비 */}
-        <div style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h3>⚙️ 실시간 설비 현황</h3>
-          </div>
-          <div style={styles.machineMap}>
-            <div style={styles.machineRow}>
-              <MachineStatus name="1호기" status="run" />
-              <MachineStatus name="2호기" status="run" />
-              <MachineStatus name="3호기" status="stop" />
-            </div>
-            <div style={styles.machineRow}>
-              <MachineStatus name="4호기" status="run" />
-              <MachineStatus name="5호기" status="run" />
-              <MachineStatus name="6호기" status="run" />
-            </div>
-            <div
-              style={{
-                marginTop: "15px",
-                fontSize: "12px",
-                color: COLORS.subText,
-              }}
-            >
-              🟣 가동중 | ⚪ 대기 | 🔴 점검/고장
-            </div>
-          </div>
-        </div>
-
-        {/* 식단 */}
+        {/* [C구역] ③ Today's Pick */}
         <div style={styles.card}>
           <div style={styles.cardHeader}>
             <h3>🍱 Today's Pick</h3>
@@ -305,10 +366,7 @@ const Dashboard = () => {
   );
 };
 
-// ==============================================
-// 🧩 서브 컴포넌트
-// ==============================================
-
+// ... (서브 컴포넌트 동일) ...
 const KpiCard = ({ title, value, subText, icon, color, isHighlight }) => (
   <div style={styles.card}>
     <div
@@ -419,39 +477,6 @@ const ListItem = ({ status, text, sub }) => {
   );
 };
 
-const MachineStatus = ({ name, status }) => {
-  const bg =
-    status === "run"
-      ? COLORS.primary
-      : status === "stop"
-        ? "#E0E0E0"
-        : COLORS.danger;
-  const txtColor = status === "stop" ? "#555" : "#fff";
-  return (
-    <div
-      style={{
-        width: "60px",
-        height: "60px",
-        borderRadius: "12px",
-        backgroundColor: bg,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: txtColor,
-        fontSize: "12px",
-        fontWeight: "bold",
-        cursor: "pointer",
-        boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
-      }}
-    >
-      {name}
-    </div>
-  );
-};
-
-// ==============================================
-// 🎨 스타일 정의
-// ==============================================
 const styles = {
   container: {
     padding: "20px",
@@ -470,18 +495,13 @@ const styles = {
     gap: "20px",
     marginBottom: "70px",
   },
-  // 차트 그리드: 여기 zIndex가 50이면 하단의 zIndex 1보다 무조건 위에 그려짐
   gridChart: {
     display: "grid",
     gridTemplateColumns: "2fr 1fr",
     gap: "20px",
     marginBottom: "25px",
   },
-  grid3: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: "20px",
-  },
+  grid3: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" },
   card: {
     backgroundColor: COLORS.cardBg,
     borderRadius: "16px",
@@ -491,7 +511,6 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     position: "relative",
-    // 내부 컨텐츠(툴팁)가 카드 밖으로 나가도 보이게 설정
     overflow: "visible",
   },
   cardHeader: {
@@ -519,30 +538,13 @@ const styles = {
     color: "#1565C0",
     fontWeight: "500",
   },
-  list: {
-    listStyle: "none",
-    padding: 0,
-    margin: 0,
-  },
+  list: { listStyle: "none", padding: 0, margin: 0 },
   listItem: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     padding: "12px 0",
     borderBottom: "1px solid #eee",
-  },
-  machineMap: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "15px",
-    alignItems: "center",
-    justifyContent: "center",
-    height: "100%",
-    padding: "20px 0",
-  },
-  machineRow: {
-    display: "flex",
-    gap: "15px",
   },
   menuBox: {
     backgroundColor: COLORS.secondary,
@@ -563,7 +565,33 @@ const styles = {
     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
     backgroundColor: "#fff",
     padding: "10px",
-    // zIndex: 9999, // 이 자체로도 우선순위를 높임
+  },
+
+  // [수정] Grid Layout 및 Card 스타일
+  lineGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)", // 4개의 컬럼
+    gap: "15px",
+    marginTop: "10px",
+  },
+  lineCard: {
+    display: "flex",
+    flexDirection: "column",
+    padding: "20px",
+    backgroundColor: "#FFFFFF",
+    borderRadius: "12px",
+    border: "1px solid #EEE",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+    transition: "0.2s",
+    cursor: "default",
+  },
+  lineCardFooter: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: "auto", // 하단 고정
+    paddingTop: "15px",
+    borderTop: "1px solid #F5F5F5",
   },
 };
 
