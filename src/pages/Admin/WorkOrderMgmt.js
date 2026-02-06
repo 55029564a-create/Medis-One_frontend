@@ -53,6 +53,30 @@ const WorkOrderMgmt = () => {
     fetchData();
   }, []);
 
+  // [신규 로직] 상위 계획 선택 시 제품과 수량 자동 세팅
+  const handleParentPlanChange = (e) => {
+    const selectedId = e.target.value;
+
+    if (selectedId === "") {
+      // 연결 안 함 선택 시
+      setCurrentOrder({ ...currentOrder, productOrderId: "" });
+      return;
+    }
+
+    // 선택된 상위 계획 데이터 찾기
+    const selectedPlan = parentPlans.find((p) => p.id === Number(selectedId));
+
+    if (selectedPlan) {
+      setCurrentOrder({
+        ...currentOrder,
+        productOrderId: selectedId,
+        productId: selectedPlan.productId, // [중요] 상위 계획의 제품으로 자동 변경
+        targetQty: selectedPlan.targetQty - selectedPlan.currentQty, // 잔여 수량 자동 입력 (편의 기능)
+        deadline: selectedPlan.deadline, // 마감일도 자동 입력
+      });
+    }
+  };
+
   const fetchData = async () => {
     try {
       const [woData, lineData, poData] = await Promise.all([
@@ -71,7 +95,7 @@ const WorkOrderMgmt = () => {
   const handleAddNew = () => {
     setCurrentOrder({
       id: null,
-      productOrderId: parentPlans.length > 0 ? parentPlans[0].id : "",
+      productOrderId: "",
       productId: 1,
       lineId: lines.length > 0 ? lines[0].id : 1,
       targetQty: 0,
@@ -87,8 +111,9 @@ const WorkOrderMgmt = () => {
   const handleEdit = (order) => {
     setCurrentOrder({
       ...order,
+      // 백엔드 DTO에 추가한 productOrderId를 여기서 사용
+      productOrderId: order.productOrderId || "",
       lineId: order.lineId || (lines.length > 0 ? lines[0].id : 1),
-      productOrderId: "",
     });
     setIsEditMode(true);
     setIsModalOpen(true);
@@ -240,8 +265,8 @@ const WorkOrderMgmt = () => {
                 <select
                   style={styles.select}
                   name="productOrderId"
-                  value={currentOrder.productOrderId}
-                  onChange={handleInputChange}
+                  value={currentOrder.productOrderId || ""} // null 방지
+                  onChange={handleParentPlanChange} // [변경] 핸들러 교체
                   disabled={isEditMode}
                 >
                   <option value="">(연결 안함 - 독립 지시)</option>
