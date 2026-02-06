@@ -145,6 +145,11 @@ const Sidebar = () => {
             currentPath={location.pathname}
           />
           <SubMenuItem
+            to="/production/product"
+            label="라인 모니터링"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
             to="/production/work-order"
             label="작업 지시서"
             currentPath={location.pathname}
@@ -152,6 +157,11 @@ const Sidebar = () => {
           <SubMenuItem
             to="/production/report"
             label="생산 보고"
+            currentPath={location.pathname}
+          />
+          <SubMenuItem
+            to="/production/product"
+            label="제품 관리"
             currentPath={location.pathname}
           />
         </MenuDropdown>
@@ -276,13 +286,13 @@ const Sidebar = () => {
             currentPath={location.pathname}
           />
           <SubMenuItem
-            to="/admin/work-order"
-            label="작업 지시 관리"
+            to="/admin/production-order"
+            label="생산 지시 관리"
             currentPath={location.pathname}
           />
           <SubMenuItem
-            to="/admin/production-order"
-            label="생산 지시 관리"
+            to="/admin/work-order"
+            label="작업 지시 관리"
             currentPath={location.pathname}
           />
           <SubMenuItem

@@ -14,7 +14,13 @@ import {
   FaThLarge,
   FaEllipsisV,
   FaUser,
+  FaTimes,
+  FaBullhorn,
+  FaEdit,
 } from "react-icons/fa";
+
+// [API] 함수 임포트
+import { getProductionPlans } from "../../api/productionApi";
 
 const THEME = {
   primary: "#8C85FF",
@@ -27,6 +33,7 @@ const THEME = {
   success: "#00C851",
   warning: "#FFBB33",
   danger: "#FF4444",
+  info: "#29B6F6",
 };
 
 const ProductionSchedule = () => {
@@ -34,35 +41,29 @@ const ProductionSchedule = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState("list");
 
-  // 서버에서 받아올 데이터 상태
   const [schedules, setSchedules] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // [API] 데이터 조회 함수
+  // [상태 추가] 상세 모달용 선택된 데이터
+  const [selectedSchedule, setSelectedSchedule] = useState(null);
+
+  // 데이터 조회
   const fetchSchedules = async () => {
+    setIsLoading(true);
     try {
-      // 포트가 8111로 변경되었으므로 확인 필요
-      const response = await fetch(
-        "http://localhost:8111/api/production/plans",
-      );
-      if (response.ok) {
-        const data = await response.json();
-        // 최신순으로 정렬 (id 역순)
-        const sortedData = data.sort((a, b) => b.id - a.id);
-        setSchedules(sortedData);
-      } else {
-        console.error("데이터 로딩 실패");
-      }
+      const data = await getProductionPlans();
+      setSchedules(data || []);
     } catch (error) {
-      console.error("API 에러:", error);
+      console.error("데이터 로드 실패:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // 화면이 켜질 때(마운트) 데이터 조회 실행
   useEffect(() => {
     fetchSchedules();
   }, []);
 
-  // 필터링 로직
   const filteredSchedules = schedules.filter(
     (item) =>
       (item.product &&
@@ -70,17 +71,20 @@ const ProductionSchedule = () => {
       (item.line && item.line.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
-  // KPI 계산
-  const totalPlan = schedules.reduce(
-    (acc, cur) => acc + parseInt(cur.planQty || 0),
-    0,
-  );
-  const totalDone = schedules.reduce(
-    (acc, cur) => acc + parseInt(cur.doneQty || 0),
-    0,
-  );
+  const totalPlan = schedules.reduce((acc, cur) => acc + (cur.planQty || 0), 0);
+  const totalDone = schedules.reduce((acc, cur) => acc + (cur.doneQty || 0), 0);
   const progressRate =
     totalPlan === 0 ? 0 : Math.round((totalDone / totalPlan) * 100);
+
+  // [핸들러] 상세 모달 열기
+  const openDetailModal = (item) => {
+    setSelectedSchedule(item);
+  };
+
+  // [핸들러] 상세 모달 닫기
+  const closeDetailModal = () => {
+    setSelectedSchedule(null);
+  };
 
   return (
     <div style={styles.container}>
@@ -88,7 +92,7 @@ const ProductionSchedule = () => {
       <div style={styles.header}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <FaCalendarAlt size={24} color={THEME.primary} />
-          <h2 style={styles.title}>주간 생산 계획</h2>
+          <h2 style={styles.title}>생산 지시서</h2>
         </div>
         <div style={styles.dateControl}>
           <button style={styles.iconBtn}>
@@ -104,7 +108,7 @@ const ProductionSchedule = () => {
       {/* 2. KPI Cards */}
       <div style={styles.kpiContainer}>
         <KpiCard
-          title="총 계획 수량"
+          title="총 지시 수량"
           value={`${totalPlan.toLocaleString()} EA`}
           icon={<FaClipboardList />}
           color={THEME.primary}
@@ -129,7 +133,7 @@ const ProductionSchedule = () => {
           <div style={styles.searchBox}>
             <FaSearch color={THEME.gray} />
             <input
-              placeholder="검색..."
+              placeholder="품목명, 라인명 검색..."
               style={styles.searchInput}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -156,12 +160,13 @@ const ProductionSchedule = () => {
             </button>
           </div>
         </div>
-
         <div style={{ display: "flex", gap: "10px" }}>
+          <button style={styles.outlineBtn} onClick={fetchSchedules}>
+            🔄 새로고침
+          </button>
           <button style={styles.outlineBtn}>
             <FaFileDownload style={{ marginRight: "6px" }} /> 엑셀
           </button>
-          {/* [+ 계획 등록] 버튼 제거됨 */}
         </div>
       </div>
 
@@ -172,7 +177,7 @@ const ProductionSchedule = () => {
             <thead>
               <tr style={styles.theadTr}>
                 <th style={styles.th}>긴급</th>
-                <th style={styles.th}>날짜</th>
+                <th style={styles.th}>마감일</th>
                 <th style={styles.th}>라인</th>
                 <th style={styles.th}>품목명</th>
                 <th style={styles.th}>자재</th>
@@ -185,12 +190,16 @@ const ProductionSchedule = () => {
             </thead>
             <tbody>
               {filteredSchedules.map((item) => (
-                <ScheduleRow key={item.id} item={item} />
+                <ScheduleRow
+                  key={item.id}
+                  item={item}
+                  onOpen={() => openDetailModal(item)}
+                />
               ))}
               {filteredSchedules.length === 0 && (
                 <tr>
                   <td colSpan="10" style={styles.emptyState}>
-                    데이터가 없습니다.
+                    {isLoading ? "로딩 중..." : "데이터가 없습니다."}
                   </td>
                 </tr>
               )}
@@ -200,27 +209,128 @@ const ProductionSchedule = () => {
       ) : (
         <div style={styles.gridContainer}>
           {filteredSchedules.map((item) => (
-            <ScheduleCard key={item.id} item={item} />
+            <ScheduleCard
+              key={item.id}
+              item={item}
+              onOpen={() => openDetailModal(item)}
+            />
           ))}
         </div>
       )}
 
-      {/* 5. Modal 제거됨 */}
+      {/* [추가] 상세 정보 모달 */}
+      {selectedSchedule && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.detailModal}>
+            <div style={styles.modalHeader}>
+              <h3
+                style={{
+                  margin: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
+                <FaClipboardList color={THEME.primary} /> 생산 지시 상세 정보
+              </h3>
+              <button style={styles.closeBtn} onClick={closeDetailModal}>
+                <FaTimes />
+              </button>
+            </div>
+
+            <div style={styles.modalBody}>
+              {/* 상단 정보 그리드 */}
+              <div style={styles.infoGrid}>
+                <InfoItem
+                  label="지시번호"
+                  value={`WO-${selectedSchedule.id}`}
+                />
+                <InfoItem label="지시일자" value={selectedSchedule.date} />{" "}
+                {/* 또는 생성일 */}
+                <InfoItem label="담당 라인" value={selectedSchedule.line} />
+                <InfoItem label="담당자" value={selectedSchedule.manager} />
+                <InfoItem
+                  label="생산 품목"
+                  value={selectedSchedule.product}
+                  bold
+                />
+                <InfoItem
+                  label="목표 수량"
+                  value={`${selectedSchedule.planQty} EA`}
+                  color={THEME.primary}
+                  bold
+                />
+              </div>
+
+              {/* 상태 표시 */}
+              <div style={{ margin: "20px 0" }}>
+                <span
+                  style={{
+                    fontSize: "13px",
+                    color: THEME.gray,
+                    marginRight: "10px",
+                  }}
+                >
+                  현재 상태
+                </span>
+                <StatusBadge status={selectedSchedule.status} size="medium" />
+              </div>
+
+              <div style={styles.divider}></div>
+
+              {/* 지시 사항 */}
+              <div style={styles.section}>
+                <h4 style={styles.sectionTitle}>
+                  <FaBullhorn /> 작업 지시 사항
+                </h4>
+                <div style={styles.textBox}>
+                  패널 조립 시 베젤 유격 0.5mm 이내 관리 요망. (DB 데이터 연동
+                  필요)
+                </div>
+              </div>
+
+              {/* 비고/특이사항 */}
+              <div style={styles.section}>
+                <h4 style={styles.sectionTitle}>
+                  <FaEdit /> 비고 / 특이사항
+                </h4>
+                <div
+                  style={{
+                    ...styles.textBox,
+                    backgroundColor: "#FFF8E1",
+                    borderColor: "#FFECB3",
+                  }}
+                >
+                  자재 입고 지연으로 10:00 시작함. (DB 데이터 연동 필요)
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.modalFooter}>
+              <button style={styles.confirmBtn} onClick={closeDetailModal}>
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 // --- Sub Components ---
 
-const ScheduleRow = ({ item }) => {
+const ScheduleRow = ({ item, onOpen }) => {
   const percent =
     item.planQty > 0
       ? Math.min(Math.round((item.doneQty / item.planQty) * 100), 100)
       : 0;
   return (
-    <tr style={styles.tbodyTr}>
+    <tr style={styles.tbodyTr} onClick={onOpen}>
+      {" "}
+      {/* 행 클릭 시 모달 오픈 */}
       <td style={styles.td}>
-        {item.isEmergency ? (
+        {item.emergency ? (
           <span style={styles.emergencyBadge}>URGENT</span>
         ) : (
           "-"
@@ -248,7 +358,13 @@ const ScheduleRow = ({ item }) => {
         <StatusBadge status={item.status} />
       </td>
       <td style={styles.td}>
-        <button style={styles.actionBtn}>
+        <button
+          style={styles.actionBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+        >
           <FaEllipsisV />
         </button>
       </td>
@@ -256,13 +372,13 @@ const ScheduleRow = ({ item }) => {
   );
 };
 
-const ScheduleCard = ({ item }) => {
+const ScheduleCard = ({ item, onOpen }) => {
   const percent =
     item.planQty > 0
       ? Math.min(Math.round((item.doneQty / item.planQty) * 100), 100)
       : 0;
   return (
-    <div style={styles.card}>
+    <div style={styles.card} onClick={onOpen}>
       <div
         style={{
           display: "flex",
@@ -271,12 +387,16 @@ const ScheduleCard = ({ item }) => {
         }}
       >
         <div style={{ display: "flex", gap: "8px" }}>
-          {item.isEmergency && (
-            <span style={styles.emergencyBadge}>URGENT</span>
-          )}
+          {item.emergency && <span style={styles.emergencyBadge}>URGENT</span>}
           <StatusBadge status={item.status} />
         </div>
-        <button style={styles.actionBtn}>
+        <button
+          style={styles.actionBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+        >
           <FaEllipsisV />
         </button>
       </div>
@@ -343,6 +463,21 @@ const ScheduleCard = ({ item }) => {
   );
 };
 
+const InfoItem = ({ label, value, color, bold }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+    <span style={{ fontSize: "12px", color: "#888" }}>{label}</span>
+    <span
+      style={{
+        fontSize: "15px",
+        color: color || "#333",
+        fontWeight: bold ? "bold" : "normal",
+      }}
+    >
+      {value || "-"}
+    </span>
+  </div>
+);
+
 const KpiCard = ({ title, value, icon, color }) => (
   <div style={styles.kpiCard}>
     <div
@@ -357,17 +492,22 @@ const KpiCard = ({ title, value, icon, color }) => (
   </div>
 );
 
-const StatusBadge = ({ status }) => {
+const StatusBadge = ({ status, size }) => {
   let style = { backgroundColor: "#eee", color: "#888" };
-  if (status === "진행중")
+  const s = status || "예정";
+  if (s === "진행중" || s === "IN_PROGRESS")
     style = { backgroundColor: `${THEME.primary}20`, color: THEME.primary };
-  if (status === "완료")
+  else if (s === "완료" || s === "COMPLETED")
     style = { backgroundColor: `${THEME.success}20`, color: THEME.success };
-  if (status === "대기")
+  else if (s === "대기" || s === "WAIT")
     style = { backgroundColor: `${THEME.warning}20`, color: THEME.warning };
-  if (status === "예정")
-    style = { backgroundColor: `${THEME.secondary}`, color: THEME.gray };
-  return <span style={{ ...styles.badge, ...style }}>{status}</span>;
+
+  const sizeStyle =
+    size === "medium"
+      ? { padding: "6px 12px", fontSize: "13px" }
+      : { padding: "5px 10px", fontSize: "11px" };
+
+  return <span style={{ ...styles.badge, ...style, ...sizeStyle }}>{s}</span>;
 };
 
 const MaterialBadge = ({ status }) => {
@@ -399,13 +539,18 @@ const styles = {
     padding: "30px",
     backgroundColor: THEME.bg,
     minHeight: "100vh",
-    fontFamily: "'Noto Sans KR', sans-serif",
+    display: "flex",
+    flexDirection: "column",
+    width: "100%",
+    boxSizing: "border-box",
   },
   header: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "25px",
+    flexWrap: "wrap",
+    gap: "10px",
   },
   title: { fontSize: "24px", fontWeight: "bold", color: THEME.text, margin: 0 },
   dateControl: {
@@ -432,9 +577,14 @@ const styles = {
     padding: "5px",
     fontSize: "14px",
   },
-  kpiContainer: { display: "flex", gap: "20px", marginBottom: "30px" },
+  kpiContainer: {
+    display: "flex",
+    gap: "20px",
+    marginBottom: "30px",
+    flexWrap: "wrap",
+  },
   kpiCard: {
-    flex: 1,
+    flex: "1 1 200px",
     backgroundColor: THEME.white,
     borderRadius: "16px",
     padding: "20px",
@@ -464,6 +614,8 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "20px",
+    flexWrap: "wrap",
+    gap: "10px",
   },
   searchBox: {
     display: "flex",
@@ -524,6 +676,7 @@ const styles = {
     padding: "20px",
     boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
     overflowX: "auto",
+    flex: 1,
   },
   table: { width: "100%", borderCollapse: "collapse", minWidth: "1000px" },
   theadTr: { borderBottom: `2px solid ${THEME.border}` },
@@ -537,6 +690,7 @@ const styles = {
   tbodyTr: {
     borderBottom: `1px solid #f5f5f5`,
     transition: "background 0.2s",
+    cursor: "pointer",
     ":hover": { backgroundColor: "#fafafa" },
   },
   td: {
@@ -556,6 +710,7 @@ const styles = {
     padding: "20px",
     boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
     transition: "transform 0.2s",
+    cursor: "pointer",
     ":hover": { transform: "translateY(-5px)" },
   },
   badge: {
@@ -593,6 +748,83 @@ const styles = {
     padding: "5px",
   },
   emptyState: { padding: "40px", textAlign: "center", color: THEME.gray },
+
+  // [신규] 상세 모달 스타일
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  detailModal: {
+    width: "500px",
+    padding: "30px",
+    backgroundColor: "white",
+    borderRadius: "20px",
+    boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
+    maxWidth: "90%",
+    maxHeight: "90vh",
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+  },
+  modalHeader: {
+    marginBottom: "25px",
+    borderBottom: `1px solid ${THEME.border}`,
+    paddingBottom: "15px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  closeBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "18px",
+    color: THEME.gray,
+  },
+  modalBody: { flex: 1, display: "flex", flexDirection: "column", gap: "10px" },
+  infoGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" },
+  divider: { height: "1px", backgroundColor: "#eee", margin: "10px 0" },
+  section: { marginTop: "15px" },
+  sectionTitle: {
+    fontSize: "14px",
+    fontWeight: "bold",
+    marginBottom: "8px",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    color: THEME.text,
+  },
+  textBox: {
+    padding: "12px",
+    backgroundColor: "#F8F9FA",
+    borderRadius: "8px",
+    border: "1px solid #E0E0E0",
+    fontSize: "13px",
+    color: "#555",
+    lineHeight: "1.5",
+  },
+  modalFooter: {
+    marginTop: "30px",
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+  confirmBtn: {
+    padding: "10px 25px",
+    backgroundColor: THEME.primary,
+    color: "white",
+    border: "none",
+    borderRadius: "10px",
+    fontWeight: "bold",
+    cursor: "pointer",
+  },
 };
 
 export default ProductionSchedule;
