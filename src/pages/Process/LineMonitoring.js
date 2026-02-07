@@ -1,3 +1,4 @@
+import client from "../../api/client";
 import React, { useState, useEffect } from "react";
 import {
   FaExclamationTriangle,
@@ -94,11 +95,9 @@ const LineMonitoring = () => {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:8111/api/production/product-mgmt",
-      );
+      const response = await client.get("/production/product-mgmt");
       if (response.ok) {
-        const data = await response.json();
+        const data = response.data;
 
         const unifiedData = data.map((item, index) => {
           // 1. 공정 단계 분산 (1~5단계)

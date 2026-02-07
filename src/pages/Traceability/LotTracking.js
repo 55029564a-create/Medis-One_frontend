@@ -5,14 +5,11 @@ import {
   FaBarcode,
   FaSitemap,
   FaBoxOpen,
-  FaIndustry,
   FaThermometerHalf,
   FaCalendarAlt,
   FaTruckLoading,
-  FaCheckCircle,
 } from "react-icons/fa";
 
-// 🎨 디자인 시스템
 const COLORS = {
   primary: "#8C85FF",
   bg: "#F5F6FA",
@@ -32,16 +29,12 @@ const LotTracking = () => {
   const [lotData, setLotData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // 📡 서버 통신
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchTerm) return;
-
     setLoading(true);
     setLotData(null);
-
     try {
-      // ✅ 기존 서비스 그대로 호출 (/trace/mat-lot/{code})
       const response = await client.get(`/trace/mat-lot/${searchTerm}`);
       console.log("Trace Data:", response.data);
       setLotData(response.data);
@@ -55,7 +48,6 @@ const LotTracking = () => {
 
   return (
     <div style={styles.container}>
-      {/* 헤더 */}
       <div style={styles.header}>
         <div>
           <h2 style={styles.pageTitle}>🔍 LOT 통합 추적 (Genealogy)</h2>
@@ -65,7 +57,6 @@ const LotTracking = () => {
         </div>
       </div>
 
-      {/* 검색 바 */}
       <div style={styles.searchSection}>
         <form onSubmit={handleSearch} style={styles.searchBar}>
           <FaBarcode size={20} color={COLORS.gray} />
@@ -82,7 +73,6 @@ const LotTracking = () => {
         </form>
       </div>
 
-      {/* 결과 영역 */}
       {loading ? (
         <div style={styles.loadingArea}>데이터 추적 중...</div>
       ) : lotData ? (
@@ -94,22 +84,11 @@ const LotTracking = () => {
                 <h3 style={styles.cardTitle}>📦 LOT Information</h3>
                 <StatusBadge status={lotData.status} />
               </div>
-
               <div style={styles.lotIdBox}>
                 <span style={{ fontSize: "12px", color: "#888" }}>LOT No.</span>
-                <div
-                  style={{
-                    fontSize: "18px",
-                    fontWeight: "bold",
-                    color: COLORS.dark,
-                  }}
-                >
-                  {lotData.lotCode}
-                </div>
+                <div style={styles.lotIdText}>{lotData.lotCode}</div>
               </div>
-
               <div style={styles.infoGrid}>
-                {/* 백엔드 DTO 필드명(matName, matCode 등) 그대로 매핑 */}
                 <InfoRow label="품목명(Kit)" value={lotData.matName} />
                 <InfoRow label="품목코드" value={lotData.matCode} />
                 <InfoRow label="공급/제조사" value={lotData.company} />
@@ -121,9 +100,7 @@ const LotTracking = () => {
                 />
                 <InfoRow label="생성일(입고)" value={lotData.createdAt} />
               </div>
-
               <div style={styles.specialInfo}>
-                {/* 보관/만료는 DTO에 없으면 기본값 보여주기 (화면 깨짐 방지) */}
                 <div style={styles.iconRow}>
                   <FaThermometerHalf color={COLORS.info} />
                   <span>보관: 실온(Room Temp)</span>
@@ -136,21 +113,22 @@ const LotTracking = () => {
             </div>
           </div>
 
-          {/* [우측] 이력 타임라인 (Genealogy) */}
+          {/* [우측] 이력 타임라인 */}
           <div style={styles.rightPanel}>
             <div style={styles.card}>
               <h3 style={styles.cardTitle}>
                 <FaSitemap /> Process History (이력 추적)
               </h3>
-
               <div style={styles.timeline}>
-                {/* 1. 최초 생성(입고) 로그 */}
+                {/* 1. 입고 로그 */}
                 <div style={styles.timelineItem}>
                   <div style={styles.timelineDotStart} />
                   <div style={styles.timelineContent}>
                     <div style={styles.stepTitle}>LOT Created (입고/생성)</div>
                     <div style={styles.stepDesc}>
-                      <FaCalendarAlt style={{ marginRight: 5 }} />{" "}
+                      <FaCalendarAlt
+                        style={{ marginRight: 5, flexShrink: 0 }}
+                      />
                       {lotData.createdAt}
                     </div>
                     <div style={styles.stepDesc}>
@@ -159,15 +137,12 @@ const LotTracking = () => {
                   </div>
                 </div>
 
-                {/* 2. 서버에서 받은 logs 리스트 순회 */}
+                {/* 2. 공정 로그 */}
                 {(lotData.logs || []).map((log, idx) => {
-                  // 💡 [핵심 로직] 시리얼 번호 존재 여부에 따라 UI 다르게 표현
                   const isProductMade = log.serial && log.serial !== "null";
-
                   return (
                     <div key={idx} style={styles.timelineItem}>
                       <div style={styles.timelineLine} />
-                      {/* 아이콘: 제품생산이면 체크, 아니면 트럭(이동) */}
                       <div
                         style={{
                           ...styles.timelineDot,
@@ -185,31 +160,29 @@ const LotTracking = () => {
 
                       <div style={styles.timelineContent}>
                         <div style={styles.stepTitle}>
-                          {/* 공정 이름 or 타입 */}
                           Step {idx + 1}: {log.procName}
                         </div>
-
                         <div style={styles.stepDesc}>
-                          <FaCalendarAlt style={{ marginRight: 5 }} />{" "}
+                          <FaCalendarAlt
+                            style={{ marginRight: 5, flexShrink: 0 }}
+                          />
                           {log.prodAt}
                           <span style={{ marginLeft: 10 }}>
                             수량 변동: {log.qty}
                           </span>
                         </div>
 
-                        {/* 🌟 제품 시리얼이 있을 때만 강조해서 보여줌 */}
+                        {/* ▼▼▼ div 태그 사용 확인 ▼▼▼ */}
+                        {log.processData && (
+                          <div style={styles.logDataBox}>{log.processData}</div>
+                        )}
+
                         {isProductMade ? (
                           <div style={styles.productBadge}>
                             <span style={{ color: "#666" }}>
                               Output Product:
                             </span>
-                            <span
-                              style={{
-                                fontWeight: "bold",
-                                color: COLORS.primary,
-                                marginLeft: 5,
-                              }}
-                            >
+                            <span style={styles.productSerial}>
                               {log.serial}
                             </span>
                           </div>
@@ -222,15 +195,8 @@ const LotTracking = () => {
                     </div>
                   );
                 })}
-
                 {(!lotData.logs || lotData.logs.length === 0) && (
-                  <div
-                    style={{
-                      padding: "20px",
-                      textAlign: "center",
-                      color: "#999",
-                    }}
-                  >
+                  <div style={styles.noHistory}>
                     - 추가 이동/가공 이력이 없습니다 -
                   </div>
                 )}
@@ -249,7 +215,7 @@ const LotTracking = () => {
   );
 };
 
-// --- 스타일 및 서브 컴포넌트 ---
+// --- 서브 컴포넌트 ---
 const InfoRow = ({ label, value, highlight }) => (
   <div style={styles.row}>
     <span style={{ fontSize: "13px", color: "#888" }}>{label}</span>
@@ -258,6 +224,7 @@ const InfoRow = ({ label, value, highlight }) => (
         fontSize: "13px",
         fontWeight: "bold",
         color: highlight ? COLORS.primary : "#333",
+        wordBreak: "break-all",
       }}
     >
       {value || "-"}
@@ -277,24 +244,21 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+// --- 스타일 ---
 const styles = {
-  // ✅ [수정] 박스 사이즈 계산 방식 변경 및 여백 축소
   container: {
-    padding: "20px", // 30px -> 20px 축소
+    padding: "20px",
     backgroundColor: COLORS.bg,
-    minHeight: "100vh", // % 대신 vh 사용
-    boxSizing: "border-box", // 패딩이 너비에 포함되도록 설정 (스크롤 방지 핵심)
+    minHeight: "100vh",
+    boxSizing: "border-box",
     width: "100%",
-    maxWidth: "100%", // 부모 영역 넘침 방지
-    overflowX: "hidden", // 가로 스크롤 강제 숨김
+    overflowX: "hidden",
   },
-
   header: { marginBottom: "15px" },
   pageTitle: {
-    fontSize: "20px", // 24px -> 20px 축소
+    fontSize: "20px",
     fontWeight: "bold",
     color: COLORS.text,
-    marginBottom: "4px",
     margin: 0,
   },
   pageSubtitle: { fontSize: "13px", color: COLORS.gray, marginTop: "4px" },
@@ -304,18 +268,17 @@ const styles = {
     display: "flex",
     alignItems: "center",
     backgroundColor: "white",
-    padding: "8px 15px", // 패딩 축소
-    borderRadius: "8px", // 둥근 모서리 약간 각지게 수정 (공간 절약)
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-    width: "100%",
-    maxWidth: "500px", // 검색창 최대 너비 줄임
+    padding: "8px 15px",
+    borderRadius: "8px",
     border: `1px solid ${COLORS.border}`,
+    maxWidth: "500px",
+    width: "100%",
   },
   searchInput: {
     flex: 1,
     border: "none",
     outline: "none",
-    fontSize: "14px", // 폰트 사이즈 조절
+    fontSize: "14px",
     marginLeft: "10px",
   },
   searchBtn: {
@@ -327,9 +290,8 @@ const styles = {
     cursor: "pointer",
     fontWeight: "bold",
     display: "flex",
-    alignItems: "center",
-    fontSize: "13px",
     gap: "5px",
+    fontSize: "13px",
   },
 
   loadingArea: {
@@ -339,50 +301,40 @@ const styles = {
     fontSize: "14px",
   },
 
-  // ✅ [수정] 레이아웃 구조 개선 (반응형 대응)
   resultContainer: {
     display: "flex",
-    gap: "15px", // 간격 20px -> 15px 축소
-    flexWrap: "wrap", // 화면 좁으면 아래로 떨어지게 설정
+    gap: "15px",
+    flexWrap: "wrap",
     alignItems: "flex-start",
     width: "100%",
   },
-  emptyState: {
-    textAlign: "center",
-    padding: "60px",
-    color: "#ccc",
-    fontSize: "16px",
-    border: "2px dashed #e0e0e0",
-    borderRadius: "12px",
-    width: "100%",
-    boxSizing: "border-box",
-  },
 
-  // ✅ [수정] 패널 너비 조정 (최소 너비를 줄여서 가로 스크롤 방지)
   leftPanel: {
-    flex: "1 1 280px", // 기본 280px, 공간 부족하면 줄어듦
-    minWidth: "250px", // 300px -> 250px로 축소
-    maxWidth: "350px", // 너무 넓어지지 않게 제한
+    flex: "1 1 280px",
+    minWidth: "250px",
+    maxWidth: "350px",
     position: "sticky",
     top: "20px",
   },
+
+  // ✅ [수정 1] 오른쪽 패널이 내부 텍스트 때문에 무한정 늘어나는 것 방지 (minWidth: 0 필수)
   rightPanel: {
-    flex: "999 1 400px", // 남은 공간을 꽉 채우되
-    minWidth: "300px", // 최소 300px까지만 줄어듦 (400px -> 300px 축소)
-    width: "100%", // 모바일 대응
+    flex: "999 1 300px",
+    minWidth: "0", // 줄어들기 허용
+    width: "100%", // 가로 꽉 채우기
+    overflow: "hidden", // ★ 핵심: 자식이 커져도 부모 크기를 유지하도록 강제함
   },
 
   card: {
     backgroundColor: "white",
     borderRadius: "10px",
-    padding: "20px", // 내부 패딩 25px -> 20px 축소
-    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+    padding: "20px",
     border: `1px solid ${COLORS.border}`,
+    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
   },
   cardHeader: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: "15px",
     paddingBottom: "10px",
     borderBottom: "1px solid #f0f0f0",
@@ -392,7 +344,6 @@ const styles = {
     fontWeight: "bold",
     color: "#333",
     display: "flex",
-    alignItems: "center",
     gap: "6px",
     margin: 0,
   },
@@ -405,6 +356,12 @@ const styles = {
     marginBottom: "15px",
     border: `1px solid ${COLORS.border}`,
   },
+  lotIdText: {
+    fontSize: "18px",
+    fontWeight: "bold",
+    color: COLORS.dark,
+    wordBreak: "break-all",
+  },
 
   infoGrid: { display: "flex", flexDirection: "column", gap: "2px" },
   specialInfo: {
@@ -416,7 +373,6 @@ const styles = {
   },
   iconRow: {
     display: "flex",
-    alignItems: "center",
     gap: "8px",
     marginBottom: "4px",
     fontSize: "12px",
@@ -424,11 +380,10 @@ const styles = {
     color: "#555",
   },
 
-  // Timeline Styles
   timeline: { padding: "5px 0 0 5px" },
   timelineItem: {
     position: "relative",
-    paddingBottom: "25px", // 간격 축소
+    paddingBottom: "25px",
     paddingLeft: "25px",
   },
   timelineLine: {
@@ -443,7 +398,7 @@ const styles = {
     position: "absolute",
     left: "0",
     top: "4px",
-    width: "14px", // 점 크기 축소
+    width: "14px",
     height: "14px",
     borderRadius: "50%",
     backgroundColor: COLORS.success,
@@ -463,28 +418,62 @@ const styles = {
     justifyContent: "center",
     zIndex: 2,
     backgroundColor: "white",
-    border: "1px solid #eee", // 경계선 추가로 명확하게
+    border: "1px solid #eee",
   },
+
+  // ✅ [수정 2] 타임라인 박스 강제 크기 조절
   timelineContent: {
     backgroundColor: "#fff",
-    padding: "12px", // 패딩 축소
+    padding: "12px",
     borderRadius: "6px",
     border: "1px solid #eee",
     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
     fontSize: "13px",
+
+    // ★ 부모를 절대 뚫고 나가지 않게 하는 설정 ★
+    width: "100%",
+    boxSizing: "border-box",
+    wordBreak: "break-all", // 모든 긴 단어 강제 줄바꿈
+    overflowWrap: "anywhere",
   },
+
   stepTitle: {
     fontWeight: "bold",
     fontSize: "13px",
     color: "#333",
     marginBottom: "3px",
+    wordBreak: "break-all",
+    lineHeight: "1.4",
   },
   stepDesc: {
-    fontSize: "11px", // 폰트 축소
+    fontSize: "11px",
     color: "#666",
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: "2px",
+    flexWrap: "wrap",
+    lineHeight: "1.4",
+    wordBreak: "break-all",
+  },
+
+  // ✅ [수정 3] 데이터 로그 박스 스타일
+  logDataBox: {
+    marginTop: "8px",
+    padding: "10px",
+    backgroundColor: "#f8f9fa",
+    borderRadius: "4px",
+    border: "1px solid #eee",
+    fontSize: "11px",
+    color: "#333",
+    fontFamily: "monospace",
+
+    // ★ 텍스트 줄바꿈 핵심 설정 ★
+    display: "block", // span 대신 block 요소로 처리
+    width: "100%", // 부모 너비 100% 사용
+    whiteSpace: "pre-wrap", // 공백/엔터 유지하며 자동 줄바꿈
+    wordBreak: "break-all", // 띄어쓰기 없는 긴 단어(JSON) 강제 절단
+    overflowWrap: "anywhere", // 최신 브라우저 줄바꿈 지원
+    boxSizing: "border-box", // 테두리 포함 크기
   },
 
   productBadge: {
@@ -496,7 +485,14 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     border: `1px solid ${COLORS.primary}30`,
-    width: "fit-content",
+    maxWidth: "100%",
+    flexWrap: "wrap",
+  },
+  productSerial: {
+    fontWeight: "bold",
+    color: COLORS.primary,
+    marginLeft: 5,
+    wordBreak: "break-all",
   },
   infoText: {
     marginTop: "4px",
@@ -517,5 +513,17 @@ const styles = {
     padding: "3px 8px",
     borderRadius: "4px",
   },
+  emptyState: {
+    textAlign: "center",
+    padding: "60px",
+    color: "#ccc",
+    fontSize: "16px",
+    border: "2px dashed #e0e0e0",
+    borderRadius: "12px",
+    width: "100%",
+    boxSizing: "border-box",
+  },
+  noHistory: { padding: "20px", textAlign: "center", color: "#999" },
 };
+
 export default LotTracking;

@@ -51,6 +51,7 @@ const WorkOrderMgmt = () => {
 
   useEffect(() => {
     fetchData();
+    // ✅ 새로고침 관련 로직 삭제함 (이제 비동기로 처리)
   }, []);
 
   // 상위 계획 선택 시 제품과 수량 자동 세팅
@@ -58,21 +59,19 @@ const WorkOrderMgmt = () => {
     const selectedId = e.target.value;
 
     if (selectedId === "") {
-      // 연결 안 함 선택 시
       setCurrentOrder({ ...currentOrder, productOrderId: "" });
       return;
     }
 
-    // 선택된 상위 계획 데이터 찾기
     const selectedPlan = parentPlans.find((p) => p.id === Number(selectedId));
 
     if (selectedPlan) {
       setCurrentOrder({
         ...currentOrder,
         productOrderId: selectedId,
-        productId: selectedPlan.productId, // 상위 계획의 제품으로 자동 변경
-        targetQty: selectedPlan.targetQty - selectedPlan.currentQty, // 잔여 수량 자동 입력 (편의 기능)
-        deadline: selectedPlan.deadline, // 마감일도 자동 입력
+        productId: selectedPlan.productId,
+        targetQty: selectedPlan.targetQty - selectedPlan.currentQty,
+        deadline: selectedPlan.deadline,
       });
     }
   };
@@ -92,7 +91,12 @@ const WorkOrderMgmt = () => {
     }
   };
 
-  const handleAddNew = () => {
+  // ✅ [수정] 새로고침 대신 비동기 데이터 갱신 + 상태 초기화
+  const handleAddNew = async () => {
+    // 1. 최신 데이터(라인 정보, 상위 계획 등)를 서버에서 다시 가져옴 (비동기)
+    await fetchData();
+
+    // 2. 입력 폼 깨끗하게 초기화
     setCurrentOrder({
       id: null,
       productOrderId: "",
@@ -104,6 +108,8 @@ const WorkOrderMgmt = () => {
       instruction: "",
       requirements: "",
     });
+
+    // 3. 모달 열기
     setIsEditMode(false);
     setIsModalOpen(true);
   };
@@ -111,7 +117,6 @@ const WorkOrderMgmt = () => {
   const handleEdit = (order) => {
     setCurrentOrder({
       ...order,
-      // 백엔드 DTO에 추가한 productOrderId를 여기서 사용
       productOrderId: order.productOrderId || "",
       lineId: order.lineId || (lines.length > 0 ? lines[0].id : 1),
     });
@@ -133,7 +138,7 @@ const WorkOrderMgmt = () => {
         alert("작업 지시가 등록되었습니다.");
       }
       setIsModalOpen(false);
-      fetchData();
+      fetchData(); // 저장 후 목록 갱신
     } catch (error) {
       const msg =
         error.response?.data?.message || error.response?.data || error.message;

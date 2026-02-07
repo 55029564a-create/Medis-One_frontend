@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from "react";
 import {
   FaClipboardList,
-  FaCheckCircle,
   FaExclamationTriangle,
   FaIndustry,
   FaSave,
   FaHistory,
   FaClock,
-  FaMagic,
   FaCommentDots,
+  FaPlus,
+  FaTrash,
 } from "react-icons/fa";
 
-// [변경] API 연동
-import { getTodayWorkOrders, reportWorkResult } from "../../api/productionApi";
+import {
+  getTodayWorkOrders,
+  reportWorkResult,
+  getDefectTypes,
+} from "../../api/productionApi";
 
 const COLORS = {
   primary: "#8C85FF",
@@ -26,52 +29,82 @@ const COLORS = {
   warning: "#FF9800",
   border: "#E0E0E0",
   info: "#29B6F6",
+  dangerLight: "#FFCDD2",
 };
 
 const WorkReport = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [workOrders, setWorkOrders] = useState([]); // DB 데이터
-
-  // 임시 이력 (새로고침하면 초기화됨 - 실제로는 DB Log 테이블 필요)
+  const [workOrders, setWorkOrders] = useState([]);
   const [reportHistory, setReportHistory] = useState([]);
+
+  const [isDefectLoading, setIsDefectLoading] = useState(false);
+  const [defectTypes, setDefectTypes] = useState([]);
 
   const [inputs, setInputs] = useState({
     goodQty: "",
-    badQty: "",
-    badReason: "def-01",
     shortfallReason: "",
     memo: "",
     isShiftEnd: false,
   });
 
-  // 시계
+  const [defectList, setDefectList] = useState([]);
+  const [currentDefect, setCurrentDefect] = useState({
+    code: "",
+    qty: "",
+  });
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // [변경] 데이터 로드 (금일 작업지시)
   const fetchData = async () => {
     try {
-      const data = await getTodayWorkOrders();
-      // 화면 필드명 매핑 (DTO -> UI)
-      const mapped = data.map((item) => ({
-        id: item.id, // DB PK
-        code: item.code, // 지시번호 (WO-...)
+      const orderData = await getTodayWorkOrders();
+      const mapped = orderData.map((item) => ({
+        id: item.id,
+        code: item.code,
         line: item.lineName || "미정",
         product: item.productName,
         targetQty: item.targetQty,
         currentQty: item.currentQty,
-        status: item.status, // IN_PROGRESS, WAIT, COMPLETED
+        defectQty: item.defectQty || 0,
+        status: item.status,
         manager: item.worker,
       }));
       setWorkOrders(mapped);
 
-      // 선택된 주문 정보 갱신 (수량 업데이트 반영)
       if (selectedOrder) {
         const updated = mapped.find((o) => o.id === selectedOrder.id);
-        if (updated) setSelectedOrder(updated);
+        if (updated) {
+          setSelectedOrder(updated);
+        } else {
+          setSelectedOrder(null);
+          resetInputs();
+        }
+      }
+
+      // 불량 유형 데이터 가져오기
+      setIsDefectLoading(true);
+      try {
+        const typeData = await getDefectTypes();
+        let finalData = [];
+        if (Array.isArray(typeData)) {
+          finalData = typeData;
+        } else if (typeData && Array.isArray(typeData.data)) {
+          finalData = typeData.data;
+        }
+        setDefectTypes(finalData);
+
+        if (finalData.length > 0) {
+          setCurrentDefect((prev) => ({ ...prev, code: finalData[0].code }));
+        }
+      } catch (innerErr) {
+        console.error("불량 유형 로드 실패:", innerErr);
+        setDefectTypes([]);
+      } finally {
+        setIsDefectLoading(false);
       }
     } catch (err) {
       console.error("데이터 로드 실패:", err);
@@ -82,58 +115,148 @@ const WorkReport = () => {
     fetchData();
   }, []);
 
-  // 지시 선택
-  const handleSelectOrder = (order) => {
-    setSelectedOrder(order);
+  const resetInputs = () => {
     setInputs({
       goodQty: "",
-      badQty: "",
-      badReason: "def-01",
       shortfallReason: "",
       memo: "",
       isShiftEnd: false,
     });
-  };
-
-  // 잔량 자동 입력
-  const handleFillRemaining = () => {
-    if (!selectedOrder) return;
-    const remaining = selectedOrder.targetQty - selectedOrder.currentQty;
-    if (remaining > 0) {
-      setInputs({ ...inputs, goodQty: remaining.toString() });
+    setDefectList([]);
+    if (defectTypes.length > 0) {
+      setCurrentDefect({ code: defectTypes[0].code, qty: "" });
+    } else {
+      setCurrentDefect({ code: "", qty: "" });
     }
   };
 
-  // [변경] 실적 보고 제출
+  // 현재 입력 중인 불량 합계
+  const currentInputBadQty = defectList.reduce(
+    (sum, item) => sum + Number(item.qty),
+    0,
+  );
+
+  // [수정됨] 자동 체크 로직: (DB양품 + DB불량 + 입력양품 + 입력불량) >= 목표
+  useEffect(() => {
+    if (!selectedOrder) return;
+
+    const dbTotal = selectedOrder.currentQty + selectedOrder.defectQty;
+    const inputTotal = (Number(inputs.goodQty) || 0) + currentInputBadQty;
+    const target = selectedOrder.targetQty;
+
+    if (dbTotal + inputTotal >= target) {
+      setInputs((prev) => {
+        if (prev.isShiftEnd) return prev;
+        return { ...prev, isShiftEnd: true };
+      });
+    } else {
+      setInputs((prev) => {
+        if (!prev.isShiftEnd) return prev;
+        return { ...prev, isShiftEnd: false };
+      });
+    }
+  }, [inputs.goodQty, currentInputBadQty, selectedOrder]);
+
+  const handleSelectOrder = (order) => {
+    setSelectedOrder(order);
+    resetInputs();
+  };
+
+  // 잔량 채우기: 목표 - (현재 총생산량)
+  const handleFillRemaining = () => {
+    if (!selectedOrder) return;
+    const totalCurrent = selectedOrder.currentQty + selectedOrder.defectQty;
+    // 입력된 불량이 있다면 그것도 감안해서 잔량 계산 (양품으로 채움)
+    const remaining =
+      selectedOrder.targetQty - totalCurrent - currentInputBadQty;
+
+    if (remaining > 0) {
+      setInputs({ ...inputs, goodQty: remaining.toString() });
+    } else {
+      setInputs({ ...inputs, goodQty: "0" });
+    }
+  };
+
+  const handleAddDefect = () => {
+    if (!currentDefect.qty || Number(currentDefect.qty) <= 0) {
+      return alert("불량 수량을 입력해주세요.");
+    }
+
+    const defectType = defectTypes.find((d) => d.code === currentDefect.code);
+    if (!defectType) return alert("선택된 불량 유형이 없습니다.");
+
+    const existingIndex = defectList.findIndex(
+      (d) => d.code === currentDefect.code,
+    );
+
+    if (existingIndex >= 0) {
+      const newList = [...defectList];
+      newList[existingIndex].qty =
+        Number(newList[existingIndex].qty) + Number(currentDefect.qty);
+      setDefectList(newList);
+    } else {
+      setDefectList([
+        ...defectList,
+        {
+          code: defectType.code,
+          name: defectType.name,
+          qty: Number(currentDefect.qty),
+        },
+      ]);
+    }
+    setCurrentDefect({ ...currentDefect, qty: "" });
+  };
+
+  const handleDeleteDefect = (index) => {
+    const newList = defectList.filter((_, i) => i !== index);
+    setDefectList(newList);
+  };
+
   const handleSubmit = async () => {
     if (!selectedOrder) return;
 
     const addGood = Number(inputs.goodQty) || 0;
-    const addBad = Number(inputs.badQty) || 0;
+    const addBad = currentInputBadQty;
     const totalAdd = addGood + addBad;
 
     if (totalAdd === 0 && !inputs.isShiftEnd) {
       return alert("수량을 입력하거나 작업을 종료해주세요.");
     }
 
-    // 서버로 보낼 데이터 (DTO 구조에 맞춤)
+    // [수정됨] 검증 로직: (기존총량 + 입력총량) < 목표 이면 사유 필수
+    const currentTotal =
+      selectedOrder.currentQty + selectedOrder.defectQty + totalAdd;
+    const target = selectedOrder.targetQty;
+
+    if (
+      inputs.isShiftEnd &&
+      currentTotal < target &&
+      !inputs.shortfallReason.trim()
+    ) {
+      return alert(
+        "❌ 목표 수량 미달입니다! 사유를 입력해야 종료할 수 있습니다.",
+      );
+    }
+
+    const combinedBadReason =
+      defectList.length > 0
+        ? defectList.map((d) => `${d.name}(${d.qty})`).join(", ")
+        : "";
+
     const reportData = {
       goodQty: addGood,
       badQty: addBad,
-      badReason: inputs.badReason,
+      badReason: combinedBadReason || "N/A",
       memo: inputs.memo,
       isShiftEnd: inputs.isShiftEnd,
       shortfallReason: inputs.shortfallReason,
     };
 
     try {
-      await reportWorkResult(selectedOrder.id, reportData); // API 호출
+      await reportWorkResult(selectedOrder.id, reportData);
       alert("✅ 실적이 보고되었습니다.");
-
-      // 화면 갱신
       fetchData();
 
-      // 이력 추가 (화면 표시용)
       const newReport = {
         id: Date.now(),
         time: new Date().toLocaleTimeString("ko-KR", {
@@ -143,32 +266,32 @@ const WorkReport = () => {
         orderCode: selectedOrder.code,
         addedGood: addGood,
         addedBad: addBad,
-        totalResult: `${selectedOrder.currentQty + addGood} / ${selectedOrder.targetQty}`,
+        totalResult: `${currentTotal} / ${target}`,
         note: inputs.isShiftEnd ? "작업 종료" : inputs.memo || "중간 보고",
       };
       setReportHistory([newReport, ...reportHistory]);
-
-      // 입력 초기화
-      setInputs({
-        goodQty: "",
-        badQty: "",
-        badReason: "def-01",
-        shortfallReason: "",
-        memo: "",
-        isShiftEnd: false,
-      });
+      resetInputs();
     } catch (err) {
       alert("보고 실패: " + (err.response?.data || err.message));
     }
   };
 
-  const calculatePrediction = () => {
-    if (!selectedOrder) return 0;
-    const current = selectedOrder.currentQty;
-    const adding = (Number(inputs.goodQty) || 0) + (Number(inputs.badQty) || 0);
+  const calculateProgress = () => {
+    if (!selectedOrder)
+      return { currentPercent: 0, predictPercent: 0, totalPercent: 0 };
+
     const target = selectedOrder.targetQty;
-    return Math.min(((current + adding) / target) * 100, 100);
+    const dbTotal = selectedOrder.currentQty + selectedOrder.defectQty;
+    const inputTotal = (Number(inputs.goodQty) || 0) + currentInputBadQty;
+
+    const currentPercent = Math.min((dbTotal / target) * 100, 100);
+    const totalPercent = Math.min(((dbTotal + inputTotal) / target) * 100, 100);
+    const predictPercent = totalPercent - currentPercent;
+
+    return { currentPercent, predictPercent, totalPercent };
   };
+
+  const { currentPercent, predictPercent, totalPercent } = calculateProgress();
 
   return (
     <div style={styles.container}>
@@ -186,7 +309,7 @@ const WorkReport = () => {
       </div>
 
       <div style={styles.layout}>
-        {/* [좌측] 작업 지시 리스트 */}
+        {/* [좌측] 리스트 */}
         <div style={styles.leftPanel}>
           <div style={styles.panelHeader}>
             <FaClipboardList /> 금일 작업 지시 목록
@@ -196,26 +319,25 @@ const WorkReport = () => {
               <div
                 style={{ padding: "20px", textAlign: "center", color: "#999" }}
               >
-                오늘 작업 지시가 없습니다.
+                진행 중인 작업 지시가 없습니다.
               </div>
             ) : (
               workOrders.map((order) => {
+                const totalProduced = order.currentQty + order.defectQty;
                 const progress = Math.min(
-                  (order.currentQty / order.targetQty) * 100,
+                  (totalProduced / order.targetQty) * 100,
                   100,
                 );
                 const isSelected = selectedOrder?.id === order.id;
 
-                // 상태값 한글 변환
                 let statusText = "대기";
                 let statusColor = COLORS.warning;
                 if (order.status === "IN_PROGRESS") {
                   statusText = "진행중";
                   statusColor = COLORS.success;
-                }
-                if (order.status === "COMPLETED") {
+                } else if (order.status === "COMPLETED") {
                   statusText = "완료";
-                  statusColor = COLORS.primary;
+                  statusColor = COLORS.gray;
                 }
 
                 return (
@@ -228,6 +350,7 @@ const WorkReport = () => {
                         ? `2px solid ${COLORS.primary}`
                         : `1px solid ${COLORS.border}`,
                       backgroundColor: isSelected ? "#F3F1FF" : "white",
+                      opacity: order.status === "COMPLETED" ? 0.6 : 1,
                     }}
                   >
                     <div style={styles.cardTop}>
@@ -249,7 +372,7 @@ const WorkReport = () => {
                           달성률: <strong>{Math.round(progress)}%</strong>
                         </span>
                         <span>
-                          {order.currentQty} / {order.targetQty} ea
+                          {totalProduced} / {order.targetQty} ea
                         </span>
                       </div>
                       <div style={styles.progressBarBg}>
@@ -268,7 +391,7 @@ const WorkReport = () => {
           </div>
         </div>
 
-        {/* [우측] 입력 폼 */}
+        {/* [우측] 입력 폼 + 히스토리 */}
         <div style={styles.rightPanel}>
           <div style={styles.formCard}>
             <h3 style={styles.formTitle}>📝 실적 등록 및 종료</h3>
@@ -282,10 +405,12 @@ const WorkReport = () => {
                     <strong>제품명:</strong> {selectedOrder.product}
                   </div>
                   <div>
-                    <strong>현재 누적:</strong> {selectedOrder.currentQty} ea
+                    <strong>현재 누적(Total):</strong>{" "}
+                    {selectedOrder.currentQty + selectedOrder.defectQty} ea
                   </div>
                 </div>
 
+                {/* 그래프 */}
                 <div style={styles.predictionBox}>
                   <div
                     style={{
@@ -295,23 +420,25 @@ const WorkReport = () => {
                       marginBottom: "5px",
                     }}
                   >
-                    <span>실적 반영 예측</span>
+                    <span>목표 달성 예측 (양품+불량)</span>
                     <span style={{ fontWeight: "bold", color: COLORS.primary }}>
-                      {Math.round(calculatePrediction())}%
+                      {Math.round(totalPercent)}%
                     </span>
                   </div>
                   <div style={styles.progressBarBg}>
                     <div
                       style={{
                         ...styles.progressBarFill,
-                        width: `${(selectedOrder.currentQty / selectedOrder.targetQty) * 100}%`,
+                        width: `${currentPercent}%`,
+                        zIndex: 2,
                       }}
                     ></div>
                     <div
                       style={{
                         ...styles.predictionFill,
-                        left: `${(selectedOrder.currentQty / selectedOrder.targetQty) * 100}%`,
-                        width: `${((Number(inputs.goodQty) + Number(inputs.badQty)) / selectedOrder.targetQty) * 100}%`,
+                        left: `${currentPercent}%`,
+                        width: `${predictPercent}%`,
+                        zIndex: 1,
                       }}
                     ></div>
                   </div>
@@ -331,9 +458,8 @@ const WorkReport = () => {
                       <button
                         onClick={handleFillRemaining}
                         style={styles.smallBtn}
-                        title="남은 수량 자동 입력"
                       >
-                        <FaMagic style={{ marginRight: "3px" }} /> 잔량
+                        잔량
                       </button>
                     </div>
                     <input
@@ -346,46 +472,96 @@ const WorkReport = () => {
                       }
                     />
                   </div>
-                  <div style={styles.inputGroup}>
-                    <label
-                      style={{
-                        ...styles.label,
-                        color: COLORS.danger,
-                        marginBottom: "5px",
-                        marginTop: "6px",
-                      }}
-                    >
-                      불량 수량
-                    </label>
-                    <input
-                      type="number"
-                      style={styles.input}
-                      placeholder="0"
-                      value={inputs.badQty}
-                      onChange={(e) =>
-                        setInputs({ ...inputs, badQty: e.target.value })
-                      }
-                    />
-                  </div>
                 </div>
 
-                {Number(inputs.badQty) > 0 && (
-                  <div style={{ marginTop: "15px" }}>
-                    <label style={styles.label}>불량 사유 선택</label>
-                    <select
-                      style={styles.select}
-                      value={inputs.badReason}
-                      onChange={(e) =>
-                        setInputs({ ...inputs, badReason: e.target.value })
-                      }
-                    >
-                      <option value="def-01">스크래치/찍힘</option>
-                      <option value="def-02">치수 불량</option>
-                      <option value="def-03">조립 불량</option>
-                      <option value="def-04">이물질 오염</option>
-                    </select>
+                <div style={styles.divider}></div>
+
+                {/* 불량 등록 섹션 */}
+                <div style={styles.defectSection}>
+                  <label
+                    style={{
+                      ...styles.label,
+                      color: COLORS.danger,
+                      marginBottom: "8px",
+                    }}
+                  >
+                    불량 등록 (유형 선택 + 수량 추가)
+                  </label>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      alignItems: "flex-end",
+                    }}
+                  >
+                    <div style={{ flex: 2 }}>
+                      <span style={styles.miniLabel}>유형 (DB Load)</span>
+                      <select
+                        style={styles.select}
+                        value={currentDefect.code}
+                        onChange={(e) =>
+                          setCurrentDefect({
+                            ...currentDefect,
+                            code: e.target.value,
+                          })
+                        }
+                      >
+                        {isDefectLoading && (
+                          <option value="">불량 유형 로딩 중...</option>
+                        )}
+                        {!isDefectLoading && defectTypes.length === 0 && (
+                          <option value="">유형 데이터 없음</option>
+                        )}
+                        {!isDefectLoading &&
+                          defectTypes.length > 0 &&
+                          defectTypes.map((type) => (
+                            <option key={type.code} value={type.code}>
+                              {type.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <span style={styles.miniLabel}>수량</span>
+                      <input
+                        type="number"
+                        style={{ ...styles.input, textAlign: "center" }}
+                        placeholder="0"
+                        value={currentDefect.qty}
+                        onChange={(e) =>
+                          setCurrentDefect({
+                            ...currentDefect,
+                            qty: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <button onClick={handleAddDefect} style={styles.addBtn}>
+                      <FaPlus /> 추가
+                    </button>
                   </div>
-                )}
+
+                  {defectList.length > 0 && (
+                    <div style={styles.defectListContainer}>
+                      {defectList.map((item, index) => (
+                        <div key={index} style={styles.defectItem}>
+                          <span style={styles.defectName}>{item.name}</span>
+                          <span style={styles.defectQty}>{item.qty}개</span>
+                          <button
+                            onClick={() => handleDeleteDefect(index)}
+                            style={styles.deleteBtn}
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      <div style={styles.defectTotal}>
+                        총 불량: {currentInputBadQty}개
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div style={{ marginTop: "15px" }}>
                   <label style={styles.label}>
@@ -421,8 +597,9 @@ const WorkReport = () => {
 
                 {inputs.isShiftEnd &&
                   selectedOrder.currentQty +
+                    selectedOrder.defectQty +
                     Number(inputs.goodQty) +
-                    Number(inputs.badQty) <
+                    currentInputBadQty <
                     selectedOrder.targetQty && (
                     <div style={styles.warningBox}>
                       <div style={styles.warningTitle}>
@@ -469,7 +646,7 @@ const WorkReport = () => {
                     <th style={styles.th}>시간</th>
                     <th style={styles.th}>지시번호</th>
                     <th style={styles.th}>양품/불량</th>
-                    <th style={styles.th}>누적</th>
+                    <th style={styles.th}>누적(합계)</th>
                     <th style={styles.th}>비고</th>
                   </tr>
                 </thead>
@@ -519,7 +696,7 @@ const WorkReport = () => {
   );
 };
 
-// ... 스타일 정의 (기존과 동일하게 유지)
+// [수정됨] 스타일 - 오른쪽 패널 스크롤 추가
 const styles = {
   container: {
     padding: "20px",
@@ -636,13 +813,19 @@ const styles = {
     backgroundColor: COLORS.primary,
     borderRadius: "3px",
     transition: "width 0.3s ease",
+    position: "absolute",
+    top: 0,
+    left: 0,
   },
+
+  // [수정됨] 오른쪽 패널 스크롤 활성화 및 여백 조정
   rightPanel: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     gap: "20px",
-    overflow: "hidden",
+    overflowY: "auto", // 여기에 스크롤 추가
+    paddingRight: "5px", // 스크롤바 공간
   },
   formCard: {
     backgroundColor: "white",
@@ -680,6 +863,7 @@ const styles = {
     borderRadius: "3px",
     opacity: 0.7,
     transition: "width 0.3s ease",
+    top: 0,
   },
   inputGrid: { display: "flex", gap: "20px" },
   inputGroup: { flex: 1, display: "flex", flexDirection: "column" },
@@ -690,6 +874,12 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
+  miniLabel: {
+    fontSize: "11px",
+    color: "#888",
+    marginBottom: "4px",
+    display: "block",
+  },
   smallBtn: {
     fontSize: "11px",
     padding: "2px 8px",
@@ -699,6 +889,20 @@ const styles = {
     color: COLORS.primary,
     cursor: "pointer",
     fontWeight: "bold",
+  },
+  addBtn: {
+    height: "45px",
+    padding: "0 15px",
+    backgroundColor: COLORS.danger,
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    display: "flex",
+    alignItems: "center",
+    gap: "5px",
+    fontSize: "13px",
   },
   input: {
     width: "100%",
@@ -720,12 +924,50 @@ const styles = {
   },
   select: {
     width: "100%",
-    padding: "10px",
+    padding: "12px",
     borderRadius: "8px",
     border: `1px solid ${COLORS.border}`,
     fontSize: "14px",
+    height: "45px",
   },
   divider: { height: "1px", backgroundColor: COLORS.border, margin: "20px 0" },
+  defectSection: {
+    backgroundColor: "#FFF9F9",
+    padding: "15px",
+    borderRadius: "8px",
+    border: `1px dashed ${COLORS.dangerLight}`,
+  },
+  defectListContainer: {
+    marginTop: "10px",
+    backgroundColor: "white",
+    borderRadius: "6px",
+    border: `1px solid ${COLORS.border}`,
+    padding: "10px",
+  },
+  defectItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "6px 0",
+    borderBottom: "1px solid #eee",
+    fontSize: "13px",
+  },
+  defectName: { color: "#333", fontWeight: "bold" },
+  defectQty: { color: COLORS.danger, fontWeight: "bold" },
+  defectTotal: {
+    textAlign: "right",
+    marginTop: "8px",
+    fontSize: "13px",
+    fontWeight: "bold",
+    color: "#333",
+  },
+  deleteBtn: {
+    border: "none",
+    background: "none",
+    color: "#999",
+    cursor: "pointer",
+    padding: "4px",
+  },
   checkSection: { marginBottom: "15px" },
   checkboxLabel: {
     display: "flex",
@@ -781,14 +1023,18 @@ const styles = {
     border: "2px dashed #eee",
     borderRadius: "8px",
   },
+
+  // [수정됨] 히스토리 카드 스타일 - 찌그러지지 않도록 설정
   historyCard: {
     backgroundColor: "white",
     borderRadius: "12px",
     display: "flex",
     flexDirection: "column",
-    flex: 1,
+    flexShrink: 0, // 위쪽 폼이 커져도 줄어들지 않음
+    minHeight: "300px", // 최소 높이 보장
     boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
     overflow: "hidden",
+    marginBottom: "20px", // 바닥 여백
   },
   tableWrapper: { flex: 1, overflowY: "auto" },
   table: { width: "100%", borderCollapse: "collapse", fontSize: "13px" },
