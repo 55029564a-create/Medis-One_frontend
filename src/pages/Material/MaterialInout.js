@@ -263,6 +263,8 @@ const MaterialInout = () => {
         company: inputs.type === "IN" ? inputs.vendor : null,
         type: inputs.type === "IN" ? "INBOUND" : "PRODUCTION_IN",
         process: inputs.type === "OUT" ? selectedProcess : null,
+        lineId:
+          inputs.type === "OUT" && selectedLine ? Number(selectedLine) : null,
 
         // 🚨 [수정 포인트 2] 백엔드 DTO의 'employeeNum' 필드명에 맞춰서 전송
         employeeNum: selectedEmpNum,
