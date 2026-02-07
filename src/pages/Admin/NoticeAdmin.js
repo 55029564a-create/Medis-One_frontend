@@ -33,7 +33,6 @@ const NoticeAdmin = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
 
-  // 글쓰기/수정 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -45,7 +44,6 @@ const NoticeAdmin = () => {
     important: false,
   });
 
-  // 상세 보기 모달 상태
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedNotice, setSelectedNotice] = useState(null);
 
@@ -73,8 +71,15 @@ const NoticeAdmin = () => {
     }
   };
 
+  // ✅ [자동 동기화 적용] 30초마다 목록 갱신
   useEffect(() => {
-    fetchNotices();
+    fetchNotices(); // 최초 실행
+
+    const interval = setInterval(() => {
+      fetchNotices();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // 상세 조회
@@ -166,7 +171,6 @@ const NoticeAdmin = () => {
     }
   };
 
-  // 수정 버튼 클릭 시
   const openEditModal = (item, e) => {
     e.stopPropagation();
     setIsEditMode(true);
@@ -180,7 +184,6 @@ const NoticeAdmin = () => {
     setIsModalOpen(true);
   };
 
-  // 모달 열기 (글쓰기)
   const openCreateModal = () => {
     setIsEditMode(false);
     setEditingId(null);
@@ -199,7 +202,6 @@ const NoticeAdmin = () => {
 
   const filteredNotices = notices.filter((item) => {
     const searchLower = searchTerm.toLowerCase();
-    // 제목 또는 작성자에 검색어가 포함되어 있는지 확인
     return (
       item.title.toLowerCase().includes(searchLower) ||
       item.writer.toLowerCase().includes(searchLower)
@@ -232,7 +234,6 @@ const NoticeAdmin = () => {
               type="text"
               placeholder="제목, 작성자 검색"
               style={styles.searchInput}
-              // ★ [추가] 검색어 입력 연결
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -321,7 +322,6 @@ const NoticeAdmin = () => {
         )}
       </div>
 
-      {/* 글쓰기/수정 모달 */}
       {isModalOpen && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
@@ -413,7 +413,6 @@ const NoticeAdmin = () => {
         </div>
       )}
 
-      {/* 상세 보기 모달 */}
       {isDetailOpen && selectedNotice && (
         <div style={styles.overlay}>
           <div style={styles.modal}>

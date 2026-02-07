@@ -7,6 +7,7 @@ import {
   FaFileExcel,
   FaTrashAlt,
   FaEdit,
+  // FaSyncAlt 제거 (자동 동기화로 변경)
 } from "react-icons/fa";
 import { getProductList, getKitDetail, deleteBom } from "../../api/bomApi";
 import BomDetailCard from "../../components/BOM/BomDetailCard";
@@ -27,16 +28,32 @@ const BomManagement = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [kitData, setKitData] = useState(null);
 
-  // [신규] 현재 선택된 키트 탭 (0: 전면, 1: 후면)
+  // 현재 선택된 키트 탭 (0: 전면, 1: 후면)
   const [activeKitIndex, setActiveKitIndex] = useState(0);
 
   // 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
+  // 1. 초기 데이터 로드
   useEffect(() => {
     loadProducts();
   }, []);
+
+  // 2. [자동 동기화] 30초마다 데이터 갱신
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // ⚠️ 중요: 모달(수정창)이 열려있을 때는 갱신하지 않음 (작업 중 데이터 보호)
+      if (!isModalOpen && !isHistoryOpen) {
+        loadProducts();
+        if (selectedProduct) {
+          refreshDetail(selectedProduct.id);
+        }
+      }
+    }, 30000); // 30초 주기
+
+    return () => clearInterval(interval);
+  }, [selectedProduct, isModalOpen, isHistoryOpen]); // 의존성 배열
 
   const loadProducts = async () => {
     try {
@@ -86,13 +103,16 @@ const BomManagement = () => {
     <div style={styles.container}>
       {/* 1. Header */}
       <div style={styles.header}>
-        <div>
+        <div style={styles.headerTitleGroup}>
           <h2 style={styles.title}>🧩 BOM 관리 (Kitting)</h2>
           <p style={styles.subtitle}>
             제품별 생산 키트(전면/후면) 및 자재 구성 관리
           </p>
         </div>
         <div style={styles.actions}>
+          {/* [변경] 새로고침 버튼 제거됨 (자동 동기화 적용) */}
+
+          {/* 제품 선택 시에만 보이는 버튼들 */}
           {selectedProduct && kitData && (
             <>
               <button style={styles.btn} onClick={() => setIsHistoryOpen(true)}>
@@ -216,16 +236,33 @@ const styles = {
     padding: "20px",
     backgroundColor: COLORS.bg,
     boxSizing: "border-box",
+    overflow: "hidden", // 전체 스크롤 방지
   },
+  // [수정] 반응형 헤더 스타일
   header: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "20px",
+    flexWrap: "wrap", // 화면 좁아지면 줄바꿈 허용
+    gap: "15px", // 줄바꿈 시 간격
+  },
+  headerTitleGroup: {
+    minWidth: "200px", // 제목 최소 너비 확보
   },
   title: { margin: 0, fontSize: "22px", fontWeight: "800", color: "#333" },
   subtitle: { margin: "5px 0 0", fontSize: "14px", color: "#888" },
-  actions: { display: "flex", gap: "8px", alignItems: "center" },
+
+  // [수정] 버튼 그룹 반응형 스타일
+  actions: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+    flexWrap: "wrap", // 버튼들도 좁으면 줄바꿈
+    justifyContent: "flex-end",
+    flex: 1, // 남은 공간 차지
+  },
+
   content: { display: "flex", gap: "20px", flex: 1, overflow: "hidden" },
   leftPanel: {
     width: "280px",
@@ -277,6 +314,7 @@ const styles = {
     fontSize: "13px",
     fontWeight: "600",
     color: "#555",
+    whiteSpace: "nowrap", // 텍스트 줄바꿈 방지
   },
   primaryBtn: {
     padding: "8px 16px",
@@ -291,6 +329,7 @@ const styles = {
     fontSize: "13px",
     fontWeight: "bold",
     boxShadow: "0 4px 6px rgba(140, 133, 255, 0.2)",
+    whiteSpace: "nowrap",
   },
   deleteBtn: {
     padding: "8px 14px",
@@ -304,6 +343,7 @@ const styles = {
     gap: "6px",
     fontSize: "13px",
     fontWeight: "bold",
+    whiteSpace: "nowrap",
   },
   divider: {
     width: "1px",

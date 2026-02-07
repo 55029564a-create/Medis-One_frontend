@@ -17,6 +17,7 @@ import {
   FaUndo,
   FaChevronDown,
   FaCopy,
+  FaSyncAlt, // [추가] 아이콘
 } from "react-icons/fa";
 
 // 🎨 테마 컬러
@@ -111,6 +112,12 @@ const MaterialHistory = () => {
 
   const handleSearch = () => {
     fetchData();
+  };
+
+  // [신규] 수동 새로고침 함수
+  const handleManualRefresh = () => {
+    fetchData();
+    alert("최신 데이터로 갱신되었습니다.");
   };
 
   const handleReset = () => {
@@ -343,20 +350,39 @@ const MaterialHistory = () => {
             </p>
           </div>
 
-          <button
-            className="btn-action"
-            onClick={handleDownloadExcel}
-            style={{
-              backgroundColor: "#217346",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            <FaFileExcel /> 엑셀 다운로드
-          </button>
+          <div style={{ display: "flex", gap: "10px" }}>
+            {/* [추가] 새로고침 버튼 */}
+            <button
+              className="btn-action"
+              onClick={handleManualRefresh}
+              style={{
+                backgroundColor: "white",
+                color: "#555",
+                border: "1px solid #E0E0E0",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <FaSyncAlt /> 새로고침
+            </button>
+
+            <button
+              className="btn-action"
+              onClick={handleDownloadExcel}
+              style={{
+                backgroundColor: "#217346",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <FaFileExcel /> 엑셀 다운로드
+            </button>
+          </div>
         </div>
 
+        {/* ... (이하 기존 코드 동일) ... */}
         <div className="dashboard-toolbar">
           <div className="controls-row">
             {/* 날짜 선택 */}
