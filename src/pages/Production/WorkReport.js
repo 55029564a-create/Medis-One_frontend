@@ -54,6 +54,14 @@ const WorkReport = () => {
     qty: "",
   });
 
+  // 3초 자동 갱신
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(() => fetchData(), 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 시계
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -67,9 +75,9 @@ const WorkReport = () => {
         code: item.code,
         line: item.lineName || "미정",
         product: item.productName,
-        targetQty: item.targetQty,
-        currentQty: item.currentQty,
-        defectQty: item.defectQty || 0,
+        targetQty: item.targetQty || 0,
+        currentQty: item.currentQty || 0,
+        defectQty: item.defectQty || 0, // [C#에서 넘어온 DB 불량 수량]
         status: item.status,
         manager: item.worker,
       }));
@@ -78,42 +86,36 @@ const WorkReport = () => {
       if (selectedOrder) {
         const updated = mapped.find((o) => o.id === selectedOrder.id);
         if (updated) {
-          setSelectedOrder(updated);
-        } else {
-          setSelectedOrder(null);
-          resetInputs();
+          setSelectedOrder((prev) => ({
+            ...prev,
+            currentQty: updated.currentQty,
+            defectQty: updated.defectQty,
+            status: updated.status,
+          }));
         }
       }
 
-      // 불량 유형 데이터 가져오기
-      setIsDefectLoading(true);
-      try {
-        const typeData = await getDefectTypes();
-        let finalData = [];
-        if (Array.isArray(typeData)) {
-          finalData = typeData;
-        } else if (typeData && Array.isArray(typeData.data)) {
-          finalData = typeData.data;
+      if (defectTypes.length === 0) {
+        setIsDefectLoading(true);
+        try {
+          const typeData = await getDefectTypes();
+          let finalData = Array.isArray(typeData)
+            ? typeData
+            : typeData.data || [];
+          setDefectTypes(finalData);
+          if (finalData.length > 0) {
+            setCurrentDefect((prev) => ({ ...prev, code: finalData[0].code }));
+          }
+        } catch (innerErr) {
+          console.error("불량 유형 로드 실패:", innerErr);
+        } finally {
+          setIsDefectLoading(false);
         }
-        setDefectTypes(finalData);
-
-        if (finalData.length > 0) {
-          setCurrentDefect((prev) => ({ ...prev, code: finalData[0].code }));
-        }
-      } catch (innerErr) {
-        console.error("불량 유형 로드 실패:", innerErr);
-        setDefectTypes([]);
-      } finally {
-        setIsDefectLoading(false);
       }
     } catch (err) {
       console.error("데이터 로드 실패:", err);
     }
   };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const resetInputs = () => {
     setInputs({
@@ -130,30 +132,40 @@ const WorkReport = () => {
     }
   };
 
-  // 현재 입력 중인 불량 합계
+  // [사용자가 입력한 불량 수량 합계]
   const currentInputBadQty = defectList.reduce(
     (sum, item) => sum + Number(item.qty),
     0,
   );
 
-  // [수정됨] 자동 체크 로직: (DB양품 + DB불량 + 입력양품 + 입력불량) >= 목표
+  // ▼▼▼ [최종 수정] C# 불량수 == 사용자 입력 불량수 일치 시 자동 종료 ▼▼▼
   useEffect(() => {
     if (!selectedOrder) return;
 
-    const dbTotal = selectedOrder.currentQty + selectedOrder.defectQty;
-    const inputTotal = (Number(inputs.goodQty) || 0) + currentInputBadQty;
+    // 1. C# 장비가 보낸 DB 불량 수량
+    const dbBadQty = selectedOrder.defectQty;
+
+    // 2. 사용자가 리스트에 입력한 불량 수량
+    const userBadQty = currentInputBadQty;
+
+    // 3. 총 생산량 예측 (양품 + 불량)
+    const grandTotal =
+      selectedOrder.currentQty + // 기존 양품
+      (Number(inputs.goodQty) || 0) + // 입력 중인 양품
+      dbBadQty; // 불량은 DB값 기준 (일치해야 하므로)
+
     const target = selectedOrder.targetQty;
 
-    if (dbTotal + inputTotal >= target) {
-      setInputs((prev) => {
-        if (prev.isShiftEnd) return prev;
-        return { ...prev, isShiftEnd: true };
-      });
+    // [조건]
+    // 1. 총 생산량이 목표를 달성했는가? (grandTotal >= target)
+    // 2. AND 사용자가 불량 분류를 완벽하게 했는가? (dbBadQty === userBadQty)
+    const isTargetMet = grandTotal >= target;
+    const isDefectMatched = dbBadQty === userBadQty;
+
+    if (isTargetMet && isDefectMatched) {
+      setInputs((prev) => ({ ...prev, isShiftEnd: true }));
     } else {
-      setInputs((prev) => {
-        if (!prev.isShiftEnd) return prev;
-        return { ...prev, isShiftEnd: false };
-      });
+      setInputs((prev) => ({ ...prev, isShiftEnd: false }));
     }
   }, [inputs.goodQty, currentInputBadQty, selectedOrder]);
 
@@ -162,13 +174,10 @@ const WorkReport = () => {
     resetInputs();
   };
 
-  // 잔량 채우기: 목표 - (현재 총생산량)
   const handleFillRemaining = () => {
     if (!selectedOrder) return;
-    const totalCurrent = selectedOrder.currentQty + selectedOrder.defectQty;
-    // 입력된 불량이 있다면 그것도 감안해서 잔량 계산 (양품으로 채움)
-    const remaining =
-      selectedOrder.targetQty - totalCurrent - currentInputBadQty;
+    const dbTotal = selectedOrder.currentQty + selectedOrder.defectQty;
+    const remaining = selectedOrder.targetQty - dbTotal; // 잔량은 DB기준으로 계산
 
     if (remaining > 0) {
       setInputs({ ...inputs, goodQty: remaining.toString() });
@@ -181,7 +190,6 @@ const WorkReport = () => {
     if (!currentDefect.qty || Number(currentDefect.qty) <= 0) {
       return alert("불량 수량을 입력해주세요.");
     }
-
     const defectType = defectTypes.find((d) => d.code === currentDefect.code);
     if (!defectType) return alert("선택된 불량 유형이 없습니다.");
 
@@ -216,14 +224,35 @@ const WorkReport = () => {
     if (!selectedOrder) return;
 
     const addGood = Number(inputs.goodQty) || 0;
+
+    // [중요] 불량은 '이미 C#이 넣었으니까' 추가로 더하지 않을지,
+    // 아니면 '분류 정보만 업데이트' 할지 정책에 따름.
+    // 여기서는 요청대로 '사용자 입력값'을 보냅니다.
     const addBad = currentInputBadQty;
+
     const totalAdd = addGood + addBad;
 
     if (totalAdd === 0 && !inputs.isShiftEnd) {
       return alert("수량을 입력하거나 작업을 종료해주세요.");
     }
 
-    // [수정됨] 검증 로직: (기존총량 + 입력총량) < 목표 이면 사유 필수
+    // [검증 강화] 작업 종료 시, 불량 수량 일치 여부 확인
+    if (inputs.isShiftEnd) {
+      const dbBad = selectedOrder.defectQty;
+      const userBad = currentInputBadQty;
+
+      // 불량이 있는데 분류를 안 했거나 덜 했으면 경고
+      if (dbBad > 0 && userBad !== dbBad) {
+        if (
+          !window.confirm(
+            `경고: C# 감지 불량(${dbBad}개)와 입력 불량(${userBad}개)가 일치하지 않습니다. 그래도 종료합니까?`,
+          )
+        ) {
+          return;
+        }
+      }
+    }
+
     const currentTotal =
       selectedOrder.currentQty + selectedOrder.defectQty + totalAdd;
     const target = selectedOrder.targetQty;
@@ -255,7 +284,7 @@ const WorkReport = () => {
     try {
       await reportWorkResult(selectedOrder.id, reportData);
       alert("✅ 실적이 보고되었습니다.");
-      fetchData();
+      await fetchData();
 
       const newReport = {
         id: Date.now(),
@@ -309,7 +338,6 @@ const WorkReport = () => {
       </div>
 
       <div style={styles.layout}>
-        {/* [좌측] 리스트 */}
         <div style={styles.leftPanel}>
           <div style={styles.panelHeader}>
             <FaClipboardList /> 금일 작업 지시 목록
@@ -391,7 +419,6 @@ const WorkReport = () => {
           </div>
         </div>
 
-        {/* [우측] 입력 폼 + 히스토리 */}
         <div style={styles.rightPanel}>
           <div style={styles.formCard}>
             <h3 style={styles.formTitle}>📝 실적 등록 및 종료</h3>
@@ -404,13 +431,30 @@ const WorkReport = () => {
                   <div>
                     <strong>제품명:</strong> {selectedOrder.product}
                   </div>
-                  <div>
-                    <strong>현재 누적(Total):</strong>{" "}
-                    {selectedOrder.currentQty + selectedOrder.defectQty} ea
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    <div>
+                      <strong>현재(DB):</strong>{" "}
+                      <span style={{ color: COLORS.success }}>
+                        {selectedOrder.currentQty}
+                      </span>
+                      (양) /{" "}
+                      <span style={{ color: COLORS.danger }}>
+                        {selectedOrder.defectQty}
+                      </span>
+                      (불)
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#999" }}>
+                      (목표: {selectedOrder.targetQty})
+                    </div>
                   </div>
                 </div>
 
-                {/* 그래프 */}
                 <div style={styles.predictionBox}>
                   <div
                     style={{
@@ -459,7 +503,7 @@ const WorkReport = () => {
                         onClick={handleFillRemaining}
                         style={styles.smallBtn}
                       >
-                        잔량
+                        잔량 채우기
                       </button>
                     </div>
                     <input
@@ -476,17 +520,32 @@ const WorkReport = () => {
 
                 <div style={styles.divider}></div>
 
-                {/* 불량 등록 섹션 */}
                 <div style={styles.defectSection}>
-                  <label
-                    style={{
-                      ...styles.label,
-                      color: COLORS.danger,
-                      marginBottom: "8px",
-                    }}
+                  <div
+                    style={{ display: "flex", justifyContent: "space-between" }}
                   >
-                    불량 등록 (유형 선택 + 수량 추가)
-                  </label>
+                    <label
+                      style={{
+                        ...styles.label,
+                        color: COLORS.danger,
+                        marginBottom: "8px",
+                      }}
+                    >
+                      불량 분류 (C# 감지: {selectedOrder.defectQty}개)
+                    </label>
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: "bold",
+                        color:
+                          currentInputBadQty === selectedOrder.defectQty
+                            ? COLORS.success
+                            : COLORS.danger,
+                      }}
+                    >
+                      입력됨: {currentInputBadQty}개
+                    </span>
+                  </div>
 
                   <div
                     style={{
@@ -496,7 +555,7 @@ const WorkReport = () => {
                     }}
                   >
                     <div style={{ flex: 2 }}>
-                      <span style={styles.miniLabel}>유형 (DB Load)</span>
+                      <span style={styles.miniLabel}>유형</span>
                       <select
                         style={styles.select}
                         value={currentDefect.code}
@@ -508,13 +567,12 @@ const WorkReport = () => {
                         }
                       >
                         {isDefectLoading && (
-                          <option value="">불량 유형 로딩 중...</option>
+                          <option value="">로딩 중...</option>
                         )}
                         {!isDefectLoading && defectTypes.length === 0 && (
-                          <option value="">유형 데이터 없음</option>
+                          <option value="">유형 없음</option>
                         )}
                         {!isDefectLoading &&
-                          defectTypes.length > 0 &&
                           defectTypes.map((type) => (
                             <option key={type.code} value={type.code}>
                               {type.name}
@@ -598,12 +656,11 @@ const WorkReport = () => {
                 {inputs.isShiftEnd &&
                   selectedOrder.currentQty +
                     selectedOrder.defectQty +
-                    Number(inputs.goodQty) +
-                    currentInputBadQty <
+                    Number(inputs.goodQty) <
                     selectedOrder.targetQty && (
                     <div style={styles.warningBox}>
                       <div style={styles.warningTitle}>
-                        <FaExclamationTriangle /> 목표 수량 미달 (Shortfall)
+                        <FaExclamationTriangle /> 목표 수량 미달
                       </div>
                       <p style={styles.warningText}>
                         목표({selectedOrder.targetQty}) 대비 부족합니다. 사유를
@@ -696,7 +753,6 @@ const WorkReport = () => {
   );
 };
 
-// [수정됨] 스타일 - 오른쪽 패널 스크롤 추가
 const styles = {
   container: {
     padding: "20px",
@@ -817,15 +873,13 @@ const styles = {
     top: 0,
     left: 0,
   },
-
-  // [수정됨] 오른쪽 패널 스크롤 활성화 및 여백 조정
   rightPanel: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     gap: "20px",
-    overflowY: "auto", // 여기에 스크롤 추가
-    paddingRight: "5px", // 스크롤바 공간
+    overflowY: "auto",
+    paddingRight: "5px",
   },
   formCard: {
     backgroundColor: "white",
@@ -1023,18 +1077,16 @@ const styles = {
     border: "2px dashed #eee",
     borderRadius: "8px",
   },
-
-  // [수정됨] 히스토리 카드 스타일 - 찌그러지지 않도록 설정
   historyCard: {
     backgroundColor: "white",
     borderRadius: "12px",
     display: "flex",
     flexDirection: "column",
-    flexShrink: 0, // 위쪽 폼이 커져도 줄어들지 않음
-    minHeight: "300px", // 최소 높이 보장
+    flexShrink: 0,
+    minHeight: "300px",
     boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
     overflow: "hidden",
-    marginBottom: "20px", // 바닥 여백
+    marginBottom: "20px",
   },
   tableWrapper: { flex: 1, overflowY: "auto" },
   table: { width: "100%", borderCollapse: "collapse", fontSize: "13px" },

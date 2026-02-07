@@ -1,12 +1,8 @@
 import React, { useState, useEffect } from "react";
 import {
-  FaSearch,
   FaPlus,
-  FaCalendarAlt,
-  FaUser,
   FaClipboardList,
-  FaEdit,
-  FaTrashAlt,
+  FaSyncAlt, // [추가] 아이콘
 } from "react-icons/fa";
 
 import {
@@ -37,6 +33,10 @@ const WorkOrderMgmt = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+
+  // [추가] 로딩 상태
+  const [isLoading, setIsLoading] = useState(false);
+
   const [currentOrder, setCurrentOrder] = useState({
     id: null,
     productOrderId: "",
@@ -49,12 +49,41 @@ const WorkOrderMgmt = () => {
     requirements: "",
   });
 
+  // ▼▼▼ [수정 1] 3초 자동 새로고침 + 초기 로딩 ▼▼▼
   useEffect(() => {
-    fetchData();
-    // ✅ 새로고침 관련 로직 삭제함 (이제 비동기로 처리)
+    fetchData(true); // 첫 로딩은 로딩 표시
+
+    const interval = setInterval(() => {
+      fetchData(false); // 자동 갱신은 조용히
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  // 상위 계획 선택 시 제품과 수량 자동 세팅
+  // [수정] 데이터 조회 함수 (isSilent 모드 추가)
+  const fetchData = async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
+    try {
+      const [woData, lineData, poData] = await Promise.all([
+        getWorkOrders(),
+        getLines(),
+        getProductOrders(),
+      ]);
+      setOrders(woData || []); // null 방지
+      setLines(lineData || []);
+      setParentPlans((poData || []).filter((p) => p.status !== "COMPLETED"));
+    } catch (error) {
+      console.error("데이터 로드 실패", error);
+    } finally {
+      if (!isSilent) setIsLoading(false);
+    }
+  };
+
+  // [추가] 수동 새로고침 핸들러
+  const handleManualRefresh = () => {
+    fetchData(false); // 로딩바 보여주며 갱신
+  };
+
   const handleParentPlanChange = (e) => {
     const selectedId = e.target.value;
 
@@ -76,27 +105,9 @@ const WorkOrderMgmt = () => {
     }
   };
 
-  const fetchData = async () => {
-    try {
-      const [woData, lineData, poData] = await Promise.all([
-        getWorkOrders(),
-        getLines(),
-        getProductOrders(),
-      ]);
-      setOrders(woData);
-      setLines(lineData);
-      setParentPlans(poData.filter((p) => p.status !== "COMPLETED"));
-    } catch (error) {
-      console.error("데이터 로드 실패", error);
-    }
-  };
-
-  // ✅ [수정] 새로고침 대신 비동기 데이터 갱신 + 상태 초기화
   const handleAddNew = async () => {
-    // 1. 최신 데이터(라인 정보, 상위 계획 등)를 서버에서 다시 가져옴 (비동기)
-    await fetchData();
+    await fetchData(true); // 모달 열기 전 데이터 갱신
 
-    // 2. 입력 폼 깨끗하게 초기화
     setCurrentOrder({
       id: null,
       productOrderId: "",
@@ -109,7 +120,6 @@ const WorkOrderMgmt = () => {
       requirements: "",
     });
 
-    // 3. 모달 열기
     setIsEditMode(false);
     setIsModalOpen(true);
   };
@@ -138,7 +148,7 @@ const WorkOrderMgmt = () => {
         alert("작업 지시가 등록되었습니다.");
       }
       setIsModalOpen(false);
-      fetchData(); // 저장 후 목록 갱신
+      fetchData(true); // 저장 후 즉시 갱신
     } catch (error) {
       const msg =
         error.response?.data?.message || error.response?.data || error.message;
@@ -152,7 +162,7 @@ const WorkOrderMgmt = () => {
         await deleteWorkOrder(currentOrder.id);
         alert("삭제되었습니다.");
         setIsModalOpen(false);
-        fetchData();
+        fetchData(true); // 삭제 후 즉시 갱신
       } catch (e) {
         alert("삭제 실패: " + (e.response?.data?.message || e.message));
       }
@@ -167,13 +177,35 @@ const WorkOrderMgmt = () => {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <div>
-          <h2 style={styles.title}>📝 작업 지시 관리 (Work Order)</h2>
-          <p style={styles.subtitle}>현장 라인별 작업 할당 및 지시</p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            width: "100%",
+          }}
+        >
+          <div>
+            <h2 style={styles.title}>📝 작업 지시 관리 (Work Order)</h2>
+            <p style={styles.subtitle}>현장 라인별 작업 할당 및 지시</p>
+          </div>
+
+          <div style={{ display: "flex", gap: "10px" }}>
+            {/* [추가] 새로고침 버튼 */}
+            <button
+              style={styles.refreshBtn}
+              onClick={handleManualRefresh}
+              disabled={isLoading}
+            >
+              <FaSyncAlt className={isLoading ? "spin" : ""} />
+              {isLoading ? " 갱신 중..." : " 새로고침"}
+            </button>
+
+            <button style={styles.addButton} onClick={handleAddNew}>
+              <FaPlus /> 지시 작성
+            </button>
+          </div>
         </div>
-        <button style={styles.addButton} onClick={handleAddNew}>
-          <FaPlus /> 지시 작성
-        </button>
       </div>
 
       <div style={styles.tableWrapper}>
@@ -387,12 +419,7 @@ const styles = {
     boxSizing: "border-box",
   },
   header: {
-    display: "flex",
-    justifyContent: "space-between",
     marginBottom: "30px",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: "10px",
   },
   title: {
     fontSize: "24px",
@@ -415,7 +442,20 @@ const styles = {
     gap: "8px",
   },
 
-  // 테이블 반응형 처리
+  // [추가] 새로고침 버튼 스타일
+  refreshBtn: {
+    backgroundColor: "#fff",
+    color: COLORS.primary,
+    border: `1px solid ${COLORS.primary}`,
+    padding: "10px 20px",
+    borderRadius: "12px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontWeight: "bold",
+  },
+
   tableWrapper: {
     flex: 1,
     overflowX: "auto",

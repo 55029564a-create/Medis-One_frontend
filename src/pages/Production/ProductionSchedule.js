@@ -48,22 +48,30 @@ const ProductionSchedule = () => {
   // 상세 모달용 선택된 데이터
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
-  // 데이터 조회
-  const fetchSchedules = async () => {
-    setIsLoading(true);
+  // ▼▼▼ [수정 1] 자동 새로고침 로직 추가 (3초마다 갱신) ▼▼▼
+  useEffect(() => {
+    fetchSchedules(true); // 첫 로딩은 로딩바 표시 (true)
+
+    const interval = setInterval(() => {
+      fetchSchedules(false); // 배경 갱신은 로딩바 숨김 (false)
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // ▼▼▼ [수정 2] 깜빡임 방지 (isInitialLoad 플래그 사용) ▼▼▼
+  const fetchSchedules = async (isInitialLoad = false) => {
+    if (isInitialLoad) setIsLoading(true);
     try {
       const data = await getProductionPlans();
+      // 데이터가 있을 때만 업데이트 (빈 배열이 오면 기존 데이터 유지 등은 선택사항)
       setSchedules(data || []);
     } catch (error) {
       console.error("데이터 로드 실패:", error);
     } finally {
-      setIsLoading(false);
+      if (isInitialLoad) setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchSchedules();
-  }, []);
 
   const filteredSchedules = schedules.filter(
     (item) =>
@@ -89,20 +97,24 @@ const ProductionSchedule = () => {
 
   // 생산 계획 전용 엑셀 다운로드 로직
   const handleDownloadExcel = () => {
-    // 1. 헤더 수정 (생산 계획에 맞는 컬럼명)
+    // 1. 헤더 수정
     const headers = [
       "지시일자,라인,품목명,계획수량,생산수량,진척률,담당자,상태",
     ];
 
-    // 2. 데이터 매핑 (filteredSchedules 사용)
+    // 2. 데이터 매핑
     const rows = filteredSchedules.map((item) => {
       const rate =
         item.planQty > 0 ? Math.round((item.doneQty / item.planQty) * 100) : 0;
-      // 쉼표가 포함될 수 있는 데이터는 따옴표 처리 등의 로직이 필요할 수 있으나 여기선 단순 처리
-      return `${item.date},${item.line},${item.product},${item.planQty},${item.doneQty},${rate}%,${item.manager},${item.status}`;
+      // null 체크 추가
+      const lineName = item.line || "-";
+      const prodName = item.product || "-";
+      const mgrName = item.manager || "-";
+
+      return `${item.date},${lineName},${prodName},${item.planQty},${item.doneQty},${rate}%,${mgrName},${item.status}`;
     });
 
-    // 3. CSV 생성
+    // 3. CSV 생성 (한글 깨짐 방지 BOM 추가)
     const csvContent =
       "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
 
@@ -196,7 +208,10 @@ const ProductionSchedule = () => {
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           {/* 새로고침 버튼 */}
-          <button style={styles.refreshBtn} onClick={fetchSchedules}>
+          <button
+            style={styles.refreshBtn}
+            onClick={() => fetchSchedules(true)}
+          >
             <FaSyncAlt /> 새로고침
           </button>
 
@@ -360,7 +375,7 @@ const ScheduleRow = ({ item, onOpen }) => {
   return (
     <tr style={styles.tbodyTr} onClick={onOpen}>
       <td style={styles.td}>
-        {item.emergency ? (
+        {item.isEmergency ? (
           <span style={styles.emergencyBadge}>URGENT</span>
         ) : (
           "-"
@@ -417,7 +432,9 @@ const ScheduleCard = ({ item, onOpen }) => {
         }}
       >
         <div style={{ display: "flex", gap: "8px" }}>
-          {item.emergency && <span style={styles.emergencyBadge}>URGENT</span>}
+          {item.isEmergency && (
+            <span style={styles.emergencyBadge}>URGENT</span>
+          )}
           <StatusBadge status={item.status} />
         </div>
         <button
@@ -736,7 +753,6 @@ const styles = {
     borderBottom: `1px solid #f5f5f5`,
     transition: "background 0.2s",
     cursor: "pointer",
-    ":hover": { backgroundColor: "#fafafa" },
   },
   td: {
     padding: "15px",
@@ -756,7 +772,6 @@ const styles = {
     boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
     transition: "transform 0.2s",
     cursor: "pointer",
-    ":hover": { transform: "translateY(-5px)" },
   },
   badge: {
     padding: "5px 10px",

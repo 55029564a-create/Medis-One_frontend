@@ -2,16 +2,15 @@ import React, { useState, useEffect } from "react";
 import {
   FaSearch,
   FaCalendarAlt,
-  FaIndustry,
-  FaUserCircle,
   FaClipboardList,
   FaTimes,
   FaCheckCircle,
   FaSpinner,
   FaClock,
+  FaUserCircle,
+  FaSyncAlt, // [추가] 새로고침 아이콘
 } from "react-icons/fa";
 
-// [변경] API 함수 임포트
 import {
   getTodayWorkOrders,
   getMonthlyWorkOrders,
@@ -31,20 +30,26 @@ const COLORS = {
 };
 
 const WorkOrder = () => {
-  // 상태 관리
   const [todayData, setTodayData] = useState([]);
   const [monthData, setMonthData] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 데이터 조회
+  // 3초마다 자동 새로고침 (Silent Refresh)
   useEffect(() => {
-    fetchData();
+    fetchData(true); // 첫 로딩은 로딩바 표시
+
+    const interval = setInterval(() => {
+      fetchData(false); // 자동 갱신은 로딩바 숨김 (깜빡임 방지)
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  // [수정] isSilent: true면 로딩바 안 띄움 (자동갱신용)
+  const fetchData = async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
     try {
       const [today, monthly] = await Promise.all([
         getTodayWorkOrders(),
@@ -55,29 +60,30 @@ const WorkOrder = () => {
     } catch (error) {
       console.error("작업 지시 로드 실패:", error);
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   };
 
-  // 모달 열기
+  // 수동 새로고침 버튼 핸들러
+  const handleManualRefresh = () => {
+    fetchData(false); // 로딩바 띄우면서 갱신
+  };
+
   const openModal = (order) => {
     setSelectedOrder(order);
     setIsModalOpen(true);
   };
 
-  // 모달 닫기
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedOrder(null);
   };
 
-  // 상태 뱃지 (DB값 -> UI값 변환)
   const renderStatusBadge = (status) => {
     let color = COLORS.subText;
     let text = "대기";
     let icon = <FaClock />;
 
-    // DB Status: IN_PROGRESS, COMPLETED, WAIT
     if (status === "IN_PROGRESS" || status === "Running") {
       color = COLORS.info;
       text = "진행중";
@@ -101,15 +107,15 @@ const WorkOrder = () => {
     );
   };
 
-  // DB DTO -> UI 렌더링용 변수 매핑 헬퍼
-  // DTO: code, deadline, lineName, worker, productName, targetQty, status, instruction, requirements
   const mapOrder = (order) => ({
     id: order.code,
     date: order.deadline,
     process: order.lineName || "라인 미정",
     worker: order.worker,
     product: order.productName,
-    qty: order.targetQty,
+    currentQty: order.currentQty || 0,
+    targetQty: order.targetQty || 0,
+    defectQty: order.defectQty || 0,
     status: order.status,
     desc: order.instruction,
     note: order.requirements,
@@ -117,6 +123,7 @@ const WorkOrder = () => {
 
   return (
     <div style={styles.container}>
+      {/* [수정] 헤더를 flex로 바꿔서 버튼 배치 */}
       <div style={styles.header}>
         <div>
           <h2 style={{ margin: 0, color: COLORS.text }}>📑 작업 지시서</h2>
@@ -127,9 +134,19 @@ const WorkOrder = () => {
               fontSize: "14px",
             }}
           >
-            생산 현장 작업 지시 현황 및 이력 조회
+            생산 현장 작업 지시 현황 (실시간 연동)
           </p>
         </div>
+
+        {/* [추가] 새로고침 버튼 */}
+        <button
+          style={styles.refreshBtn}
+          onClick={handleManualRefresh}
+          disabled={isLoading}
+        >
+          <FaSyncAlt className={isLoading ? "spin" : ""} />
+          {isLoading ? " 갱신 중..." : " 새로고침"}
+        </button>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "30px" }}>
@@ -151,7 +168,7 @@ const WorkOrder = () => {
             <div style={{ width: "15%" }}>지시번호</div>
             <div style={{ width: "15%" }}>공정(라인)</div>
             <div style={{ width: "25%" }}>품목명</div>
-            <div style={{ width: "15%" }}>목표 수량</div>
+            <div style={{ width: "15%" }}>생산량 / 목표</div>
             <div style={{ width: "15%" }}>작업자</div>
             <div style={{ width: "15%", textAlign: "center" }}>상태</div>
           </div>
@@ -192,7 +209,11 @@ const WorkOrder = () => {
                         fontWeight: "bold",
                       }}
                     >
-                      {order.qty.toLocaleString()} EA
+                      <span style={{ color: COLORS.success }}>
+                        {order.currentQty}
+                      </span>
+                      <span style={{ color: "#999", margin: "0 4px" }}>/</span>
+                      {order.targetQty}
                     </div>
                     <div
                       style={{
@@ -244,7 +265,7 @@ const WorkOrder = () => {
             <div style={{ width: "15%" }}>지시번호</div>
             <div style={{ width: "15%" }}>공정(라인)</div>
             <div style={{ width: "20%" }}>품목명</div>
-            <div style={{ width: "10%" }}>수량</div>
+            <div style={{ width: "10%" }}>달성률</div>
             <div style={{ width: "10%" }}>작업자</div>
             <div style={{ width: "15%", textAlign: "center" }}>상태</div>
           </div>
@@ -253,6 +274,14 @@ const WorkOrder = () => {
             {monthData.length > 0 ? (
               monthData.map((dto) => {
                 const order = mapOrder(dto);
+                const percent =
+                  order.targetQty > 0
+                    ? Math.min(
+                        Math.round((order.currentQty / order.targetQty) * 100),
+                        100,
+                      )
+                    : 0;
+
                 return (
                   <div
                     key={order.id}
@@ -277,8 +306,14 @@ const WorkOrder = () => {
                     <div style={{ width: "20%", fontWeight: "600" }}>
                       {order.product}
                     </div>
-                    <div style={{ width: "10%" }}>
-                      {order.qty.toLocaleString()}
+                    <div
+                      style={{
+                        width: "10%",
+                        fontWeight: "bold",
+                        color: percent === 100 ? COLORS.success : COLORS.text,
+                      }}
+                    >
+                      {percent}%
                     </div>
                     <div style={{ width: "10%" }}>{order.worker}</div>
                     <div style={{ width: "15%", textAlign: "center" }}>
@@ -326,13 +361,18 @@ const WorkOrder = () => {
                 <InfoItem label="담당자" value={selectedOrder.worker} />
                 <InfoItem label="생산 품목" value={selectedOrder.product} />
                 <InfoItem
-                  label="목표 수량"
-                  value={`${selectedOrder.qty.toLocaleString()} EA`}
+                  label="생산 현황 (현재/목표)"
+                  value={`${selectedOrder.currentQty} / ${selectedOrder.targetQty} EA`}
                   highlight
                 />
                 <InfoItem
                   label="현재 상태"
                   value={renderStatusBadge(selectedOrder.status)}
+                />
+                <InfoItem
+                  label="불량 수량"
+                  value={`${selectedOrder.defectQty} EA`}
+                  highlight
                 />
               </div>
               <hr style={styles.divider} />
@@ -390,7 +430,13 @@ const styles = {
     backgroundColor: COLORS.bg,
     minHeight: "100vh",
   },
-  header: { marginBottom: "30px" },
+  // [수정] 헤더를 flex로 변경
+  header: {
+    marginBottom: "30px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
   sectionContainer: {
     backgroundColor: COLORS.white,
     borderRadius: "16px",
@@ -529,6 +575,22 @@ const styles = {
     borderRadius: "8px",
     fontWeight: "bold",
     cursor: "pointer",
+  },
+  // [추가] 새로고침 버튼 스타일
+  refreshBtn: {
+    backgroundColor: COLORS.primary,
+    color: "#fff",
+    border: "none",
+    padding: "10px 20px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontWeight: "bold",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+    transition: "background 0.2s",
+    height: "40px",
   },
 };
 
