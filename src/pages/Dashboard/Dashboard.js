@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
   BarChart,
   Bar,
@@ -24,6 +24,7 @@ import {
 } from "react-icons/fa";
 import { MdVerifiedUser } from "react-icons/md";
 import { getDashboardData } from "../../api/dashboardApi";
+import useAutoFetch from "../../hooks/useAutoFetch"; // [신규] 커스텀 훅 import
 
 const COLORS = {
   primary: "#8C85FF",
@@ -39,32 +40,21 @@ const COLORS = {
 const PIE_COLORS = ["#8C85FF", "#FFBB33", "#FF4444", "#00C851", "#33B5E5"];
 
 const Dashboard = () => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // ✅ 30000ms(30초)마다 자동 갱신! (커스텀 훅 사용)
+  // 데이터가 로딩 중일 때도 기존 데이터가 있으면 화면을 유지합니다.
+  const { data, loading } = useAutoFetch(getDashboardData, 30000);
 
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      const result = await getDashboardData();
-      setData(result);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading || !data)
+  // 초기 로딩 시에만 로딩 화면 표시 (데이터가 없는데 로딩 중일 때)
+  if (loading && !data) {
     return (
       <div style={{ padding: "50px", textAlign: "center" }}>
         대시보드 로딩중...
       </div>
     );
+  }
+
+  // 데이터가 없으면 에러 처리 혹은 빈 화면
+  if (!data) return null;
 
   return (
     <div style={styles.container}>
@@ -192,8 +182,6 @@ const Dashboard = () => {
             <h3>🏭 생산 라인 가동 현황</h3>
           </div>
           <div style={styles.lineGrid}>
-            {" "}
-            {/* Grid Layout 적용 */}
             {(data.lineStatus || []).map((line, idx) => (
               <div key={idx} style={styles.lineCard}>
                 <div

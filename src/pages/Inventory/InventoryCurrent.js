@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios"; // 서버 통신을 위한 라이브러리
+import axios from "axios";
 import {
   FaBoxes,
   FaExclamationTriangle,
@@ -8,6 +8,7 @@ import {
   FaWarehouse,
   FaShoppingCart,
   FaFilter,
+  FaSyncAlt, // [추가] 새로고침 아이콘
 } from "react-icons/fa";
 import {
   PieChart,
@@ -33,118 +34,16 @@ const CHART_COLORS = {
 };
 
 const InventoryCurrent = () => {
-  // 상태 관리: 검색어 + 카테고리 필터
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // // 📝 [Mock Data]
-  // const inventoryData = [
-  //   {
-  //     id: 1,
-  //     code: "PNL-24-MED",
-  //     name: "24인치 의료용 패널",
-  //     category: "원자재",
-  //     qty: 450,
-  //     safeQty: 100,
-  //     loc: "A-01",
-  //     unit: "EA",
-  //   },
-  //   {
-  //     id: 2,
-  //     code: "RESIN-OCR",
-  //     name: "OCR 레진 (광학접착)",
-  //     category: "화학",
-  //     qty: 5,
-  //     safeQty: 20,
-  //     loc: "C-02 (냉장)",
-  //     unit: "kg",
-  //   },
-  //   {
-  //     id: 3,
-  //     code: "GLS-AG-24",
-  //     name: "AG 커버 글라스",
-  //     category: "원자재",
-  //     qty: 1200,
-  //     safeQty: 500,
-  //     loc: "A-03",
-  //     unit: "EA",
-  //   },
-  //   {
-  //     id: 4,
-  //     code: "SCREW-M4",
-  //     name: "M4 조립 나사",
-  //     category: "부자재",
-  //     qty: 25,
-  //     safeQty: 100,
-  //     loc: "B-05",
-  //     unit: "Box",
-  //   },
-  //   {
-  //     id: 5,
-  //     code: "PCB-MAIN",
-  //     name: "메인보드 (V2)",
-  //     category: "반제품",
-  //     qty: 80,
-  //     safeQty: 50,
-  //     loc: "B-01",
-  //     unit: "EA",
-  //   },
-  //   {
-  //     id: 6,
-  //     code: "BOX-PKG",
-  //     name: "포장 박스",
-  //     category: "부자재",
-  //     qty: 2000,
-  //     safeQty: 500,
-  //     loc: "D-01",
-  //     unit: "EA",
-  //   },
-  //   {
-  //     id: 7,
-  //     code: "MON-24-PRO",
-  //     name: "의료용 모니터 완제품",
-  //     category: "완제품",
-  //     qty: 30,
-  //     safeQty: 10,
-  //     loc: "F-01",
-  //     unit: "EA",
-  //   },
-  // ];
-
-  // 카테고리 목록
   const categories = ["All", "원자재", "부자재", "화학", "반제품", "완제품"];
 
-  // // 📊 차트 데이터
-  // const categoryStats = [
-  //   { name: "원자재", value: 45 },
-  //   { name: "부자재", value: 25 },
-  //   { name: "화학", value: 10 },
-  //   { name: "반제품", value: 20 },
-  // ];
-
-  // const stockComparison = [
-  //   { name: "패널", current: 450, safe: 100 },
-  //   { name: "글라스", current: 1200, safe: 500 },
-  //   { name: "레진", current: 5, safe: 20 },
-  //   { name: "나사", current: 25, safe: 100 },
-  // ];
-
-  // // 🔍 [필터링 로직]
-  // const filteredData = inventoryData.filter((item) => {
-  //   const matchSearch =
-  //     item.name.includes(searchTerm) || item.code.includes(searchTerm);
-  //   const matchCategory =
-  //     selectedCategory === "All" || item.category === selectedCategory;
-  //   return matchSearch && matchCategory;
-  // });
-
-  // API 데이터 호출 로직
   const fetchInventoryData = async () => {
     try {
       setLoading(true);
-      // 백엔드 컨트롤러 주소와 매개변수(params) 연결
       const response = await axios.get(
         "http://localhost:8111/api/inventory/state",
         {
@@ -154,7 +53,7 @@ const InventoryCurrent = () => {
           },
         },
       );
-      setDashboardData(response.data); // 서버에서 받은 DTO 저장
+      setDashboardData(response.data);
     } catch (error) {
       console.error("데이터 로드 실패:", error);
     } finally {
@@ -162,10 +61,15 @@ const InventoryCurrent = () => {
     }
   };
 
-  // useEffect: 필터 변경 시 자동 새로고침
   useEffect(() => {
     fetchInventoryData();
   }, [selectedCategory, searchTerm]);
+
+  // [신규] 수동 새로고침 함수
+  const handleManualRefresh = () => {
+    fetchInventoryData();
+    alert("최신 재고 현황으로 갱신되었습니다.");
+  };
 
   if (loading && !dashboardData)
     return <div className="empty-state">데이터를 불러오는 중...</div>;
@@ -174,12 +78,11 @@ const InventoryCurrent = () => {
 
   const { categoryStats, itemList } = dashboardData;
 
-  // 📊 차트용 데이터 가공
   const pieData = Object.entries(categoryStats).map(([name, value]) => ({
     name,
     value,
   }));
-  const barData = (itemList || []).slice(0, 5); // 상위 5개만 차트 표시
+  const barData = (itemList || []).slice(0, 5);
 
   return (
     <>
@@ -197,13 +100,21 @@ const InventoryCurrent = () => {
         .page-header-wrapper {
           margin-bottom: 2rem;
         }
+        
+        /* [수정] 헤더를 flex로 변경하여 버튼 배치 */
+        .header-top-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 0.5rem;
+        }
+
         .page-title {
           display: flex;
           align-items: center;
           font-size: 1.5rem;
           font-weight: 700;
           color: #111;
-          margin-bottom: 0.5rem;
         }
         .title-icon {
           margin-right: 0.8rem;
@@ -214,6 +125,26 @@ const InventoryCurrent = () => {
           font-size: 0.95rem;
           color: #666;
           margin-left: 2.4rem;
+        }
+
+        /* [추가] 새로고침 버튼 스타일 */
+        .refresh-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          background-color: white;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+          color: #555;
+          font-size: 0.9rem;
+          transition: all 0.2s;
+        }
+        .refresh-btn:hover {
+          background-color: #f9f9f9;
+          border-color: #ccc;
         }
 
         /* 차트 영역 (Flex) */
@@ -433,9 +364,15 @@ const InventoryCurrent = () => {
       <div className="inventory-page-container">
         {/* 페이지 헤더 */}
         <div className="page-header-wrapper">
-          <div className="page-title">
-            <FaWarehouse className="title-icon" />
-            실시간 재고 현황 (Real-time Inventory)
+          <div className="header-top-row">
+            <div className="page-title">
+              <FaWarehouse className="title-icon" />
+              실시간 재고 현황 (Real-time Inventory)
+            </div>
+            {/* [추가] 새로고침 버튼 */}
+            <button className="refresh-btn" onClick={handleManualRefresh}>
+              <FaSyncAlt /> 새로고침
+            </button>
           </div>
           <div className="page-description">
             현재 보유 중인 모든 자재의 수량과 상태를 실시간으로 모니터링합니다.

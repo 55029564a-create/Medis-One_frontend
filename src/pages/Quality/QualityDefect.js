@@ -4,6 +4,7 @@ import {
   FaChartPie,
   FaCamera,
   FaCalendarAlt,
+  // FaSyncAlt 제거
 } from "react-icons/fa";
 import {
   PieChart,
@@ -50,7 +51,6 @@ const PIE_COLORS = [
   "#1dd1a1",
 ];
 
-// 🎨 [수정] 작고 심플한 커스텀 툴팁 (화면 밖으로 안 나가게 작게 만듦)
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     return (
@@ -58,15 +58,14 @@ const CustomTooltip = ({ active, payload }) => {
         style={{
           backgroundColor: "#fff",
           border: "1px solid #ccc",
-          padding: "6px 10px", // 패딩 축소
+          padding: "6px 10px",
           borderRadius: "4px",
           fontSize: "12px",
           boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
-          zIndex: 9999, // 제일 위에 뜨도록
+          zIndex: 9999,
         }}
       >
         <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-          {/* 라인명 - 불량명 분리해서 보여주기 */}
           {payload[0].name.includes(" - ")
             ? payload[0].name.split(" - ")[1]
             : payload[0].name}
@@ -81,7 +80,6 @@ const CustomTooltip = ({ active, payload }) => {
 };
 
 const QualityDefect = () => {
-  // 오늘 날짜 (YYYY-MM-DD)
   const getToday = () => new Date().toISOString().split("T")[0];
 
   const [defectList, setDefectList] = useState([]);
@@ -89,33 +87,32 @@ const QualityDefect = () => {
   const [barData, setBarData] = useState([]);
   const [selectedDate, setSelectedDate] = useState(getToday());
 
-  // 날짜 바뀔 때마다 데이터 다시 로드
+  // ✅ [자동 동기화 적용] 날짜가 바뀌거나 30초마다 데이터 갱신
   useEffect(() => {
+    // 1. 즉시 호출
     fetchAllData(selectedDate);
+
+    // 2. 인터벌 설정 (30초)
+    const interval = setInterval(() => {
+      fetchAllData(selectedDate);
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [selectedDate]);
 
   const fetchAllData = async (date) => {
     try {
-      // 1. 전체 로그 가져오기 (DB에 있는 defect_log 전체)
       const logs = await getDefectLogs();
 
       if (logs && Array.isArray(logs)) {
-        // 🚀 [핵심] 프론트엔드에서 '날짜'로 필터링
-        // 백엔드에서 날짜 검색을 안 해주면, 여기서 걸러내야 합니다.
         const filteredLogs = logs.filter((log) => {
-          // createdAt이나 date 필드가 없으면 제외
           if (!log.createdAt && !log.date) return false;
-
-          // "2026-02-05T14:30:00" -> "2026-02-05" 추출
           const logDate = (log.createdAt || log.date).substring(0, 10);
-
-          // 선택한 날짜와 같은지 확인
           return logDate === date;
         });
 
-        console.log(`📅 ${date} 날짜 데이터:`, filteredLogs);
+        // console.log(`📅 ${date} 자동 동기화 완료`);
 
-        // 필터링된 데이터로 화면 갱신
         setDefectList(filteredLogs);
         processChartData(filteredLogs);
       } else {
@@ -128,53 +125,37 @@ const QualityDefect = () => {
     }
   };
 
-  // 라인 이름 예쁘게 변환 (Line 1 -> AREX #1 등)
   const getLineName = (codeOrName) => {
     if (!codeOrName) return "Unknown";
     const val = codeOrName.toUpperCase();
 
-    // 품질/후공정
     if (
       val.includes("CAL") ||
       val.includes("AGE") ||
       val.includes("VIB") ||
       val.includes("INS") ||
       val.includes("LINE 3")
-    ) {
+    )
       return "C-LAB (품질)";
-    }
-    // 조립 라인 2
-    if (val.endsWith("02") || val.includes("LINE 2")) {
-      return "AREX #2 (조립)";
-    }
-    // 조립 라인 1
-    if (val.endsWith("01") || val.includes("LINE 1")) {
-      return "AREX #1 (조립)";
-    }
+    if (val.endsWith("02") || val.includes("LINE 2")) return "AREX #2 (조립)";
+    if (val.endsWith("01") || val.includes("LINE 1")) return "AREX #1 (조립)";
     return val;
   };
 
-  // 차트용 데이터 가공 (필터링된 로그 기반)
   const processChartData = (data) => {
-    const combinationCount = {}; // 원형 차트용 (라인 - 불량명)
-    const lineTotalCount = {}; // 막대 차트용 (라인별 합계)
+    const combinationCount = {};
+    const lineTotalCount = {};
 
     data.forEach((item) => {
       const rawLine = item.line || item.lineName || item.defectCode || "";
       const defectName = item.defectName || item.name || "미확인 불량";
-
-      // 코드를 사람이 읽기 쉬운 이름으로 변환
       const lineName = getLineName(rawLine);
 
-      // 1. 원형 차트 키 생성 (예: "AREX #1 - 스크래치")
       const comboKey = `${lineName} - ${defectName}`;
       combinationCount[comboKey] = (combinationCount[comboKey] || 0) + 1;
-
-      // 2. 막대 차트 집계
       lineTotalCount[lineName] = (lineTotalCount[lineName] || 0) + 1;
     });
 
-    // 정렬 (건수 많은 순)
     const formattedPie = Object.keys(combinationCount)
       .map((key) => ({ name: key, value: combinationCount[key] }))
       .sort((a, b) => b.value - a.value);
@@ -193,19 +174,21 @@ const QualityDefect = () => {
       <div style={styles.header}>
         <h2 style={styles.title}>🛡️ 일일 품질 불량 현황</h2>
 
-        <div style={styles.datePickerWrapper}>
-          <FaCalendarAlt color="#666" />
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            style={styles.dateInput}
-          />
+        <div style={{ display: "flex", gap: "10px" }}>
+          {/* 버튼 삭제됨 */}
+          <div style={styles.datePickerWrapper}>
+            <FaCalendarAlt color="#666" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              style={styles.dateInput}
+            />
+          </div>
         </div>
       </div>
 
       <div style={styles.chartRow}>
-        {/* 원형 차트 */}
         <div style={styles.chartCard}>
           <h3 style={styles.cardTitle}>
             <FaChartPie /> 상세 불량 유형 (라인별)
@@ -230,13 +213,10 @@ const QualityDefect = () => {
                       />
                     ))}
                   </Pie>
-                  {/* ✅ 커스텀 툴팁 적용 */}
                   <Tooltip content={<CustomTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-
-            {/* 범례 영역 */}
             <div style={styles.legendWrapper}>
               {pieData.map((d, i) => (
                 <div key={i} style={styles.legendItem}>
@@ -307,7 +287,6 @@ const QualityDefect = () => {
           </div>
         </div>
 
-        {/* 막대 차트 */}
         <div style={styles.chartCard}>
           <h3 style={styles.cardTitle}>
             <FaExclamationCircle /> 라인별 불량 합계
@@ -331,7 +310,6 @@ const QualityDefect = () => {
                   width={100}
                   tick={{ fontSize: 12 }}
                 />
-                {/* 막대 차트 툴팁도 작게 */}
                 <Tooltip
                   cursor={{ fill: "#f0f0f0" }}
                   contentStyle={{ fontSize: "12px", padding: "5px" }}
@@ -348,7 +326,6 @@ const QualityDefect = () => {
         </div>
       </div>
 
-      {/* 테이블 영역 */}
       <div style={styles.listCard}>
         <h3 style={styles.cardTitle}>
           📋 일자별 불량 접수 내역 ({selectedDate})
@@ -453,7 +430,6 @@ const styles = {
     backgroundColor: COLORS.bg,
     minHeight: "100vh",
   },
-
   header: {
     display: "flex",
     justifyContent: "space-between",
@@ -461,7 +437,6 @@ const styles = {
     marginBottom: "20px",
   },
   title: { fontSize: "22px", fontWeight: "800", margin: 0, color: COLORS.text },
-
   datePickerWrapper: {
     display: "flex",
     alignItems: "center",
@@ -480,7 +455,6 @@ const styles = {
     color: "#333",
     cursor: "pointer",
   },
-
   chartRow: {
     display: "flex",
     gap: "20px",
@@ -505,14 +479,12 @@ const styles = {
     gap: "8px",
     color: "#444",
   },
-
   chartContent: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
   },
-
   legendWrapper: {
     height: "100px",
     overflowY: "auto",
@@ -531,7 +503,6 @@ const styles = {
     borderRadius: "4px",
     backgroundColor: "#f9f9f9",
   },
-
   listCard: {
     backgroundColor: "white",
     padding: "20px",

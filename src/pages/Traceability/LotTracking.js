@@ -8,6 +8,11 @@ import {
   FaThermometerHalf,
   FaCalendarAlt,
   FaTruckLoading,
+<<<<<<< HEAD
+=======
+  FaCheckCircle,
+  FaSyncAlt, // [추가]
+>>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
 } from "react-icons/fa";
 
 const COLORS = {
@@ -30,7 +35,7 @@ const LotTracking = () => {
   const [loading, setLoading] = useState(false);
 
   const handleSearch = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!searchTerm) return;
     setLoading(true);
     setLotData(null);
@@ -46,14 +51,30 @@ const LotTracking = () => {
     }
   };
 
+  // [신규] 수동 새로고침 함수
+  const handleManualRefresh = () => {
+    if (searchTerm) {
+      handleSearch();
+      alert("최신 LOT 이력 정보로 갱신되었습니다.");
+    } else {
+      alert("추적할 LOT 번호를 먼저 입력해주세요.");
+    }
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <div>
+        <div style={styles.headerLeft}>
           <h2 style={styles.pageTitle}>🔍 LOT 통합 추적 (Genealogy)</h2>
           <p style={styles.pageSubtitle}>
             원자재의 입고부터 공정 이동, 제품 생산까지의 전체 이력을 조회합니다.
           </p>
+        </div>
+        {/* [추가] 새로고침 버튼 */}
+        <div style={styles.headerRight}>
+          <button style={styles.refreshBtn} onClick={handleManualRefresh}>
+            <FaSyncAlt /> 새로고침
+          </button>
         </div>
       </div>
 
@@ -172,11 +193,14 @@ const LotTracking = () => {
                           </span>
                         </div>
 
+<<<<<<< HEAD
                         {/* ▼▼▼ div 태그 사용 확인 ▼▼▼ */}
                         {log.processData && (
                           <div style={styles.logDataBox}>{log.processData}</div>
                         )}
 
+=======
+>>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
                         {isProductMade ? (
                           <div style={styles.productBadge}>
                             <span style={{ color: "#666" }}>
@@ -252,9 +276,29 @@ const styles = {
     minHeight: "100vh",
     boxSizing: "border-box",
     width: "100%",
+<<<<<<< HEAD
     overflowX: "hidden",
   },
   header: { marginBottom: "15px" },
+=======
+    maxWidth: "100%",
+    overflowX: "hidden",
+  },
+
+  // [수정] 헤더 flex 수정
+  header: {
+    marginBottom: "15px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerRight: {
+    flexShrink: 0,
+  },
+>>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
   pageTitle: {
     fontSize: "20px",
     fontWeight: "bold",
@@ -263,6 +307,21 @@ const styles = {
   },
   pageSubtitle: { fontSize: "13px", color: COLORS.gray, marginTop: "4px" },
 
+  // [추가] 새로고침 버튼 스타일
+  refreshBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    backgroundColor: "white",
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: "8px",
+    padding: "8px 16px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    color: "#555",
+    fontSize: "13px",
+  },
+
   searchSection: { marginBottom: "20px" },
   searchBar: {
     display: "flex",
@@ -270,6 +329,12 @@ const styles = {
     backgroundColor: "white",
     padding: "8px 15px",
     borderRadius: "8px",
+<<<<<<< HEAD
+=======
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+    width: "100%",
+    maxWidth: "500px",
+>>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
     border: `1px solid ${COLORS.border}`,
     maxWidth: "500px",
     width: "100%",
@@ -319,16 +384,26 @@ const styles = {
 
   // ✅ [수정 1] 오른쪽 패널이 내부 텍스트 때문에 무한정 늘어나는 것 방지 (minWidth: 0 필수)
   rightPanel: {
+<<<<<<< HEAD
     flex: "999 1 300px",
     minWidth: "0", // 줄어들기 허용
     width: "100%", // 가로 꽉 채우기
     overflow: "hidden", // ★ 핵심: 자식이 커져도 부모 크기를 유지하도록 강제함
+=======
+    flex: "999 1 400px",
+    minWidth: "300px",
+    width: "100%",
+>>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
   },
 
   card: {
     backgroundColor: "white",
     borderRadius: "10px",
     padding: "20px",
+<<<<<<< HEAD
+=======
+    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+>>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
     border: `1px solid ${COLORS.border}`,
     boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
   },

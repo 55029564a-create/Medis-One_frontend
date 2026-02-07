@@ -9,6 +9,7 @@ import {
   FaBox,
   FaFileSignature,
   FaBarcode,
+  FaSyncAlt, // [추가]
 } from "react-icons/fa";
 
 // 🎨 스타일 상수
@@ -29,27 +30,33 @@ const DeviceHistory = () => {
 
   // 📡 서버 통신 함수
   const handleSearch = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!serialNo) return;
 
     setLoading(true);
     setDhrData(null);
 
     try {
-      // ✅ [핵심] 백엔드 Controller 주소와 정확히 일치 (/trace/sn/{code})
-      // Controller: @GetMapping("/sn/{snCode}")
       const response = await client.get(`/trace/sn/${serialNo}`);
-
       console.log("✅ 서버 응답 데이터:", response.data);
       setDhrData(response.data);
     } catch (error) {
       console.error("❌ 조회 에러:", error);
-      // 백엔드가 500을 주더라도 프론트는 멈추지 않고 알림만 띄움
       alert(
         "데이터 조회 중 오류가 발생했습니다. (시리얼 번호 또는 서버 상태 확인)",
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  // [신규] 수동 새로고침 함수
+  const handleManualRefresh = () => {
+    if (serialNo) {
+      handleSearch();
+      alert("최신 DHR 데이터로 갱신되었습니다.");
+    } else {
+      alert("조회할 시리얼 번호를 먼저 입력해주세요.");
     }
   };
 
@@ -64,6 +71,11 @@ const DeviceHistory = () => {
           </p>
         </div>
         <div style={styles.btnGroup}>
+          {/* [추가] 새로고침 버튼 */}
+          <button style={styles.refreshBtn} onClick={handleManualRefresh}>
+            <FaSyncAlt /> Refresh
+          </button>
+
           <button style={styles.printBtn} onClick={() => window.print()}>
             <FaPrint /> Print Report
           </button>
@@ -92,7 +104,7 @@ const DeviceHistory = () => {
         <div style={styles.loading}>데이터 조회 중...</div>
       ) : dhrData ? (
         <div style={styles.reportContainer}>
-          {/* (A) 마스터 정보 (Device Master Record) */}
+          {/* (A) 마스터 정보 */}
           <div style={styles.masterCard}>
             <div style={styles.cardHeader}>
               <h3 style={styles.cardTitle}>📦 Device Information</h3>
@@ -102,7 +114,6 @@ const DeviceHistory = () => {
             </div>
 
             <div style={styles.infoGrid}>
-              {/* ✅ DTO 변수명 매칭: productName, serialCode, productCode ... */}
               <InfoItem label="Product Name" value={dhrData.productName} bold />
               <InfoItem
                 label="Serial Number"
@@ -130,7 +141,7 @@ const DeviceHistory = () => {
           </div>
 
           <div style={styles.contentRow}>
-            {/* (B) 자재 투입 이력 (BOM Traceability) */}
+            {/* (B) 자재 투입 이력 */}
             <div style={styles.bomCard}>
               <h3 style={styles.cardTitle}>
                 <FaBox /> Material Traceability (BOM)
@@ -145,7 +156,6 @@ const DeviceHistory = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* ✅ DTO 변수명 매칭: matLots (List) */}
                   {(dhrData.matLots || []).map((lot, idx) => (
                     <tr key={idx} style={styles.tr}>
                       <td style={{ ...styles.td, fontWeight: "bold" }}>
@@ -183,24 +193,21 @@ const DeviceHistory = () => {
               </table>
             </div>
 
-            {/* (C) 공정 기록 (Process Traveler) */}
+            {/* (C) 공정 기록 */}
             <div style={styles.historyCard}>
               <h3 style={styles.cardTitle}>
                 <FaClipboardList /> Process Traveler
               </h3>
               <div style={styles.timeline}>
-                {/* ✅ DTO 변수명 매칭: prodLogs (List) */}
                 {(dhrData.prodLogs || []).map((log, idx) => (
                   <div key={idx} style={styles.timelineItem}>
                     <div style={styles.stepBadge}>{idx + 1}</div>
                     <div style={styles.stepContent}>
                       <div style={styles.stepHeader}>
-                        {/* processName, createdAt */}
                         <span style={styles.stepName}>{log.processName}</span>
                         <span style={styles.stepTime}>{log.createdAt}</span>
                       </div>
                       <div style={styles.stepData}>
-                        {/* result, operatorName, data */}
                         <span>
                           Result:{" "}
                           <strong
@@ -267,7 +274,11 @@ const InfoItem = ({ label, value, bold, color }) => (
 );
 
 const styles = {
-  container: { padding: "30px", backgroundColor: COLORS.bg, minHeight: "100%" },
+  container: {
+    padding: "30px",
+    backgroundColor: COLORS.bg,
+    minHeight: "100%",
+  },
   header: {
     display: "flex",
     justifyContent: "space-between",
@@ -282,6 +293,21 @@ const styles = {
   },
   subtitle: { fontSize: "14px", color: COLORS.gray, marginTop: "5px" },
   btnGroup: { display: "flex", gap: "10px" },
+
+  // [추가] 새로고침 버튼 스타일
+  refreshBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    backgroundColor: "white",
+    color: "#555",
+    border: `1px solid ${COLORS.border}`,
+    padding: "10px 16px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "bold",
+  },
+
   printBtn: {
     display: "flex",
     alignItems: "center",
@@ -404,7 +430,12 @@ const styles = {
   },
   table: { width: "100%", borderCollapse: "collapse" },
   thRow: { backgroundColor: "#f9f9f9", borderBottom: "1px solid #eee" },
-  th: { padding: "10px", textAlign: "left", fontSize: "12px", color: "#666" },
+  th: {
+    padding: "10px",
+    textAlign: "left",
+    fontSize: "12px",
+    color: "#666",
+  },
   tr: { borderBottom: "1px solid #f5f5f5" },
   td: { padding: "10px", fontSize: "13px", color: "#333" },
   timeline: { display: "flex", flexDirection: "column", gap: "15px" },

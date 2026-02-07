@@ -7,6 +7,7 @@ import {
   FaTrashAlt,
   FaEdit,
   FaPhoneAlt,
+  FaSyncAlt, // [추가] 새로고침 아이콘
 } from "react-icons/fa";
 import { MdCheckBox, MdCheckBoxOutlineBlank } from "react-icons/md";
 import {
@@ -88,7 +89,6 @@ const EmployeeMgmt = () => {
         phone: emp.phone,
 
         // ★ 핵심: 백엔드(Dto) -> 프론트(State) 변수명 통일 및 기본값 설정
-        // 백엔드에서 null이 와도 화면에는 기본값을 보여줌
         dept: emp.department || "PRD1",
         rank: emp.position || "STAFF",
         line: emp.processes || "OFFICE",
@@ -106,6 +106,12 @@ const EmployeeMgmt = () => {
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  // [신규] 수동 새로고침 함수
+  const handleManualRefresh = () => {
+    fetchEmployees();
+    alert("사원 목록이 최신 상태로 갱신되었습니다.");
+  };
 
   // --- 핸들러 ---
   const toggleSelect = (id) => {
@@ -243,6 +249,11 @@ const EmployeeMgmt = () => {
           </p>
         </div>
         <div style={styles.actions}>
+          {/* [추가] 새로고침 버튼 */}
+          <button style={styles.refreshBtn} onClick={handleManualRefresh}>
+            <FaSyncAlt /> 새로고침
+          </button>
+
           <div style={styles.searchBox}>
             <FaSearch color="#999" />
             <input
@@ -699,6 +710,21 @@ const styles = {
     marginLeft: "10px",
     fontSize: "14px",
     width: "200px",
+  },
+  // [추가] 새로고침 버튼 스타일
+  refreshBtn: {
+    padding: "8px 16px",
+    backgroundColor: "#fff",
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: "20px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontWeight: "bold",
+    color: "#555",
+    fontSize: "13px",
+    whiteSpace: "nowrap",
   },
   addButton: {
     backgroundColor: COLORS.primary,

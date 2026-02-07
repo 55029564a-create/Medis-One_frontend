@@ -63,7 +63,7 @@ const MaterialInout = () => {
     manager: "",
   });
 
-  // 🚨 [수정] 이제 ID가 아니라 '사번(String)'을 저장합니다.
+  // 사번(String)을 저장
   const [selectedEmpNum, setSelectedEmpNum] = useState(null);
 
   const [recentList, setRecentList] = useState([]);
@@ -158,6 +158,12 @@ const MaterialInout = () => {
 
   // --- 이벤트 핸들러 ---
 
+  // [신규] 수동 새로고침 함수
+  const handleManualRefresh = () => {
+    fetchInitialData();
+    alert("최신 데이터로 갱신되었습니다.");
+  };
+
   const handleScan = async (e) => {
     if (e.key === "Enter" && inputs.lot) {
       try {
@@ -201,7 +207,6 @@ const MaterialInout = () => {
 
     setInputs({ ...inputs, manager: label });
 
-    // 🚨 [수정 포인트 1] 백엔드가 'findByEmployeeNumber'를 쓰므로 '사번'을 저장해야 함
     console.log("선택된 사원 사번:", manager.employeeNum);
     setSelectedEmpNum(manager.employeeNum);
 
@@ -265,8 +270,6 @@ const MaterialInout = () => {
         process: inputs.type === "OUT" ? selectedProcess : null,
         lineId:
           inputs.type === "OUT" && selectedLine ? Number(selectedLine) : null,
-
-        // 🚨 [수정 포인트 2] 백엔드 DTO의 'employeeNum' 필드명에 맞춰서 전송
         employeeNum: selectedEmpNum,
       };
 
@@ -284,7 +287,6 @@ const MaterialInout = () => {
         qty: "",
         currentQty: 0,
       }));
-      // (편의상 담당자는 유지)
 
       // 목록 갱신
       const updatedHistory = await getRecentHistory();
@@ -483,26 +485,49 @@ const MaterialInout = () => {
               자재 입/출고 관리
             </h2>
           </div>
-          <button
-            onClick={() => navigate("/material/history")}
-            style={{
-              padding: "8px 16px",
-              backgroundColor: "#fff",
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: "8px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              fontWeight: "bold",
-              color: "#555",
-              fontSize: "13px",
-            }}
-          >
-            <FaHistory /> 전체 내역
-          </button>
+          <div style={{ display: "flex", gap: "10px" }}>
+            {/* [추가] 새로고침 버튼 */}
+            <button
+              onClick={handleManualRefresh}
+              style={{
+                padding: "8px 16px",
+                backgroundColor: "#fff",
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: "8px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontWeight: "bold",
+                color: "#555",
+                fontSize: "13px",
+              }}
+            >
+              <FaSyncAlt /> 새로고침
+            </button>
+
+            <button
+              onClick={() => navigate("/material/history")}
+              style={{
+                padding: "8px 16px",
+                backgroundColor: "#fff",
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: "8px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontWeight: "bold",
+                color: "#555",
+                fontSize: "13px",
+              }}
+            >
+              <FaHistory /> 전체 내역
+            </button>
+          </div>
         </div>
 
+        {/* ... (이하 기존 코드와 동일) ... */}
         {/* 통계 카드 */}
         <div style={styles.statsGrid}>
           <StatCard
@@ -654,7 +679,10 @@ const MaterialInout = () => {
               <div style={styles.inputWrapper}>
                 <FaBox style={styles.inputIcon} />
                 <input
-                  style={{ ...styles.commonInput, backgroundColor: "#f5f5f5" }}
+                  style={{
+                    ...styles.commonInput,
+                    backgroundColor: "#f5f5f5",
+                  }}
                   placeholder="스캔 시 자동 입력"
                   value={inputs.item}
                   onChange={(e) =>
@@ -724,7 +752,10 @@ const MaterialInout = () => {
                   <div style={styles.inputWrapper}>
                     <FaIndustry style={styles.inputIcon} />
                     <select
-                      style={{ ...styles.commonInput, appearance: "none" }}
+                      style={{
+                        ...styles.commonInput,
+                        appearance: "none",
+                      }}
                       value={selectedLine}
                       onChange={handleLineSelect}
                     >
@@ -740,7 +771,10 @@ const MaterialInout = () => {
                   <div style={styles.inputWrapper}>
                     <FaCogs style={styles.inputIcon} />
                     <select
-                      style={{ ...styles.commonInput, appearance: "none" }}
+                      style={{
+                        ...styles.commonInput,
+                        appearance: "none",
+                      }}
                       value={selectedProcess}
                       onChange={handleProcessSelect}
                       disabled={!selectedLine}
@@ -815,7 +849,13 @@ const MaterialInout = () => {
                       {item.type}
                     </span>
                   </div>
-                  <div style={{ flex: 1.5, fontSize: "12px", color: "#888" }}>
+                  <div
+                    style={{
+                      flex: 1.5,
+                      fontSize: "12px",
+                      color: "#888",
+                    }}
+                  >
                     {item.date ? new Date(item.date).toLocaleString() : "-"}
                   </div>
                   <div style={{ flex: 2 }}>
@@ -844,7 +884,11 @@ const MaterialInout = () => {
                     {Number(Math.abs(item.changeQty || 0)).toLocaleString()}
                   </div>
                   <div
-                    style={{ flex: 1, textAlign: "center", fontSize: "12px" }}
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      fontSize: "12px",
+                    }}
                   >
                     {item.empName}
                   </div>
