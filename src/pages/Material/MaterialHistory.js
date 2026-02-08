@@ -17,6 +17,7 @@ import {
   FaUndo,
   FaChevronDown,
   FaCopy,
+  FaSyncAlt, // [추가] 아이콘
 } from "react-icons/fa";
 
 // 🎨 테마 컬러
@@ -52,28 +53,23 @@ const MaterialHistory = () => {
   const fetchData = async () => {
     try {
       const data = await getMaterialHistory(searchTerm);
-      
-      // 🚨 [디버깅] 이 로그를 확인해주세요!
+
       console.log("🔥 서버에서 받은 전체 데이터:", data);
 
       if (data && data.length > 0) {
         const mappedData = data.map((dto, index) => {
-          
-          // 🚨 [디버깅] 각 항목의 type 값이 뭔지 확인
-          console.log(`Row ${index} Type:`, dto.type); 
+          console.log(`Row ${index} Type:`, dto.type);
 
           let typeCode = "ETC";
           const rawType = dto.type || "";
 
-          // 👇 기존 로직: 여기서 걸리지 않으면 다 ETC가 됩니다.
           if (
-            rawType === "입고" || 
-            rawType === "INBOUND" || 
-            rawType === "기타" // 👈 (임시) '기타'도 입고로 처리하고 싶다면 여기 추가
+            rawType === "입고" ||
+            rawType === "INBOUND" ||
+            rawType === "기타"
           ) {
             typeCode = "IN";
-          } 
-          else if (
+          } else if (
             rawType === "출고" ||
             rawType === "생산투입" ||
             rawType === "PRODUCTION_IN"
@@ -118,6 +114,12 @@ const MaterialHistory = () => {
     fetchData();
   };
 
+  // [신규] 수동 새로고침 함수
+  const handleManualRefresh = () => {
+    fetchData();
+    alert("최신 데이터로 갱신되었습니다.");
+  };
+
   const handleReset = () => {
     setFilterType("ALL");
     setSearchTerm("");
@@ -150,6 +152,36 @@ const MaterialHistory = () => {
 
     return typeMatch && dateMatch;
   });
+
+  // 엑셀 다운로드 핸들러
+  const handleDownloadExcel = () => {
+    // 1. 헤더 정의
+    const headers = ["일시,구분,자재명,LOT번호,수량,업체/위치,담당자,비고"];
+
+    // 2. 데이터 매핑
+    const rows = filteredHistory.map((item) => {
+      const typeLabel =
+        item.type === "IN" ? "입고" : item.type === "OUT" ? "출고" : "기타";
+
+      return `${item.date},${typeLabel},${item.item},${item.lot},${item.qty},${item.location},${item.worker},${item.note}`;
+    });
+
+    // 3. CSV 생성 (BOM 추가로 한글 깨짐 방지)
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
+
+    // 4. 다운로드 실행
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `자재입출고이력_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -203,18 +235,14 @@ const MaterialHistory = () => {
           border-bottom: 1px solid #eee;
         }
 
-        /* ---------------------------------------------------- */
-        /* [최종 완성] 검색 박스 스타일 (Flex 구조 + 둥근 모서리) */
-        /* ---------------------------------------------------- */
-        
-        /* 1. 검색 박스 컨테이너 (여기가 테두리와 둥근 모서리 담당) */
+        /* 검색 박스 스타일 */
         .search-container-box {
           display: flex; 
           align-items: center;
           height: 36px;
           border: 1px solid #E0E0E0;
           background-color: white; 
-          border-radius: 8px; /* [요청] 둥근 모서리 복구 */
+          border-radius: 8px;
           flex: 1;
           min-width: 250px;
           padding: 0 10px;
@@ -222,13 +250,11 @@ const MaterialHistory = () => {
           transition: border-color 0.2s;
         }
         
-        /* 포커스 효과 */
         .search-container-box:focus-within {
           border-color: ${COLORS.primary};
           box-shadow: 0 0 0 2px rgba(140, 133, 255, 0.1);
         }
 
-        /* 2. 돋보기 아이콘 (박스 안 고정) */
         .search-icon-fixed {
           color: #999;
           font-size: 14px;
@@ -236,7 +262,6 @@ const MaterialHistory = () => {
           flex-shrink: 0; 
         }
 
-        /* 3. 입력창 (투명) */
         .search-input-transparent {
           border: none;
           outline: none;
@@ -248,9 +273,7 @@ const MaterialHistory = () => {
           font-family: inherit;
         }
 
-        /* ---------------------------------------------------- */
-
-        /* 날짜 및 셀렉트도 둥근 모서리(8px)로 통일 */
+        /* 공통 인풋 스타일 */
         .common-input-box {
           height: 36px; 
           border: 1px solid #E0E0E0;
@@ -263,7 +286,7 @@ const MaterialHistory = () => {
           display: flex;
           align-items: center;
           gap: 6px;
-          border-radius: 8px; /* 둥근 모서리 */
+          border-radius: 8px;
         }
         .common-input-box:focus-within { border-color: ${COLORS.primary}; box-shadow: 0 0 0 2px rgba(140, 133, 255, 0.1); }
         
@@ -276,7 +299,7 @@ const MaterialHistory = () => {
           padding: 0 25px 0 10px; 
           appearance: none; -webkit-appearance: none; 
           font-size: 13px; color: #333; outline: none; cursor: pointer;
-          border-radius: 8px; /* 둥근 모서리 */
+          border-radius: 8px;
           font-family: inherit;
         }
         .select-real:focus { border-color: ${COLORS.primary}; box-shadow: 0 0 0 2px rgba(140, 133, 255, 0.1); }
@@ -326,22 +349,43 @@ const MaterialHistory = () => {
               자재의 이동 경로와 수량 변화를 추적합니다.
             </p>
           </div>
-          <button
-            className="btn-action"
-            style={{
-              backgroundColor: "#217346",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            <FaFileExcel /> 엑셀 다운로드
-          </button>
+
+          <div style={{ display: "flex", gap: "10px" }}>
+            {/* [추가] 새로고침 버튼 */}
+            <button
+              className="btn-action"
+              onClick={handleManualRefresh}
+              style={{
+                backgroundColor: "white",
+                color: "#555",
+                border: "1px solid #E0E0E0",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <FaSyncAlt /> 새로고침
+            </button>
+
+            <button
+              className="btn-action"
+              onClick={handleDownloadExcel}
+              style={{
+                backgroundColor: "#217346",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <FaFileExcel /> 엑셀 다운로드
+            </button>
+          </div>
         </div>
 
+        {/* ... (이하 기존 코드 동일) ... */}
         <div className="dashboard-toolbar">
           <div className="controls-row">
-            {/* 날짜 선택 (둥근 모서리) */}
+            {/* 날짜 선택 */}
             <div className="common-input-box">
               <FaCalendarAlt color={COLORS.primary} size={12} />
               <input
@@ -359,7 +403,7 @@ const MaterialHistory = () => {
               />
             </div>
 
-            {/* 유형 선택 (둥근 모서리) */}
+            {/* 유형 선택 */}
             <div className="select-wrapper">
               <select
                 className="select-real"
@@ -373,7 +417,7 @@ const MaterialHistory = () => {
               <FaChevronDown className="select-arrow-icon" />
             </div>
 
-            {/* ▼▼▼ [완성] 검색 박스 (둥근 모서리 8px + 돋보기 고정) ▼▼▼ */}
+            {/* 검색 박스 */}
             <div className="search-container-box">
               <FaSearch className="search-icon-fixed" />
               <input

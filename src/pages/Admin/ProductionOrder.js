@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import {
-  FaSearch,
   FaPlus,
   FaEdit,
-  FaTrashAlt,
   FaClipboardList,
   FaCheckDouble,
   FaSpinner,
+  FaSyncAlt, // [추가] 새로고침 아이콘
 } from "react-icons/fa";
 
 import {
@@ -15,7 +14,7 @@ import {
   updateProductOrder,
   deleteProductOrder,
   getLines,
-  getProducts, // [필수] API 파일에 이 함수가 있는지 꼭 확인하세요!
+  getProducts,
 } from "../../api/productionApi";
 
 const THEME = {
@@ -34,16 +33,19 @@ const THEME = {
 const ProductionOrder = () => {
   const [orders, setOrders] = useState([]);
   const [lines, setLines] = useState([]);
-  const [products, setProducts] = useState([]); // 제품 목록
+  const [products, setProducts] = useState([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
 
+  // [추가] 로딩 상태 관리
+  const [isLoading, setIsLoading] = useState(false);
+
   // 입력 폼 상태
   const [currentOrder, setCurrentOrder] = useState({
     id: null,
-    productId: "", // 제품 ID
-    lineId: "", // 라인 ID
+    productId: "",
+    lineId: "",
     targetQty: 0,
     deadline: "",
     worker: "",
@@ -51,27 +53,40 @@ const ProductionOrder = () => {
     requirements: "",
   });
 
+  // ▼▼▼ [수정 1] 3초 자동 새로고침 로직 ▼▼▼
   useEffect(() => {
-    fetchData();
+    fetchData(true); // 첫 로딩 (로딩바 O)
+
+    const interval = setInterval(() => {
+      fetchData(false); // 자동 갱신 (로딩바 X)
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchData = async () => {
+  // [수정] 데이터 조회 (Silent Mode 지원)
+  const fetchData = async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
     try {
-      // 1. 주문 목록 조회
-      const poData = await getProductOrders();
-      setOrders(poData || []); // 데이터가 없어도 빈 배열로 설정 (화면 안 깨지게)
+      const [poData, lineData, prodData] = await Promise.all([
+        getProductOrders(),
+        getLines(),
+        getProducts(),
+      ]);
 
-      // 2. 기초 데이터(라인, 제품) 조회
-      const lineData = await getLines();
+      setOrders(poData || []);
       setLines(lineData || []);
-
-      const prodData = await getProducts();
       setProducts(prodData || []);
     } catch (err) {
       console.error("데이터 로드 실패:", err);
-      // 에러가 나더라도 기존 데이터가 날아가지 않도록 처리는 했으나,
-      // 근본적으로는 백엔드 서버가 켜져있고 API가 정상 동작해야 합니다.
+    } finally {
+      if (!isSilent) setIsLoading(false);
     }
+  };
+
+  // [추가] 수동 새로고침 핸들러
+  const handleManualRefresh = () => {
+    fetchData(false); // 로딩바 보여주며 갱신
   };
 
   const totalCount = orders.length;
@@ -79,7 +94,6 @@ const ProductionOrder = () => {
   const doneCount = orders.filter((o) => o.status === "COMPLETED").length;
 
   const handleSave = async () => {
-    // 유효성 검사: 제품, 라인, 수량, 마감일 필수
     if (
       !currentOrder.productId ||
       !currentOrder.lineId ||
@@ -98,7 +112,7 @@ const ProductionOrder = () => {
         alert("생산 지시가 등록되었습니다.");
       }
       setIsModalOpen(false);
-      fetchData(); // 저장 후 목록 새로고침
+      fetchData(true); // 저장 후 즉시 갱신 (로딩바 표시)
     } catch (err) {
       const msg =
         err.response?.data?.message || err.response?.data || err.message;
@@ -112,7 +126,7 @@ const ProductionOrder = () => {
       await deleteProductOrder(currentOrder.id);
       alert("삭제되었습니다.");
       setIsModalOpen(false);
-      fetchData();
+      fetchData(true); // 삭제 후 즉시 갱신
     } catch (err) {
       const msg =
         err.response?.data?.message || err.response?.data || err.message;
@@ -120,28 +134,23 @@ const ProductionOrder = () => {
     }
   };
 
-  // 모달 열기
   const openModal = (order = null) => {
     if (order) {
-      // [수정 모드]
       setIsEditMode(true);
       setCurrentOrder({
         ...order,
-        // 받아온 데이터에 ID가 있으면 그걸 쓰고, 없으면 목록의 첫 번째 값 (안전장치)
         lineId: order.lineId || (lines.length > 0 ? lines[0].id : ""),
         productId:
           order.productId || (products.length > 0 ? products[0].id : ""),
       });
     } else {
-      // [등록 모드]
       setIsEditMode(false);
       setCurrentOrder({
         id: null,
-        // 기본값: 목록의 첫 번째 아이템 선택
         productId: products.length > 0 ? products[0].id : "",
         lineId: lines.length > 0 ? lines[0].id : "",
         targetQty: 0,
-        deadline: new Date().toISOString().split("T")[0], // 오늘 날짜
+        deadline: new Date().toISOString().split("T")[0],
         worker: "",
         instruction: "",
         requirements: "",
@@ -158,13 +167,35 @@ const ProductionOrder = () => {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <div>
-          <h2 style={styles.title}>📅 생산 지시 관리 (Product Order)</h2>
-          <p style={styles.subtitle}>월간/주간 생산 계획 수립 (관리자용)</p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            width: "100%",
+          }}
+        >
+          <div>
+            <h2 style={styles.title}>📅 생산 지시 관리 (Product Order)</h2>
+            <p style={styles.subtitle}>월간/주간 생산 계획 수립 (관리자용)</p>
+          </div>
+
+          <div style={{ display: "flex", gap: "10px" }}>
+            {/* [추가] 새로고침 버튼 */}
+            <button
+              style={styles.refreshBtn}
+              onClick={handleManualRefresh}
+              disabled={isLoading}
+            >
+              <FaSyncAlt className={isLoading ? "spin" : ""} />
+              {isLoading ? " 갱신 중..." : " 새로고침"}
+            </button>
+
+            <button style={styles.addButton} onClick={() => openModal()}>
+              <FaPlus /> 지시 등록
+            </button>
+          </div>
         </div>
-        <button style={styles.addButton} onClick={() => openModal()}>
-          <FaPlus /> 지시 등록
-        </button>
       </div>
 
       <div style={styles.kpiContainer}>
@@ -265,7 +296,6 @@ const ProductionOrder = () => {
               <h3>{isEditMode ? "지시 수정" : "신규 지시 등록"}</h3>
             </div>
             <div style={styles.modalBody}>
-              {/* [수정됨] 제품 선택 Select Box */}
               <InputGroup label="생산 제품 (Product)">
                 <select
                   name="productId"
@@ -284,7 +314,6 @@ const ProductionOrder = () => {
                 </select>
               </InputGroup>
 
-              {/* [수정됨] 라인 선택 Select Box - AREX 라인만 필터링 */}
               <InputGroup label="생산 라인 (Line)">
                 <select
                   name="lineId"
@@ -296,7 +325,6 @@ const ProductionOrder = () => {
                     <option value="">라인 목록 로딩 중...</option>
                   )}
                   {lines
-                    // ▼▼▼ [핵심 수정] 이름에 'AREX'가 포함된 라인만 보여주기 ▼▼▼
                     .filter((l) => l.name.includes("AREX"))
                     .map((l) => (
                       <option key={l.id} value={l.id}>
@@ -420,15 +448,11 @@ const styles = {
     boxSizing: "border-box",
   },
   header: {
-    display: "flex",
-    justifyContent: "space-between",
     marginBottom: "30px",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: "10px",
   },
   title: { fontSize: "24px", fontWeight: "bold", color: "#2B3674", margin: 0 },
   subtitle: { margin: "5px 0 0", color: "#A3AED0", fontSize: "14px" },
+
   addButton: {
     padding: "10px 20px",
     backgroundColor: "#8C85FF",
@@ -441,6 +465,20 @@ const styles = {
     gap: "8px",
     alignItems: "center",
   },
+  // [추가] 새로고침 버튼 스타일
+  refreshBtn: {
+    backgroundColor: "#fff",
+    color: THEME.primary,
+    border: `1px solid ${THEME.primary}`,
+    padding: "10px 20px",
+    borderRadius: "12px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontWeight: "bold",
+  },
+
   kpiContainer: {
     display: "flex",
     gap: "20px",

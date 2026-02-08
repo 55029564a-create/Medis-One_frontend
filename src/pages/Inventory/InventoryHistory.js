@@ -152,6 +152,35 @@ const InventoryHistory = () => {
     setFilteredData(result);
   }, [startDate, endDate, filterType, searchTerm, historyData]);
 
+  // 엑셀 다운로드 핸들러
+  const handleDownloadExcel = () => {
+    // 1. CSV 헤더 생성
+    const headers = ["이력ID,일자,시간,구분,품목명,품목코드,수량,작업자,위치"];
+
+    // 2. 데이터 매핑 (화면에 보이는 filteredData 기준)
+    const rows = filteredData.map((item) => {
+      const typeText = item.type === "IN" ? "입고" : "출고";
+      // 쉼표가 데이터에 있을 경우를 대비해 필요시 처리 가능하나, 현재 데이터는 안전함
+      return `${item.id},${item.date},${item.time},${typeText},${item.item},${item.code},${item.qty},${item.worker},${item.location}`;
+    });
+
+    // 3. CSV 내용 조합 (\uFEFF는 한글 깨짐 방지용 BOM)
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
+
+    // 4. 가상의 링크 생성 및 클릭하여 다운로드 실행
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `입출고이력_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div style={styles.container}>
       {/* 헤더 */}
@@ -170,14 +199,12 @@ const InventoryHistory = () => {
             기간별 자재 및 제품의 입/출고 내역을 상세하게 조회합니다.
           </p>
         </div>
-        <button style={styles.excelButton}>
-          <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
-        </button>
       </div>
 
-      {/* 필터 바 (Toolbar) */}
+      {/* 필터 바 - space-between으로 양 끝 배치 */}
       <div style={styles.toolbar}>
-        <div style={styles.filterGroup}>
+        {/* [왼쪽 그룹] 날짜, 타입, 검색창 */}
+        <div style={styles.leftControls}>
           {/* 날짜 선택 */}
           <div style={styles.datePicker}>
             <FaCalendarAlt color={COLORS.subText} />
@@ -223,17 +250,23 @@ const InventoryHistory = () => {
               출고
             </button>
           </div>
+
+          {/* 검색창 */}
+          <div style={styles.searchBox}>
+            <FaSearch color={COLORS.subText} />
+            <input
+              placeholder="품목명, 코드, 담당자 검색"
+              style={styles.searchInput}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
 
-        {/* 검색창 */}
-        <div style={styles.searchBox}>
-          <FaSearch color={COLORS.subText} />
-          <input
-            placeholder="품목명, 코드, 담당자 검색"
-            style={styles.searchInput}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div>
+          <button style={styles.excelButton} onClick={handleDownloadExcel}>
+            <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
+          </button>
         </div>
       </div>
 
@@ -355,7 +388,7 @@ const InventoryHistory = () => {
   );
 };
 
-// --- 스타일 정의 ---
+// --- 스타일 ---
 const styles = {
   container: {
     padding: "30px",
@@ -369,6 +402,8 @@ const styles = {
     alignItems: "center",
     marginBottom: "25px",
   },
+
+  // 엑셀 버튼 스타일
   excelButton: {
     backgroundColor: "#217346",
     color: "#fff",
@@ -379,10 +414,12 @@ const styles = {
     display: "flex",
     alignItems: "center",
     fontWeight: "bold",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
+    fontSize: "14px",
+    whiteSpace: "nowrap",
   },
 
-  // 툴바 (필터 및 검색)
+  // 툴바
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
@@ -391,7 +428,14 @@ const styles = {
     flexWrap: "wrap",
     gap: "15px",
   },
-  filterGroup: { display: "flex", gap: "15px", alignItems: "center" },
+
+  leftControls: {
+    display: "flex",
+    gap: "15px",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+
   datePicker: {
     display: "flex",
     alignItems: "center",
@@ -440,10 +484,10 @@ const styles = {
     display: "flex",
     alignItems: "center",
     backgroundColor: COLORS.white,
-    borderRadius: "20px",
+    borderRadius: "12px",
     padding: "10px 20px",
     border: `1px solid ${COLORS.border}`,
-    width: "300px",
+    width: "250px",
   },
   searchInput: {
     border: "none",

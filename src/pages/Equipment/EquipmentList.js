@@ -23,6 +23,7 @@ import {
   FaEye,
   FaWaveSquare,
   FaTachometerAlt,
+  FaSyncAlt, // [추가] 새로고침 아이콘
 } from "react-icons/fa";
 import { MdCleaningServices, MdOutlineViewInAr } from "react-icons/md";
 
@@ -141,7 +142,7 @@ const EquipmentList = () => {
   const [selectedProcess, setSelectedProcess] = useState("ALL");
   const [searchText, setSearchText] = useState("");
 
-  // 필터 옵션 목록 (데이터 기반으로 동적 생성 가능하지만, 일단 고정값 예시)
+  // 필터 옵션 목록
   const [processOptions, setProcessOptions] = useState([]);
   const [lineOptions, setLineOptions] = useState([]);
 
@@ -153,15 +154,12 @@ const EquipmentList = () => {
   const fetchEquipmentList = async () => {
     try {
       setLoading(true);
-      // 백엔드 API 호출 (ProductionController 참고)
       const serverData = await getEquipmentList();
 
-      // 데이터 가공
       const formattedData = serverData.map((item) => transformData(item));
       setMachines(formattedData);
       setFilteredMachines(formattedData);
 
-      // 필터 옵션 추출
       const processes = [
         "ALL",
         ...new Set(formattedData.map((m) => m.process)),
@@ -172,28 +170,29 @@ const EquipmentList = () => {
       setLineOptions(lines);
     } catch (error) {
       console.error("설비 목록 조회 실패:", error);
-      // 에러 시 빈 배열 또는 에러 UI 처리
     } finally {
       setLoading(false);
     }
+  };
+
+  // [신규] 수동 새로고침 함수
+  const handleManualRefresh = () => {
+    fetchEquipmentList();
+    alert("최신 설비 현황으로 갱신되었습니다.");
   };
 
   // 4. 필터링 로직
   useEffect(() => {
     let result = machines;
 
-    // 라인 필터 (lineCode는 백엔드 원본 데이터에 없어서 transformData에 포함 필요, 일단은 API 응답 구조상 없으면 제외)
     if (selectedLine !== "ALL") {
-      // transformData에서 lineCode를 포함시켰다고 가정
       result = result.filter((m) => m.lineCode === selectedLine);
     }
 
-    // 공정 필터
     if (selectedProcess !== "ALL") {
       result = result.filter((m) => m.process === selectedProcess);
     }
 
-    // 검색어 필터 (설비명 or 코드)
     if (searchText) {
       result = result.filter(
         (m) =>
@@ -207,7 +206,6 @@ const EquipmentList = () => {
 
   // 🛠️ 데이터 변환 함수 (Backend DTO -> Frontend UI)
   const transformData = (dto) => {
-    // 1. 설비 타입 추론 (아이콘 결정을 위해)
     let type = "TOOLS";
     if (dto.eqName.includes("세정")) type = "CLEANER";
     else if (dto.eqName.includes("합착")) type = "BONDER";
@@ -223,19 +221,16 @@ const EquipmentList = () => {
     else if (dto.eqName.includes("신뢰성") || dto.eqName.includes("진동"))
       type = "VIBRATION";
 
-    // 2. 상태 매핑 (Backend Enum -> Frontend String)
     let status = "STOP";
     if (dto.eqStatus === "IN_PROGRESS" || dto.eqStatus === "RUN")
       status = "RUN";
     else if (dto.eqStatus === "ERROR") status = "ERROR";
 
-    // 3. 센서 데이터 파싱 (eqData 문자열을 파싱하거나, 타입별 기본 라벨 매핑)
-    // 실제로는 eqData가 JSON 형태이거나 구체적인 값이겠지만, 여기서는 시뮬레이션
     const metrics = getMetricsByType(type, dto.eqData);
 
     return {
       id: dto.eqCode,
-      lineCode: dto.lineCode, // 필터링용
+      lineCode: dto.lineCode,
       process: dto.processName,
       name: dto.eqName,
       type: type,
@@ -246,47 +241,35 @@ const EquipmentList = () => {
     };
   };
 
-  // 타입별 센서 라벨 및 아이콘 정의 Helper
   const getMetricsByType = (type, rawData) => {
     let val1 = "-";
     let val2 = "-";
 
     if (rawData) {
       try {
-        // 1. 표준 JSON 파싱 시도
         const parsed = JSON.parse(rawData);
-        const values = Object.values(parsed); // 키는 버리고 값만 추출
+        const values = Object.values(parsed);
         if (values.length > 0) val1 = values[0];
         if (values.length > 1) val2 = values[1];
       } catch (e) {
-        // 2. JSON 파싱 실패 시 정규식으로 강제 추출 (콤마 누락, 따옴표 포함 대응)
-        // 설명: 콜론(:) 뒤에 나오는 '값'을 캡처합니다. (따옴표, 콤마, 괄호, 공백이 나올 때까지 읽음)
         const regex = /:\s*"?([^",}\]\s]+)"?/g;
-
         const matches = [];
         let match;
         while ((match = regex.exec(rawData)) !== null) {
-          matches.push(match[1]); // 추출된 값 저장
+          matches.push(match[1]);
         }
-
         if (matches.length > 0) val1 = matches[0];
         if (matches.length > 1) val2 = matches[1];
       }
     }
 
-    // 3. 값 포맷팅 (따옴표 제거 및 소수점 처리)
     const fmt = (v) => {
       if (v === "-" || v === null || v === undefined) return "-";
-      // 혹시 값에 따옴표가 남아있다면 제거
       const cleanV = String(v).replace(/["']/g, "");
-
-      // 숫자로 변환 시도
       const num = Number(cleanV);
-      // 숫자가 아니면(예: 0.08Pa) 문자 그대로, 숫자면 소수점 정리
       return isNaN(num) ? cleanV : Number.isInteger(num) ? num : num.toFixed(1);
     };
 
-    // 4. 단위(Unit) 붙여서 반환
     switch (type) {
       case "CLEANER":
         return [
@@ -352,22 +335,22 @@ const EquipmentList = () => {
             label: "가반 하중",
             value: `${fmt(val1)} kg`,
             icon: <FaWeightHanging />,
-          }, // Payload
+          },
           {
             label: "작업 반경",
             value: `${fmt(val2)} mm`,
             icon: <FaRulerHorizontal />,
-          }, // Reach
+          },
         ];
       case "CALIBRATOR":
         return [
-          { label: "센서 타입", value: fmt(val1), icon: <FaEye /> }, // CA-410
-          { label: "교정 표준", value: fmt(val2), icon: <FaCheckCircle /> }, // DICOM Part 14
+          { label: "센서 타입", value: fmt(val1), icon: <FaEye /> },
+          { label: "교정 표준", value: fmt(val2), icon: <FaCheckCircle /> },
         ];
       case "VIBRATION":
         return [
-          { label: "주파수 범위", value: fmt(val1), icon: <FaWaveSquare /> }, // 10-2000Hz
-          { label: "가속도", value: fmt(val2), icon: <FaTachometerAlt /> }, // 10G
+          { label: "주파수 범위", value: fmt(val1), icon: <FaWaveSquare /> },
+          { label: "가속도", value: fmt(val2), icon: <FaTachometerAlt /> },
         ];
       default:
         return [
@@ -392,21 +375,27 @@ const EquipmentList = () => {
           </div>
         </div>
 
-        {/* 우측 범례 */}
-        <div style={styles.legend}>
-          <StatusLegend color={COLORS.success} label="가동중" />
-          <StatusLegend color={COLORS.danger} label="점검필요" />
-          <StatusLegend color={COLORS.stop} label="비가동" />
+        {/* 우측 컨트롤 (새로고침 + 범례) */}
+        <div style={styles.headerControls}>
+          {/* [추가] 새로고침 버튼 */}
+          <button style={styles.refreshBtn} onClick={handleManualRefresh}>
+            <FaSyncAlt /> 새로고침
+          </button>
+
+          <div style={styles.legend}>
+            <StatusLegend color={COLORS.success} label="가동중" />
+            <StatusLegend color={COLORS.danger} label="점검필요" />
+            <StatusLegend color={COLORS.stop} label="비가동" />
+          </div>
         </div>
       </div>
 
-      {/* 🔍 [신규] 필터 바 */}
+      {/* 필터 바 */}
       <div style={styles.filterBar}>
         <div style={styles.filterGroup}>
           <FaFilter color={COLORS.subText} />
           <span style={styles.filterLabel}>Filter By:</span>
 
-          {/* 라인 선택 */}
           <select
             style={styles.select}
             value={selectedLine}
@@ -423,7 +412,6 @@ const EquipmentList = () => {
             )}
           </select>
 
-          {/* 공정 선택 */}
           <select
             style={styles.select}
             value={selectedProcess}
@@ -441,7 +429,6 @@ const EquipmentList = () => {
           </select>
         </div>
 
-        {/* 검색창 */}
         <div style={styles.searchWrapper}>
           <FaSearch color={COLORS.subText} style={{ marginRight: "8px" }} />
           <input
@@ -493,7 +480,6 @@ const EquipmentList = () => {
   );
 };
 
-// --- 컴포넌트: 설비 카드 (기존 유지) ---
 const EquipmentCard = ({ data, onClick }) => {
   const getStatusColor = (s) => {
     if (s === "RUN") return COLORS.success;
@@ -502,7 +488,6 @@ const EquipmentCard = ({ data, onClick }) => {
   };
   const statusColor = getStatusColor(data.status);
 
-  // 상태 한글 변환
   const getStatusText = (s) => {
     if (s === "RUN") return "가동중";
     if (s === "ERROR") return "점검필요";
@@ -599,7 +584,6 @@ const EquipmentCard = ({ data, onClick }) => {
   );
 };
 
-// --- 컴포넌트: 범례 (기존 유지) ---
 const StatusLegend = ({ color, label }) => (
   <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
     <div
@@ -618,7 +602,6 @@ const StatusLegend = ({ color, label }) => (
   </div>
 );
 
-// --- 스타일 정의 ---
 const styles = {
   container: {
     padding: "30px",
@@ -630,7 +613,7 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    marginBottom: "20px", // 필터바 공간 확보를 위해 약간 줄임
+    marginBottom: "20px",
   },
   titleGroup: { display: "flex", alignItems: "center", gap: "12px" },
   titleIcon: {
@@ -651,16 +634,39 @@ const styles = {
     margin: 0,
   },
   subTitle: { fontSize: "13px", color: COLORS.subText, marginTop: "2px" },
+
+  // [수정] 헤더 우측 컨트롤 영역 (버튼 + 범례)
+  headerControls: {
+    display: "flex",
+    alignItems: "center",
+    gap: "15px",
+  },
+  // [추가] 새로고침 버튼 스타일
+  refreshBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "8px 16px",
+    backgroundColor: "white",
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    color: "#555",
+    fontSize: "13px",
+    height: "40px", // 범례 높이와 맞춤
+  },
   legend: {
     display: "flex",
     gap: "15px",
     backgroundColor: "white",
-    padding: "8px 16px",
+    padding: "0 16px",
+    height: "40px", // 높이 고정
+    alignItems: "center",
     borderRadius: "20px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
   },
 
-  // 🛠️ [신규] 필터바 스타일
   filterBar: {
     display: "flex",
     justifyContent: "space-between",
@@ -717,7 +723,6 @@ const styles = {
     gap: "20px",
   },
 
-  // ... (기존 Card 스타일 유지)
   card: {
     backgroundColor: COLORS.cardBg,
     borderRadius: "16px",

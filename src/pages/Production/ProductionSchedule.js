@@ -4,7 +4,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaSearch,
-  FaFileDownload,
+  FaFileExcel,
   FaClipboardList,
   FaIndustry,
   FaClock,
@@ -17,6 +17,7 @@ import {
   FaTimes,
   FaBullhorn,
   FaEdit,
+  FaSyncAlt,
 } from "react-icons/fa";
 
 // [API] 함수 임포트
@@ -44,25 +45,33 @@ const ProductionSchedule = () => {
   const [schedules, setSchedules] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // [상태 추가] 상세 모달용 선택된 데이터
+  // 상세 모달용 선택된 데이터
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
-  // 데이터 조회
-  const fetchSchedules = async () => {
-    setIsLoading(true);
+  // ▼▼▼ [수정 1] 자동 새로고침 로직 추가 (3초마다 갱신) ▼▼▼
+  useEffect(() => {
+    fetchSchedules(true); // 첫 로딩은 로딩바 표시 (true)
+
+    const interval = setInterval(() => {
+      fetchSchedules(false); // 배경 갱신은 로딩바 숨김 (false)
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // ▼▼▼ [수정 2] 깜빡임 방지 (isInitialLoad 플래그 사용) ▼▼▼
+  const fetchSchedules = async (isInitialLoad = false) => {
+    if (isInitialLoad) setIsLoading(true);
     try {
       const data = await getProductionPlans();
+      // 데이터가 있을 때만 업데이트 (빈 배열이 오면 기존 데이터 유지 등은 선택사항)
       setSchedules(data || []);
     } catch (error) {
       console.error("데이터 로드 실패:", error);
     } finally {
-      setIsLoading(false);
+      if (isInitialLoad) setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchSchedules();
-  }, []);
 
   const filteredSchedules = schedules.filter(
     (item) =>
@@ -76,14 +85,51 @@ const ProductionSchedule = () => {
   const progressRate =
     totalPlan === 0 ? 0 : Math.round((totalDone / totalPlan) * 100);
 
-  // [핸들러] 상세 모달 열기
+  // 상세 모달 열기
   const openDetailModal = (item) => {
     setSelectedSchedule(item);
   };
 
-  // [핸들러] 상세 모달 닫기
+  // 상세 모달 닫기
   const closeDetailModal = () => {
     setSelectedSchedule(null);
+  };
+
+  // 생산 계획 전용 엑셀 다운로드 로직
+  const handleDownloadExcel = () => {
+    // 1. 헤더 수정
+    const headers = [
+      "지시일자,라인,품목명,계획수량,생산수량,진척률,담당자,상태",
+    ];
+
+    // 2. 데이터 매핑
+    const rows = filteredSchedules.map((item) => {
+      const rate =
+        item.planQty > 0 ? Math.round((item.doneQty / item.planQty) * 100) : 0;
+      // null 체크 추가
+      const lineName = item.line || "-";
+      const prodName = item.product || "-";
+      const mgrName = item.manager || "-";
+
+      return `${item.date},${lineName},${prodName},${item.planQty},${item.doneQty},${rate}%,${mgrName},${item.status}`;
+    });
+
+    // 3. CSV 생성 (한글 깨짐 방지 BOM 추가)
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
+
+    // 4. 다운로드 실행
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+
+    link.setAttribute(
+      "download",
+      `생산지시서_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -161,11 +207,17 @@ const ProductionSchedule = () => {
           </div>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button style={styles.outlineBtn} onClick={fetchSchedules}>
-            🔄 새로고침
+          {/* 새로고침 버튼 */}
+          <button
+            style={styles.refreshBtn}
+            onClick={() => fetchSchedules(true)}
+          >
+            <FaSyncAlt /> 새로고침
           </button>
-          <button style={styles.outlineBtn}>
-            <FaFileDownload style={{ marginRight: "6px" }} /> 엑셀
+
+          {/* 엑셀 다운로드 버튼 */}
+          <button style={styles.excelButton} onClick={handleDownloadExcel}>
+            <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
           </button>
         </div>
       </div>
@@ -218,7 +270,7 @@ const ProductionSchedule = () => {
         </div>
       )}
 
-      {/* [추가] 상세 정보 모달 */}
+      {/* 상세 정보 모달 */}
       {selectedSchedule && (
         <div style={styles.modalOverlay}>
           <div style={styles.detailModal}>
@@ -239,14 +291,12 @@ const ProductionSchedule = () => {
             </div>
 
             <div style={styles.modalBody}>
-              {/* 상단 정보 그리드 */}
               <div style={styles.infoGrid}>
                 <InfoItem
                   label="지시번호"
                   value={`WO-${selectedSchedule.id}`}
                 />
-                <InfoItem label="지시일자" value={selectedSchedule.date} />{" "}
-                {/* 또는 생성일 */}
+                <InfoItem label="지시일자" value={selectedSchedule.date} />
                 <InfoItem label="담당 라인" value={selectedSchedule.line} />
                 <InfoItem label="담당자" value={selectedSchedule.manager} />
                 <InfoItem
@@ -262,7 +312,6 @@ const ProductionSchedule = () => {
                 />
               </div>
 
-              {/* 상태 표시 */}
               <div style={{ margin: "20px 0" }}>
                 <span
                   style={{
@@ -278,7 +327,6 @@ const ProductionSchedule = () => {
 
               <div style={styles.divider}></div>
 
-              {/* 지시 사항 */}
               <div style={styles.section}>
                 <h4 style={styles.sectionTitle}>
                   <FaBullhorn /> 작업 지시 사항
@@ -289,7 +337,6 @@ const ProductionSchedule = () => {
                 </div>
               </div>
 
-              {/* 비고/특이사항 */}
               <div style={styles.section}>
                 <h4 style={styles.sectionTitle}>
                   <FaEdit /> 비고 / 특이사항
@@ -327,10 +374,8 @@ const ScheduleRow = ({ item, onOpen }) => {
       : 0;
   return (
     <tr style={styles.tbodyTr} onClick={onOpen}>
-      {" "}
-      {/* 행 클릭 시 모달 오픈 */}
       <td style={styles.td}>
-        {item.emergency ? (
+        {item.isEmergency ? (
           <span style={styles.emergencyBadge}>URGENT</span>
         ) : (
           "-"
@@ -387,7 +432,9 @@ const ScheduleCard = ({ item, onOpen }) => {
         }}
       >
         <div style={{ display: "flex", gap: "8px" }}>
-          {item.emergency && <span style={styles.emergencyBadge}>URGENT</span>}
+          {item.isEmergency && (
+            <span style={styles.emergencyBadge}>URGENT</span>
+          )}
           <StatusBadge status={item.status} />
         </div>
         <button
@@ -659,16 +706,31 @@ const styles = {
     color: THEME.primary,
     fontWeight: "bold",
   },
-  outlineBtn: {
-    backgroundColor: THEME.white,
-    color: THEME.text,
-    border: `1px solid ${THEME.border}`,
+  refreshBtn: {
+    backgroundColor: THEME.primary,
+    color: "#fff",
+    border: "none",
     padding: "10px 20px",
-    borderRadius: "10px",
-    fontWeight: "600",
+    borderRadius: "8px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
+    gap: "6px",
+    fontWeight: "bold",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+    transition: "background 0.2s",
+  },
+  excelButton: {
+    backgroundColor: "#217346",
+    color: "#fff",
+    border: "none",
+    padding: "10px 20px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    fontWeight: "bold",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
   },
   tableContainer: {
     backgroundColor: THEME.white,
@@ -691,7 +753,6 @@ const styles = {
     borderBottom: `1px solid #f5f5f5`,
     transition: "background 0.2s",
     cursor: "pointer",
-    ":hover": { backgroundColor: "#fafafa" },
   },
   td: {
     padding: "15px",
@@ -711,7 +772,6 @@ const styles = {
     boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
     transition: "transform 0.2s",
     cursor: "pointer",
-    ":hover": { transform: "translateY(-5px)" },
   },
   badge: {
     padding: "5px 10px",
@@ -749,7 +809,7 @@ const styles = {
   },
   emptyState: { padding: "40px", textAlign: "center", color: THEME.gray },
 
-  // [신규] 상세 모달 스타일
+  // 상세 모달 스타일
   modalOverlay: {
     position: "fixed",
     top: 0,

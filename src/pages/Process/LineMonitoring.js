@@ -1,3 +1,5 @@
+import client from "../../api/client";
+import { getWorkOrders } from "../../api/productionApi";
 import React, { useState, useEffect } from "react";
 import {
   FaExclamationTriangle,
@@ -13,6 +15,10 @@ import {
   FaPauseCircle,
   FaMedkit,
   FaStethoscope,
+  FaRecycle,
+  FaTrashAlt,
+  FaUndo,
+  FaMicroscope,
 } from "react-icons/fa";
 
 const THEME_COLOR = "#8C85FF";
@@ -24,55 +30,77 @@ const PROCESS_STEPS = [
   "캘리브레이션",
   "신뢰성 테스트",
 ];
-
-// 제품군 정의 (3종)
-const PRODUCT_DEFINITIONS = [
-  {
-    id: 0,
-    model: "Zoll X Series",
-    category: "Defibrillator",
-    prefix: "ZXS",
-    icon: <FaHeartbeat size={11} style={{ marginRight: 3 }} />,
-  },
-  {
-    id: 1,
-    model: "Propaq M",
-    category: "Transport Monitor",
-    prefix: "PQM",
-    icon: <FaMedkit size={11} style={{ marginRight: 3 }} />,
-  },
-  {
-    id: 2,
-    model: "Corpuls3",
-    category: "Modular Monitor",
-    prefix: "CPS",
-    icon: <FaStethoscope size={11} style={{ marginRight: 3 }} />,
-  },
-];
+const OUR_PRODUCTS = ["Zoll X Series", "Propaq M", "Corpuls3"];
 
 const ISSUE_TYPES = {
   NG: {
     label: "품질 불량 (NG)",
     color: "#FF4444",
     icon: <FaTimes />,
-    reasons: ["치수 불량", "스크래치/파손", "기능 동작 실패", "이물질 혼입"],
+    reasons: [
+      "치수 불량",
+      "스크래치/파손",
+      "기능 동작 실패",
+      "이물질 혼입",
+      "기타",
+    ],
   },
   HOLD: {
     label: "공정 보류 (Holding)",
     color: "#FF9800",
     icon: <FaPauseCircle />,
     reasons: [
-      "자재 부족 (Shortage)",
+      "자재 부족",
       "품질 재확인 대기",
       "작업 지시 대기",
       "도면 불일치",
+      "기타",
     ],
   },
   ERROR: {
     label: "설비 이상 (Machine Error)",
     color: "#9C27B0",
     icon: <FaTools />,
-    reasons: ["센서 오작동", "전원/통신 불안정", "모터 과부하", "공압 이상"],
+    reasons: [
+      "센서 오작동",
+      "전원/통신 불안정",
+      "모터 과부하",
+      "공압 이상",
+      "기타",
+    ],
+  },
+};
+
+const ACTION_TYPES = {
+  REWORK: {
+    label: "재작업 (Rework)",
+    color: "#2196F3",
+    icon: <FaRecycle />,
+    reasons: [
+      "부품 교체 후 재조립",
+      "이물 세척",
+      "S/W 재설치",
+      "단순 재조립",
+      "기타",
+    ],
+  },
+  DISCARD: {
+    label: "폐기 (Scrap)",
+    color: "#D32F2F",
+    icon: <FaTrashAlt />,
+    reasons: ["핵심 부품 파손", "회로 소손", "복구 불가 판정", "기타"],
+  },
+  RETURN: {
+    label: "반품 (Return)",
+    color: "#FF9800",
+    icon: <FaUndo />,
+    reasons: ["자재 입고 불량", "업체 귀책", "사양 불일치", "기타"],
+  },
+  REINSPECT: {
+    label: "재검사 (Re-inspect)",
+    color: "#009688",
+    icon: <FaMicroscope />,
+    reasons: ["오판정 의심", "규격 재확인", "육안 정밀 검사", "기타"],
   },
 };
 
@@ -81,135 +109,177 @@ const LineMonitoring = () => {
   const [filterLine, setFilterLine] = useState("All");
   const [filterCategory, setFilterCategory] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
-
-  const [reportType, setReportType] = useState("NG");
+  const [reportType, setReportType] = useState("");
   const [reportReason, setReportReason] = useState("");
   const [reportComment, setReportComment] = useState("");
-
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  const fetchProducts = async () => {
+  // 3초 자동 갱신
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchData = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:8111/api/production/product-mgmt",
-      );
-      if (response.ok) {
-        const data = await response.json();
+      // 1. 데이터 가져오기
+      const woResponse = await getWorkOrders(); // 작업지시
+      const pmResponse = await client.get("/production/product-mgmt"); // 제품관리
 
-        const unifiedData = data.map((item, index) => {
-          // 1. 공정 단계 분산 (1~5단계)
-          const artificialStep = (item.id % 5) + 1;
+      // ★ [디버깅] 콘솔에 데이터가 진짜 오는지 찍어보기 (F12 눌러서 확인 가능)
+      console.log("🛠️ 가져온 작업지시 데이터:", woResponse);
 
-          let prodInfo;
+      let workOrders = [];
+      let products = [];
 
-          // 조건 1: 신뢰성 테스트(Step 5)는 무조건 'Corpuls3' (QC 라인)
-          if (artificialStep === 5) {
-            prodInfo = PRODUCT_DEFINITIONS[2]; // Corpuls3
-          }
-          // 조건 2: 짝수 ID는 생산 2라인 -> 무조건 'Zoll X Series'
-          else if (item.id % 2 === 0) {
-            prodInfo = PRODUCT_DEFINITIONS[0]; // Zoll X Series
-          }
-          // 조건 3: 홀수 ID는 생산 1라인 -> 무조건 'Propaq M'
-          else {
-            prodInfo = PRODUCT_DEFINITIONS[1]; // Propaq M
-          }
-
-          return {
-            ...item,
-            category: prodInfo.category,
-            model: prodInfo.model,
-            serial: `${prodInfo.prefix}-2602-${String(item.id).padStart(4, "0")}`,
-            productIcon: prodInfo.icon,
-            step: artificialStep,
-          };
-        });
-
-        setProducts(unifiedData.sort((a, b) => b.id - a.id));
-      } else {
-        console.error("데이터 로딩 실패");
+      // 2. 작업지시 데이터 안전하게 꺼내기 (배열인지, 객체 안에 있는지 확인)
+      if (Array.isArray(woResponse)) {
+        workOrders = woResponse;
+      } else if (woResponse && Array.isArray(woResponse.data)) {
+        workOrders = woResponse.data;
       }
+
+      // 3. 제품 데이터 안전하게 꺼내기
+      if (pmResponse.data && Array.isArray(pmResponse.data)) {
+        products = pmResponse.data;
+      }
+
+      // 4. 작업지시 포맷팅
+      // 필터링 조건 완화: 'COMPLETED'만 아니면 다 보여줌 (IN_PROGRESS, PENDING, PLANNED 등)
+      const activeOrders = workOrders.filter((o) => o.status !== "COMPLETED");
+
+      const formattedOrders = activeOrders.map((order) => {
+        let icon = <FaHeartbeat size={14} />;
+        let category = "Device";
+
+        // 품목명 매칭 (공백 제거 후 비교)
+        const pName = order.productName ? order.productName.trim() : "";
+
+        if (pName === "Zoll X Series") {
+          category = "Defibrillator";
+          icon = <FaHeartbeat size={14} />;
+        } else if (pName === "Propaq M") {
+          category = "Transport Monitor";
+          icon = <FaMedkit size={14} />;
+        } else if (pName === "Corpuls3") {
+          category = "Modular Monitor";
+          icon = <FaStethoscope size={14} />;
+        }
+
+        // 상태 강제 변환 (라인에 뜨게 하기 위해)
+        let status = "IN_PROGRESS";
+        if (order.status === "HOLD") status = "HOLD";
+        if (order.status === "NG") status = "NG";
+
+        return {
+          id: `WO-${order.id}`,
+          model: order.productName,
+          category: category,
+          serial: order.code, // 지시코드
+          step: 1, // 1단계부터 시작
+          operator: order.worker || "미배정",
+          testStatus: status,
+          productIcon: icon,
+          lineName: order.lineName || "Lab",
+          isWorkOrder: true,
+        };
+      });
+
+      // 5. 제품 데이터 포맷팅
+      const formattedProducts = products.map((item) => {
+        let icon = <FaHeartbeat size={14} />;
+        let category = "Device";
+        const pName = item.model ? item.model.trim() : "";
+
+        if (pName === "Zoll X Series") {
+          category = "Defibrillator";
+          icon = <FaHeartbeat size={14} />;
+        } else if (pName === "Propaq M") {
+          category = "Transport Monitor";
+          icon = <FaMedkit size={14} />;
+        } else if (pName === "Corpuls3") {
+          category = "Modular Monitor";
+          icon = <FaStethoscope size={14} />;
+        }
+
+        const step = item.step || 1;
+        let lineName = item.lineName || "Lab";
+        // 라인 자동 배정 (없으면)
+        if (!item.lineName) {
+          if (step <= 2)
+            lineName = item.id % 2 !== 0 ? 'AREX #1 (18")' : 'AREX #2 (24")';
+          else lineName = "Lab";
+        }
+
+        let currentStatus = item.testStatus || "IN_PROGRESS";
+        if (currentStatus === "PENDING") currentStatus = "IN_PROGRESS";
+        if (currentStatus === "PASS" && step < 5) currentStatus = "IN_PROGRESS";
+
+        return {
+          id: item.id,
+          model: item.model,
+          category: category,
+          serial: item.serial || item.productCode || `WO-${item.id}`,
+          step: step,
+          operator: item.worker || "미배정",
+          testStatus: currentStatus,
+          productIcon: icon,
+          lineName: lineName,
+          isWorkOrder: false,
+        };
+      });
+
+      // 6. 데이터 합치기 (작업지시 + 제품)
+
+      const combinedMap = new Map();
+      formattedOrders.forEach((item) => combinedMap.set(item.serial, item));
+      formattedProducts.forEach((item) => combinedMap.set(item.serial, item));
+      const combinedData = Array.from(combinedMap.values());
+
+      // 7. 최종 필터링 (우리 회사 제품만)
+      const filteredData = combinedData.filter((item) =>
+        OUR_PRODUCTS.includes(item.model),
+      );
+
+      setProducts(
+        filteredData.sort((a, b) => b.serial.localeCompare(a.serial)),
+      );
     } catch (error) {
-      console.error("API 에러:", error);
+      console.error("데이터 로드 실패:", error);
     }
   };
-
-  useEffect(() => {
-    fetchProducts();
-  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [filterCategory, searchTerm, filterLine]);
 
-  const handleSaveIssue = async () => {
-    if (!selectedProduct) return;
-
-    let newStatus = reportType;
-    if (reportType === "PASS") newStatus = "PASS";
-
-    const updatedProduct = {
-      ...selectedProduct,
-      testStatus: newStatus,
-    };
-
-    try {
-      const response = await fetch(
-        `http://localhost:8111/api/production/product-mgmt/${selectedProduct.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updatedProduct),
-        },
-      );
-
-      if (response.ok) {
-        alert(
-          `[${ISSUE_TYPES[reportType]?.label || "조치"}] 처리가 완료되었습니다.`,
-        );
-        closeModal();
-        fetchProducts();
-      } else {
-        alert("저장 실패");
-      }
-    } catch (error) {
-      console.error("저장 중 에러", error);
+  const getLineColor = (lineName) => {
+    switch (lineName) {
+      case 'AREX #1 (18")':
+        return THEME_COLOR;
+      case 'AREX #2 (24")':
+        return THEME_COLOR;
+      case "Lab":
+        return "#FF9800";
+      case "OFFICE":
+        return "#607D8B";
+      default:
+        return "#999";
     }
-  };
-
-  const getCurrentLineInfo = (product) => {
-    const stepIndex = product.step - 1;
-    // Step 3, 4, 5는 QC 라인으로 간주
-    if (stepIndex >= 2) {
-      return { name: "QC 라인", color: "#FF9800" };
-    }
-
-    // Step 1, 2는 생산 라인 (ID 홀짝으로 구분)
-    const lineNum = product.id % 2 !== 0 ? 1 : 2;
-    return { name: `생산 ${lineNum}라인`, color: THEME_COLOR };
   };
 
   const filteredProducts = products.filter((p) => {
-    const lineInfo = getCurrentLineInfo(p);
     let matchLine = true;
-
-    if (filterLine === "Line1") matchLine = lineInfo.name === "생산 1라인";
-    else if (filterLine === "Line2") matchLine = lineInfo.name === "생산 2라인";
-    else if (filterLine === "QC") matchLine = lineInfo.name === "QC 라인";
-
-    const matchCategory =
-      filterCategory === "All" ||
-      p.category === filterCategory ||
-      p.model === filterCategory;
-
+    if (filterLine !== "All") matchLine = p.lineName === filterLine;
+    let matchCategory = true;
+    if (filterCategory !== "All") matchCategory = p.model === filterCategory;
     const matchSearch =
       p.serial.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.model.toLowerCase().includes(searchTerm.toLowerCase());
-
     return matchLine && matchCategory && matchSearch;
   });
 
@@ -228,12 +298,17 @@ const LineMonitoring = () => {
 
   const openModal = (product) => {
     setSelectedProduct(product);
-    if (product.testStatus === "PASS" || product.testStatus === "PENDING") {
-      setReportType("NG");
+    setReportComment("");
+    const isIssue = ["NG", "HOLD", "ERROR", "FAIL"].includes(
+      product.testStatus,
+    );
+    if (isIssue) {
+      setReportType("REWORK");
+      setReportReason(ACTION_TYPES["REWORK"].reasons[0]);
     } else {
-      setReportType(product.testStatus);
+      setReportType("NG");
+      setReportReason(ISSUE_TYPES["NG"].reasons[0]);
     }
-    setReportReason(ISSUE_TYPES["NG"].reasons[0]);
     setIsModalOpen(true);
   };
 
@@ -242,94 +317,132 @@ const LineMonitoring = () => {
     setSelectedProduct(null);
   };
 
-  const renderTestStatus = (status) => {
-    switch (status) {
-      case "FAIL":
-      case "NG":
-        return (
-          <span
-            style={{
-              ...styles.statusBadge,
-              backgroundColor: "#FFEBEE",
-              color: "#C62828",
-            }}
-          >
-            <FaTimes size={11} /> 품질 불량
-          </span>
-        );
-      case "HOLD":
-        return (
-          <span
-            style={{
-              ...styles.statusBadge,
-              backgroundColor: "#FFF3E0",
-              color: "#EF6C00",
-            }}
-          >
-            <FaPauseCircle size={11} /> 공정 보류
-          </span>
-        );
-      case "ERROR":
-        return (
-          <span
-            style={{
-              ...styles.statusBadge,
-              backgroundColor: "#F3E5F5",
-              color: "#7B1FA2",
-            }}
-          >
-            <FaTools size={11} /> 설비 이상
-          </span>
-        );
-      case "PASS":
-        return (
-          <span
-            style={{
-              ...styles.statusBadge,
-              backgroundColor: "#E8F5E9",
-              color: "#2E7D32",
-            }}
-          >
-            <FaCheckCircle size={11} /> 적합
-          </span>
-        );
-      default:
-        return (
-          <span
-            style={{
-              ...styles.statusBadge,
-              backgroundColor: "#E3F2FD",
-              color: "#1565C0",
-            }}
-          >
-            ⏳ 진행중
-          </span>
-        );
+  const handleSaveIssue = async () => {
+    if (!selectedProduct) return;
+    let finalStatus = reportType;
+    let label = "";
+
+    if (reportType === "PASS") {
+      if (selectedProduct.step >= PROCESS_STEPS.length) {
+        finalStatus = "PASS";
+        label = "최종 적합 판정 완료";
+      } else {
+        finalStatus = "IN_PROGRESS";
+        label = "조치 완료 및 공정 재개";
+      }
+    } else {
+      const currentTypes = getCurrentModalTypes();
+      label = currentTypes[reportType]?.label || reportType;
     }
+
+    try {
+      if (selectedProduct.isWorkOrder) {
+        const rawId = selectedProduct.id.replace("WO-", "");
+        await client.put(`/production/work-orders/${rawId}`, {
+          status: finalStatus,
+        });
+      } else {
+        await client.put(`/production/product-mgmt/${selectedProduct.id}`, {
+          testStatus: finalStatus,
+        });
+      }
+      alert(`[${label.split("(")[0]}] 저장되었습니다.`);
+      fetchData();
+      closeModal();
+    } catch (e) {
+      console.error("서버 저장 실패:", e);
+      alert("저장에 실패했습니다.");
+    }
+  };
+
+  const getCurrentModalTypes = () => {
+    if (!selectedProduct) return ISSUE_TYPES;
+    if (selectedProduct.testStatus === "PASS") return ACTION_TYPES;
+    const isIssue = ["NG", "HOLD", "ERROR", "FAIL"].includes(
+      selectedProduct.testStatus,
+    );
+    return isIssue ? ACTION_TYPES : ISSUE_TYPES;
+  };
+
+  const renderStatusBadge = (status) => {
+    let bg = "#E3F2FD",
+      color = "#1565C0",
+      text = "진행중",
+      icon = <FaPauseCircle size={10} />;
+    if (["FAIL", "NG"].includes(status)) {
+      bg = "#FFEBEE";
+      color = "#C62828";
+      text = "품질 불량";
+      icon = <FaTimes size={10} />;
+    } else if (["HOLD", "PENDING"].includes(status)) {
+      bg = "#FFF3E0";
+      color = "#EF6C00";
+      text = "공정 보류";
+      icon = <FaPauseCircle size={10} />;
+    } else if (["ERROR"].includes(status)) {
+      bg = "#F3E5F5";
+      color = "#7B1FA2";
+      text = "설비 이상";
+      icon = <FaTools size={10} />;
+    } else if (status === "REWORK") {
+      bg = "#E3F2FD";
+      color = "#1976D2";
+      text = "재작업 중";
+      icon = <FaRecycle size={10} />;
+    } else if (status === "DISCARD") {
+      bg = "#FFEBEE";
+      color = "#B71C1C";
+      text = "폐기 확정";
+      icon = <FaTrashAlt size={10} />;
+    } else if (status === "RETURN") {
+      bg = "#FFF3E0";
+      color = "#E65100";
+      text = "반품 처리";
+      icon = <FaUndo size={10} />;
+    } else if (status === "REINSPECT") {
+      bg = "#E0F2F1";
+      color = "#00695C";
+      text = "재검사 중";
+      icon = <FaMicroscope size={10} />;
+    } else if (["PASS", "COMPLETED"].includes(status)) {
+      bg = "#E8F5E9";
+      color = "#2E7D32";
+      text = "적합";
+      icon = <FaCheckCircle size={10} />;
+    }
+
+    return (
+      <span
+        style={{
+          backgroundColor: bg,
+          color: color,
+          padding: "4px 8px",
+          borderRadius: "6px",
+          fontSize: "11px",
+          fontWeight: "bold",
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+        }}
+      >
+        {icon} {text}
+      </span>
+    );
   };
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            minWidth: "200px",
-            flexShrink: 0,
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <FaClipboardList size={22} color={THEME_COLOR} />
           <h2 style={styles.title}>실시간 라인 모니터링</h2>
         </div>
-
         <div style={styles.controls}>
           <div style={styles.searchBox}>
             <FaSearch color="#aaa" />
             <input
               type="text"
-              placeholder="S/N 검색"
+              placeholder="지시코드/모델명 검색"
               style={styles.searchInput}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -343,9 +456,10 @@ const LineMonitoring = () => {
               onChange={(e) => setFilterLine(e.target.value)}
             >
               <option value="All">전체 라인</option>
-              <option value="Line1">생산 1라인</option>
-              <option value="Line2">생산 2라인</option>
-              <option value="QC">QC 라인</option>
+              <option value='AREX #1 (18")'>AREX #1 (18")</option>
+              <option value='AREX #2 (24")'>AREX #2 (24")</option>
+              <option value="Lab">Lab</option>
+              <option value="OFFICE">OFFICE</option>
             </select>
           </div>
           <div style={styles.filterContainer}>
@@ -356,9 +470,9 @@ const LineMonitoring = () => {
               onChange={(e) => setFilterCategory(e.target.value)}
             >
               <option value="All">전체 보기</option>
-              <option value="Defibrillator">Zoll X Series</option>
-              <option value="Transport Monitor">Propaq M</option>
-              <option value="Modular Monitor">Corpuls3</option>
+              <option value="Zoll X Series">Zoll X Series</option>
+              <option value="Propaq M">Propaq M</option>
+              <option value="Corpuls3">Corpuls3</option>
             </select>
           </div>
         </div>
@@ -366,65 +480,39 @@ const LineMonitoring = () => {
 
       <div style={styles.grid}>
         {currentProducts.map((product) => {
+          const lineColor = getLineColor(product.lineName);
           const isIssue = ["FAIL", "NG", "HOLD", "ERROR"].includes(
             product.testStatus,
           );
-          const lineInfo = getCurrentLineInfo(product);
-
           return (
             <div
               key={product.id}
               style={{
                 ...styles.card,
                 border: isIssue ? "2px solid #FF4444" : "1px solid transparent",
+                animation: isIssue ? "cardPulse 2s infinite" : "none",
                 boxShadow: isIssue
-                  ? "0 4px 20px rgba(255, 68, 68, 0.15)"
+                  ? "0 0 15px rgba(255, 68, 68, 0.3)"
                   : styles.card.boxShadow,
               }}
             >
-              <div style={styles.cardHeader}>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "5px",
-                    alignItems: "center",
-                    flex: 1,
-                    minWidth: 0,
-                  }}
-                >
-                  <span style={styles.badge} title={product.category}>
-                    {product.productIcon}
-                    <span
-                      style={{
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        maxWidth: "85px",
-                      }}
-                    >
-                      {product.category}
-                    </span>
-                  </span>
-                  <span
-                    style={{
-                      ...styles.badge,
-                      backgroundColor: lineInfo.color,
-                      color: "white",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <FaMapMarkerAlt size={11} style={{ marginRight: 3 }} />
-                    <span style={{ whiteSpace: "nowrap" }}>
-                      {lineInfo.name}
-                    </span>
-                  </span>
+              <div style={styles.cardTopRow}>
+                <div style={styles.categoryBadge}>
+                  {product.productIcon}
+                  {product.category}
                 </div>
-
+                <div
+                  style={{ ...styles.lineBadge, backgroundColor: lineColor }}
+                >
+                  <FaMapMarkerAlt size={9} />
+                  {product.lineName}
+                </div>
                 <button
                   style={{
                     ...styles.defectBtn,
                     backgroundColor: isIssue ? "#FF4444" : "#FFEDED",
                     color: isIssue ? "#fff" : "#FF4444",
+                    border: isIssue ? "none" : "1px solid #FFEBEE",
                     animation: isIssue ? "pulse 1.5s infinite" : "none",
                     boxShadow: isIssue
                       ? "0 2px 10px rgba(255,68,68,0.4)"
@@ -434,14 +522,14 @@ const LineMonitoring = () => {
                 >
                   <FaExclamationTriangle
                     size={11}
-                    style={{ marginRight: "3px" }}
+                    style={{ marginRight: "4px" }}
                   />
                   {isIssue ? "조치 필요" : "이슈 등록"}
                 </button>
               </div>
-
               <div
                 style={{
+                  marginBottom: "20px",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "flex-start",
@@ -449,86 +537,88 @@ const LineMonitoring = () => {
               >
                 <div>
                   <h3 style={styles.modelName}>{product.model}</h3>
-                  <p style={styles.serialText}>
-                    S/N: {product.serial}
-                    <span style={styles.operatorText}>
-                      {" "}
-                      | Op: {product.operator}
+                  <div style={styles.subInfo}>
+                    Code:{" "}
+                    <span style={{ color: "#333", fontWeight: "600" }}>
+                      {product.serial}
                     </span>
-                  </p>
+                    <span style={{ margin: "0 6px", color: "#ddd" }}>|</span>Op:{" "}
+                    <span style={{ color: "#555" }}>{product.operator}</span>
+                  </div>
                 </div>
-                <div>{renderTestStatus(product.testStatus)}</div>
+                {renderStatusBadge(product.testStatus)}
               </div>
-
-              <div style={styles.progressContainer}>
-                <div style={styles.steps}>
-                  {PROCESS_STEPS.map((stepName, index) => {
-                    const stepNum = index + 1;
-                    const isCompleted = product.step > stepNum;
+              <div style={styles.progressWrapper}>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "12px",
+                    left: "25px",
+                    right: "25px",
+                    height: "2px",
+                    zIndex: 1,
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      width: "100%",
+                      height: "100%",
+                      backgroundColor: "#F0F0F0",
+                    }}
+                  ></div>
+                  <div
+                    style={{
+                      position: "absolute",
+                      height: "100%",
+                      backgroundColor: lineColor,
+                      width: `${((product.step - 1) / (PROCESS_STEPS.length - 1)) * 100}%`,
+                      transition: "width 0.3s",
+                    }}
+                  ></div>
+                </div>
+                <div style={styles.stepsContainer}>
+                  {PROCESS_STEPS.map((stepName, idx) => {
+                    const stepNum = idx + 1;
+                    const isActive = product.step >= stepNum;
                     const isCurrent = product.step === stepNum;
-                    const stepColor = index <= 1 ? THEME_COLOR : "#FF9800";
-                    const activeColor = isCurrent
-                      ? stepColor
-                      : isCompleted
-                        ? stepColor
-                        : "#aaa";
-
                     return (
-                      <div key={index} style={styles.stepItem}>
+                      <div key={idx} style={styles.stepItem}>
                         <div
                           style={{
                             ...styles.stepCircle,
-                            backgroundColor:
-                              product.step >= stepNum ? activeColor : "#eee",
-                            color: product.step >= stepNum ? "#fff" : "#aaa",
-                            border: isCurrent
-                              ? `2px solid ${activeColor}`
-                              : "none",
+                            backgroundColor: isActive ? lineColor : "#F0F0F0",
+                            color: isActive ? "#fff" : "#ccc",
                             boxShadow: isCurrent
-                              ? `0 0 0 2px ${activeColor}40`
+                              ? `0 0 0 3px ${lineColor}30`
                               : "none",
                           }}
                         >
-                          {isCompleted ? <FaCheckCircle /> : stepNum}
+                          {isActive && !isCurrent ? (
+                            <FaCheckCircle size={10} />
+                          ) : (
+                            stepNum
+                          )}
                         </div>
-                        <span
+                        <div
                           style={{
-                            ...styles.stepLabel,
-                            color: isCurrent ? activeColor : "#aaa",
+                            ...styles.stepText,
+                            color: isCurrent ? lineColor : "#aaa",
                             fontWeight: isCurrent ? "bold" : "normal",
                           }}
                         >
                           {stepName}
-                        </span>
+                        </div>
                       </div>
                     );
                   })}
-                </div>
-                <div style={styles.progressBarBg}>
-                  <div
-                    style={{
-                      ...styles.progressBarFill,
-                      width: `${((product.step - 1) / (PROCESS_STEPS.length - 1)) * 100}%`,
-                      backgroundColor:
-                        product.step - 1 > 1 ? "#FF9800" : THEME_COLOR,
-                    }}
-                  ></div>
                 </div>
               </div>
             </div>
           );
         })}
         {filteredProducts.length === 0 && (
-          <div
-            style={{
-              textAlign: "center",
-              gridColumn: "1 / -1",
-              padding: "40px",
-              color: "#888",
-            }}
-          >
-            데이터가 없습니다.
-          </div>
+          <div style={styles.emptyState}>데이터가 없습니다.</div>
         )}
       </div>
 
@@ -541,19 +631,17 @@ const LineMonitoring = () => {
           >
             <FaChevronLeft size={12} />
           </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
-            <button
-              key={number}
-              style={
-                currentPage === number
-                  ? { ...styles.pageBtn, ...styles.activePageBtn }
-                  : styles.pageBtn
-              }
-              onClick={() => handlePageChange(number)}
-            >
-              {number}
-            </button>
-          ))}
+          <span
+            style={{
+              fontSize: "13px",
+              color: "#666",
+              fontWeight: "600",
+              alignSelf: "center",
+              margin: "0 10px",
+            }}
+          >
+            Page {currentPage} / {totalPages}
+          </span>
           <button
             style={styles.pageBtn}
             onClick={() => handlePageChange(currentPage + 1)}
@@ -569,7 +657,11 @@ const LineMonitoring = () => {
           <div style={styles.modal}>
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, fontSize: "18px", color: "#333" }}>
-                🚨 현장 이슈 보고 및 조치
+                {["NG", "HOLD", "ERROR", "FAIL"].includes(
+                  selectedProduct.testStatus,
+                )
+                  ? "🚨 불량 조치 및 처리 (Action)"
+                  : "⚠️ 현장 이슈 등록 (Issue)"}
               </h3>
               <button onClick={closeModal} style={styles.closeBtn}>
                 <FaTimes />
@@ -584,14 +676,20 @@ const LineMonitoring = () => {
                   S/N: {selectedProduct.serial}
                 </p>
               </div>
-
-              <label style={styles.label}>보고 유형 선택</label>
+              <label style={styles.label}>
+                {["NG", "HOLD", "ERROR", "FAIL"].includes(
+                  selectedProduct.testStatus,
+                )
+                  ? "조치 방법 선택"
+                  : "이슈 유형 선택"}
+              </label>
               <div
                 style={{ display: "flex", gap: "10px", marginBottom: "15px" }}
               >
-                {Object.keys(ISSUE_TYPES).map((type) => {
+                {Object.keys(getCurrentModalTypes()).map((type) => {
+                  const currentTypes = getCurrentModalTypes();
                   const isSelected = reportType === type;
-                  const typeInfo = ISSUE_TYPES[type];
+                  const typeInfo = currentTypes[type];
                   return (
                     <button
                       key={type}
@@ -620,36 +718,33 @@ const LineMonitoring = () => {
                       }}
                     >
                       <span style={{ fontSize: "16px" }}>{typeInfo.icon}</span>
-                      {type}
+                      {typeInfo.label.split(" (")[0]}
                     </button>
                   );
                 })}
               </div>
-
               <label style={styles.label}>
-                세부 사유 ({ISSUE_TYPES[reportType]?.label})
+                세부 사유 ({getCurrentModalTypes()[reportType]?.label})
               </label>
               <select
                 style={styles.fullWidthDropdown}
                 value={reportReason}
                 onChange={(e) => setReportReason(e.target.value)}
               >
-                {ISSUE_TYPES[reportType]?.reasons.map((reason) => (
+                {getCurrentModalTypes()[reportType]?.reasons?.map((reason) => (
                   <option key={reason} value={reason}>
                     {reason}
                   </option>
                 ))}
               </select>
-
-              <label style={styles.label}>현장 조치 내용 / 비고</label>
+              <label style={styles.label}>상세 내용 / 비고</label>
               <textarea
                 rows="3"
-                placeholder="예) 자재팀 재고 확인 요청함, 설비 재부팅 후 정상 가동 등"
+                placeholder="상세 사유를 입력하세요."
                 style={styles.textarea}
                 value={reportComment}
                 onChange={(e) => setReportComment(e.target.value)}
               ></textarea>
-
               {["NG", "HOLD", "ERROR", "FAIL"].includes(
                 selectedProduct.testStatus,
               ) && (
@@ -670,7 +765,10 @@ const LineMonitoring = () => {
                     checked={reportType === "PASS"}
                     onChange={(e) => {
                       if (e.target.checked) setReportType("PASS");
-                      else setReportType(selectedProduct.testStatus);
+                      else {
+                        setReportType("REWORK");
+                        setReportReason(ACTION_TYPES["REWORK"].reasons[0]);
+                      }
                     }}
                   />
                   <label
@@ -692,14 +790,13 @@ const LineMonitoring = () => {
                 취소
               </button>
               <button onClick={handleSaveIssue} style={styles.saveBtn}>
-                보고 및 저장
+                저장
               </button>
             </div>
           </div>
         </div>
       )}
-
-      <style>{`@keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(255, 68, 68, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); } }`}</style>
+      <style>{`@keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 6px rgba(255, 68, 68, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); } } @keyframes cardPulse { 0% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.4); border-color: rgba(255, 68, 68, 1); } 70% { box-shadow: 0 0 0 12px rgba(255, 68, 68, 0); border-color: rgba(255, 68, 68, 0.5); } 100% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); border-color: rgba(255, 68, 68, 1); } }`}</style>
     </div>
   );
 };
@@ -709,140 +806,114 @@ const styles = {
     padding: "30px",
     backgroundColor: "#F4F6F9",
     minHeight: "100vh",
-    fontFamily: "'Noto Sans KR', sans-serif",
-    minWidth: 0,
   },
   header: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "20px",
-    flexWrap: "nowrap",
-    gap: "20px",
+    marginBottom: "25px",
   },
-  title: {
-    fontSize: "20px",
-    fontWeight: "bold",
-    color: "#333",
-    margin: 0,
-    whiteSpace: "nowrap",
-  },
-  controls: {
-    display: "flex",
-    gap: "10px",
-    alignItems: "center",
-    flexWrap: "nowrap",
-    justifyContent: "flex-end",
-  },
+  title: { fontSize: "20px", fontWeight: "800", color: "#333", margin: 0 },
+  controls: { display: "flex", gap: "12px" },
   searchBox: {
     display: "flex",
     alignItems: "center",
     backgroundColor: "#fff",
-    padding: "8px 12px",
-    borderRadius: "10px",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
-    border: "1px solid #eee",
+    padding: "0 15px",
+    borderRadius: "8px",
+    border: "1px solid #E0E0E0",
+    height: "38px",
   },
   searchInput: {
     border: "none",
     outline: "none",
     marginLeft: "10px",
-    fontSize: "14px",
-    width: "160px",
+    fontSize: "13px",
+    width: "180px",
   },
   filterContainer: {
     display: "flex",
     alignItems: "center",
     backgroundColor: "#fff",
-    padding: "8px 12px",
-    borderRadius: "10px",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
-    border: "1px solid #eee",
-    whiteSpace: "nowrap",
+    padding: "0 15px",
+    borderRadius: "8px",
+    border: "1px solid #E0E0E0",
+    height: "38px",
   },
   filterLabel: {
-    marginRight: "8px",
+    fontSize: "12px",
     fontWeight: "bold",
     color: "#555",
-    fontSize: "13px",
-    whiteSpace: "nowrap",
+    marginRight: "8px",
   },
   dropdown: {
     border: "none",
     outline: "none",
-    backgroundColor: "transparent",
-    cursor: "pointer",
-    fontSize: "14px",
-    padding: 0,
+    fontSize: "13px",
     color: "#333",
-    fontWeight: "500",
+    cursor: "pointer",
+    fontWeight: "600",
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
     gap: "20px",
   },
   card: {
     backgroundColor: "#fff",
-    borderRadius: "15px",
+    borderRadius: "16px",
     padding: "20px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-    position: "relative",
-    transition: "all 0.3s ease",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
+    display: "flex",
+    flexDirection: "column",
   },
-  cardHeader: {
+  cardTopRow: {
     display: "flex",
     justifyContent: "space-between",
-    marginBottom: "10px",
     alignItems: "center",
+    marginBottom: "15px",
   },
-  badge: {
-    backgroundColor: "#F3F1FF",
-    color: THEME_COLOR,
-    padding: "0 8px",
-    height: "26px",
-    borderRadius: "6px",
+  categoryBadge: {
+    display: "flex",
+    alignItems: "center",
+    gap: "5px",
     fontSize: "11px",
+    fontWeight: "bold",
+    color: THEME_COLOR,
+  },
+  lineBadge: {
+    color: "#fff",
+    fontSize: "10px",
+    padding: "4px 8px",
+    borderRadius: "20px",
     fontWeight: "bold",
     display: "flex",
     alignItems: "center",
-    whiteSpace: "nowrap",
+    gap: "3px",
   },
   defectBtn: {
-    border: "none",
-    padding: "0 8px",
-    height: "26px",
-    borderRadius: "6px",
     fontSize: "11px",
-    fontWeight: "bold",
+    padding: "5px 10px",
+    borderRadius: "6px",
     cursor: "pointer",
+    fontWeight: "bold",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
     transition: "all 0.3s",
-    whiteSpace: "nowrap",
   },
   modelName: {
-    fontSize: "18px",
-    fontWeight: "bold",
-    margin: "0 0 5px 0",
+    fontSize: "17px",
+    fontWeight: "800",
     color: "#333",
+    margin: "0 0 6px 0",
   },
-  serialText: { fontSize: "13px", color: "#888", margin: "0 0 25px 0" },
-  operatorText: { color: "#aaa", marginLeft: "5px" },
-  statusBadge: {
-    padding: "0 8px",
-    height: "26px",
-    borderRadius: "6px",
-    fontSize: "11px",
-    fontWeight: "bold",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "4px",
+  subInfo: { fontSize: "12px", color: "#888" },
+  progressWrapper: {
+    position: "relative",
+    marginTop: "auto",
+    paddingTop: "10px",
   },
-  progressContainer: { position: "relative", paddingTop: "10px" },
-  steps: {
+  stepsContainer: {
     display: "flex",
     justifyContent: "space-between",
     position: "relative",
@@ -852,67 +923,76 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    flex: 1,
+    width: "50px",
   },
   stepCircle: {
-    width: "28px",
-    height: "28px",
+    width: "24px",
+    height: "24px",
     borderRadius: "50%",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "12px",
+    fontSize: "10px",
     fontWeight: "bold",
-    transition: "all 0.3s",
-    zIndex: 3,
+    marginBottom: "6px",
     backgroundColor: "#fff",
+    border: "2px solid #fff",
   },
-  stepLabel: {
-    fontSize: "11px",
-    marginTop: "8px",
+  stepText: { fontSize: "9px", textAlign: "center", whiteSpace: "nowrap" },
+  emptyState: {
+    gridColumn: "1 / -1",
     textAlign: "center",
-    wordBreak: "keep-all",
+    padding: "60px",
+    color: "#ccc",
   },
-  progressBarBg: {
-    position: "absolute",
-    top: "24px",
-    left: "15px",
-    right: "15px",
-    height: "3px",
-    backgroundColor: "#eee",
-    zIndex: 1,
+  pagination: {
+    display: "flex",
+    justifyContent: "center",
+    marginTop: "30px",
+    gap: "5px",
   },
-  progressBarFill: { height: "100%", transition: "width 0.3s" },
+  pageBtn: {
+    width: "32px",
+    height: "32px",
+    border: "1px solid #eee",
+    backgroundColor: "#fff",
+    borderRadius: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#555",
+  },
   overlay: {
     position: "fixed",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.4)",
     display: "flex",
-    alignItems: "center",
     justifyContent: "center",
-    zIndex: 1000,
+    alignItems: "center",
+    zIndex: 999,
   },
   modal: {
     backgroundColor: "#fff",
-    borderRadius: "15px",
+    borderRadius: "12px",
     width: "450px",
     padding: "25px",
-    boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+    boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
   },
   modalHeader: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: "20px",
+    alignItems: "center",
     borderBottom: "1px solid #eee",
     paddingBottom: "10px",
   },
   closeBtn: {
-    background: "transparent",
     border: "none",
+    background: "none",
     fontSize: "18px",
     cursor: "pointer",
     color: "#999",
@@ -945,52 +1025,27 @@ const styles = {
     boxSizing: "border-box",
   },
   modalFooter: {
-    marginTop: "20px",
     display: "flex",
     justifyContent: "flex-end",
-    gap: "10px",
-  },
-  cancelBtn: {
-    padding: "10px 20px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
-    backgroundColor: "#fff",
-    cursor: "pointer",
-    fontWeight: "bold",
-    color: "#666",
+    gap: "8px",
+    marginTop: "20px",
   },
   saveBtn: {
+    backgroundColor: THEME_COLOR,
+    color: "#fff",
+    border: "none",
     padding: "10px 20px",
     borderRadius: "8px",
-    border: "none",
-    backgroundColor: THEME_COLOR,
     cursor: "pointer",
     fontWeight: "bold",
-    color: "#fff",
   },
-  pagination: {
-    display: "flex",
-    justifyContent: "center",
-    marginTop: "40px",
-    gap: "8px",
-  },
-  pageBtn: {
-    width: "32px",
-    height: "32px",
-    border: "1px solid #ddd",
+  cancelBtn: {
     backgroundColor: "#fff",
-    borderRadius: "6px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
     color: "#666",
-    transition: "all 0.2s",
-  },
-  activePageBtn: {
-    backgroundColor: THEME_COLOR,
-    color: "#fff",
-    border: "none",
+    border: "1px solid #ddd",
+    padding: "10px 20px",
+    borderRadius: "8px",
+    cursor: "pointer",
     fontWeight: "bold",
   },
 };

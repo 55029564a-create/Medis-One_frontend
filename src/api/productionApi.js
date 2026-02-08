@@ -29,9 +29,9 @@ export const deleteProductOrder = async (id) => {
   return response.data;
 };
 
-// src/api/productionApi.js 에 추가
+// 제품 목록 조회
 export const getProducts = async () => {
-  const response = await client.get("/production"); // 혹은 /production/products 등 백엔드 주소에 맞게
+  const response = await client.get("/production");
   return response.data;
 };
 
@@ -48,7 +48,6 @@ export const getWorkOrders = async () => {
 
 // 작업 지시 생성
 export const createWorkOrder = async (data) => {
-  // data에 lineId, productOrderId 등이 포함됨
   const response = await client.post("/production/orders", data);
   return response.data;
 };
@@ -136,5 +135,13 @@ export const getTodayWorkOrders = async () => {
 // [신규 추가] 월간 작업 지시 조회
 export const getMonthlyWorkOrders = async () => {
   const response = await client.get("/production/work-orders/monthly");
+  return response.data;
+};
+
+// ▼▼▼▼▼ [여기 추가했습니다] ▼▼▼▼▼
+// [신규 추가] 불량 유형 목록 조회 (DB 연동용)
+export const getDefectTypes = async () => {
+  // 백엔드 컨트롤러 주소: /api/production/defect-types
+  const response = await client.get("/production/defect-types");
   return response.data;
 };
