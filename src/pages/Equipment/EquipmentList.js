@@ -45,93 +45,6 @@ const COLORS = {
 const EquipmentList = () => {
   const navigate = useNavigate();
 
-<<<<<<< HEAD
-  // 🏭 [한글화 완료] 디스플레이 공정 설비 데이터
-  const machines = [
-    // {
-    //   id: "EQ-10",
-    //   process: "전처리 공정", // Pre-Process
-    //   name: "플라즈마 세정기 #01", // Plasma Cleaner
-    //   type: "CLEANER",
-    //   status: "RUN",
-    //   metrics: [
-    //     { label: "가스 유량", value: "50 sccm", icon: <FaWind /> },
-    //     { label: "RF 파워", value: "2.5 kW", icon: <FaBolt /> },
-    //   ],
-    //   operator: "김세정",
-    //   uptime: "08:12",
-    // },
-    // {
-    //   id: "EQ-20",
-    //   process: "메인 공정", // Main Process
-    //   name: "광학 본딩기 A호기", // Optical Bonder
-    //   type: "BONDER",
-    //   status: "RUN",
-    //   metrics: [
-    //     { label: "진공도", value: "-98 kPa", icon: <FaWind /> },
-    //     { label: "갭(Gap) 두께", value: "0.15 mm", icon: <FaLayerGroup /> },
-    //   ],
-    //   operator: "이민호",
-    //   uptime: "04:30",
-    // },
-    // {
-    //   id: "EQ-30",
-    //   process: "후처리 공정", // Post Process
-    //   name: "오토클레이브 (탈포)", // Autoclave
-    //   type: "AUTOCLAVE",
-    //   status: "RUN",
-    //   metrics: [
-    //     { label: "가압력", value: "5.0 bar", icon: <FaCompressArrowsAlt /> },
-    //     { label: "챔버 온도", value: "60°C", icon: <FaThermometerHalf /> },
-    //   ],
-    //   operator: "박지성",
-    //   uptime: "12:00",
-    // },
-    // {
-    //   id: "EQ-40",
-    //   process: "신뢰성 테스트", // Reliability
-    //   name: "에이징 챔버 #1", // Aging Chamber
-    //   type: "AGING",
-    //   status: "ERROR",
-    //   metrics: [
-    //     { label: "내부 온도", value: "45°C", icon: <FaThermometerHalf /> },
-    //     { label: "진행 시간", value: "2시간 10분", icon: <FaHistory /> },
-    //   ],
-    //   operator: "시스템",
-    //   uptime: "02:10",
-    // },
-    // {
-    //   id: "EQ-50",
-    //   process: "신뢰성 테스트",
-    //   name: "에이징 챔버 #2",
-    //   type: "AGING",
-    //   status: "RUN",
-    //   metrics: [
-    //     { label: "내부 온도", value: "45°C", icon: <FaThermometerHalf /> },
-    //     { label: "진행 시간", value: "4시간 00분", icon: <FaHistory /> },
-    //   ],
-    //   operator: "시스템",
-    //   uptime: "04:00",
-    // },
-    // {
-    //   id: "EQ-60",
-    //   process: "최종 검사", // Final Insp
-    //   name: "비전 외관 검사기", // Vision Inspector
-    //   type: "VISION",
-    //   status: "STOP",
-    //   metrics: [
-    //     { label: "수율 (Yield)", value: "99.5%", icon: <FaCheckCircle /> },
-    //     {
-    //       label: "금일 검사량",
-    //       value: "1,200 EA",
-    //       icon: <MdOutlineViewInAr />,
-    //     },
-    //   ],
-    //   operator: "최유나",
-    //   uptime: "00:00",
-    // },
-  ];
-=======
   // 1. 상태 관리
   const [machines, setMachines] = useState([]); // 전체 데이터
   const [filteredMachines, setFilteredMachines] = useState([]); // 필터링된 데이터
@@ -359,7 +272,6 @@ const EquipmentList = () => {
         ];
     }
   };
->>>>>>> 63fa33a91cd334f10ee94d04a45f30c54719eec8
 
   return (
     <div style={styles.container}>
