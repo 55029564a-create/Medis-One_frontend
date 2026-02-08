@@ -145,3 +145,20 @@ export const getDefectTypes = async () => {
   const response = await client.get("/production/defect-types");
   return response.data;
 };
+export const getTodayWorkReports = async () => {
+  // 백엔드 엔드포인트가 있다고 가정 (/api/production/reports/today)
+  // 만약 백엔드가 아직 없다면 빈 배열([])을 반환하거나 에러가 날 수 있습니다.
+  try {
+    const response = await client.get("/production/reports/today");
+    return response.data;
+  } catch (error) {
+    console.error("내역 조회 실패:", error);
+    return [];
+  }
+};
+
+// [추가] 실적 보고 취소 (삭제)
+export const cancelWorkReport = async (reportId) => {
+  const response = await client.delete(`/production/reports/${reportId}`);
+  return response.data;
+};
