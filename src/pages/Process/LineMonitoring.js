@@ -1,4 +1,5 @@
 import client from "../../api/client";
+import { getWorkOrders } from "../../api/productionApi";
 import React, { useState, useEffect } from "react";
 import {
   FaExclamationTriangle,
@@ -20,22 +21,17 @@ import {
   FaMicroscope,
 } from "react-icons/fa";
 
-// 🎨 디자인 테마
 const THEME_COLOR = "#8C85FF";
 
-// 공정 단계 (총 5단계)
 const PROCESS_STEPS = [
-  "광학 본딩", // 1
-  "조립", // 2
-  "에이징 테스트", // 3
-  "캘리브레이션", // 4
-  "신뢰성 테스트", // 5 (완료 기준)
+  "광학 본딩",
+  "조립",
+  "에이징 테스트",
+  "캘리브레이션",
+  "신뢰성 테스트",
 ];
-
-// 우리 회사 품목 리스트
 const OUR_PRODUCTS = ["Zoll X Series", "Propaq M", "Corpuls3"];
 
-// 1. [이슈 등록용] - 정상일 때 뜸
 const ISSUE_TYPES = {
   NG: {
     label: "품질 불량 (NG)",
@@ -75,7 +71,6 @@ const ISSUE_TYPES = {
   },
 };
 
-// 2. [조치 필요용] - 이미 불량일 때 뜸
 const ACTION_TYPES = {
   REWORK: {
     label: "재작업 (Rework)",
@@ -111,114 +106,152 @@ const ACTION_TYPES = {
 
 const LineMonitoring = () => {
   const [products, setProducts] = useState([]);
-
   const [filterLine, setFilterLine] = useState("All");
   const [filterCategory, setFilterCategory] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
-
   const [reportType, setReportType] = useState("");
   const [reportReason, setReportReason] = useState("");
   const [reportComment, setReportComment] = useState("");
-
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  const fetchProducts = async () => {
+  // 3초 자동 갱신
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchData = async () => {
     try {
-      const response = await client.get("/production/product-mgmt");
-      if (response.ok) {
-        const data = response.data;
-        const filteredData = data.filter((item) =>
-          OUR_PRODUCTS.includes(item.model),
-        );
+      // 1. 데이터 가져오기
+      const woResponse = await getWorkOrders(); // 작업지시
+      const pmResponse = await client.get("/production/product-mgmt"); // 제품관리
 
-        const unifiedData = filteredData.map((item) => {
-          let icon = <FaHeartbeat size={14} />;
-          let category = "Device";
-          if (item.model === "Zoll X Series") {
-            category = "Defibrillator";
-            icon = <FaHeartbeat size={14} />;
-          } else if (item.model === "Propaq M") {
-            category = "Transport Monitor";
-            icon = <FaMedkit size={14} />;
-          } else if (item.model === "Corpuls3") {
-            category = "Modular Monitor";
-            icon = <FaStethoscope size={14} />;
-          }
+      // ★ [디버깅] 콘솔에 데이터가 진짜 오는지 찍어보기 (F12 눌러서 확인 가능)
+      console.log("🛠️ 가져온 작업지시 데이터:", woResponse);
 
-          const step = item.step || Math.floor(Math.random() * 5) + 1;
-          let lineName = "Lab";
-          if (step <= 2) {
-            lineName = item.id % 2 !== 0 ? 'AREX #1 (18")' : 'AREX #2 (24")';
-          } else {
-            lineName = "Lab";
-          }
+      let workOrders = [];
+      let products = [];
 
-          // 데이터 위생 처리 (모든 제품에 적용)
-          let currentStatus = item.testStatus || "IN_PROGRESS";
-
-          // 1. PENDING은 무조건 IN_PROGRESS로
-          if (currentStatus === "PENDING") {
-            currentStatus = "IN_PROGRESS";
-          }
-
-          // 2. PASS(적합) 상태지만, 아직 5단계(신뢰성 테스트)가 아니면 IN_PROGRESS로 강제 변경
-          // (Zoll X Series가 3단계에서 적합으로 뜨는 문제 해결)
-          if (currentStatus === "PASS" && step < 5) {
-            currentStatus = "IN_PROGRESS";
-          }
-
-          return {
-            id: item.id,
-            model: item.model,
-            category: category,
-            serial: item.serial || item.productCode || `WO-${item.id}`,
-            step: step,
-            operator: item.worker || "미배정",
-            testStatus: currentStatus,
-            productIcon: icon,
-            lineName: lineName,
-          };
-        });
-
-        const specialItem1 = {
-          id: 9991,
-          model: "Propaq M",
-          category: "Transport Monitor",
-          serial: "PRO-TEST-001",
-          step: 3,
-          operator: "김민수",
-          testStatus: "IN_PROGRESS",
-          productIcon: <FaMedkit size={14} />,
-          lineName: 'AREX #2 (24")',
-        };
-
-        const specialItem2 = {
-          id: 9992,
-          model: "Zoll X Series",
-          category: "Defibrillator",
-          serial: "ZOLL-RND-99",
-          step: 5,
-          operator: "박팀장",
-          testStatus: "HOLD",
-          productIcon: <FaHeartbeat size={14} />,
-          lineName: "OFFICE",
-        };
-
-        const finalData = [...unifiedData, specialItem1, specialItem2];
-        setProducts(finalData.sort((a, b) => b.id - a.id));
+      // 2. 작업지시 데이터 안전하게 꺼내기 (배열인지, 객체 안에 있는지 확인)
+      if (Array.isArray(woResponse)) {
+        workOrders = woResponse;
+      } else if (woResponse && Array.isArray(woResponse.data)) {
+        workOrders = woResponse.data;
       }
+
+      // 3. 제품 데이터 안전하게 꺼내기
+      if (pmResponse.data && Array.isArray(pmResponse.data)) {
+        products = pmResponse.data;
+      }
+
+      // 4. 작업지시 포맷팅
+      // 필터링 조건 완화: 'COMPLETED'만 아니면 다 보여줌 (IN_PROGRESS, PENDING, PLANNED 등)
+      const activeOrders = workOrders.filter((o) => o.status !== "COMPLETED");
+
+      const formattedOrders = activeOrders.map((order) => {
+        let icon = <FaHeartbeat size={14} />;
+        let category = "Device";
+
+        // 품목명 매칭 (공백 제거 후 비교)
+        const pName = order.productName ? order.productName.trim() : "";
+
+        if (pName === "Zoll X Series") {
+          category = "Defibrillator";
+          icon = <FaHeartbeat size={14} />;
+        } else if (pName === "Propaq M") {
+          category = "Transport Monitor";
+          icon = <FaMedkit size={14} />;
+        } else if (pName === "Corpuls3") {
+          category = "Modular Monitor";
+          icon = <FaStethoscope size={14} />;
+        }
+
+        // 상태 강제 변환 (라인에 뜨게 하기 위해)
+        let status = "IN_PROGRESS";
+        if (order.status === "HOLD") status = "HOLD";
+        if (order.status === "NG") status = "NG";
+
+        return {
+          id: `WO-${order.id}`,
+          model: order.productName,
+          category: category,
+          serial: order.code, // 지시코드
+          step: 1, // 1단계부터 시작
+          operator: order.worker || "미배정",
+          testStatus: status,
+          productIcon: icon,
+          lineName: order.lineName || "Lab",
+          isWorkOrder: true,
+        };
+      });
+
+      // 5. 제품 데이터 포맷팅
+      const formattedProducts = products.map((item) => {
+        let icon = <FaHeartbeat size={14} />;
+        let category = "Device";
+        const pName = item.model ? item.model.trim() : "";
+
+        if (pName === "Zoll X Series") {
+          category = "Defibrillator";
+          icon = <FaHeartbeat size={14} />;
+        } else if (pName === "Propaq M") {
+          category = "Transport Monitor";
+          icon = <FaMedkit size={14} />;
+        } else if (pName === "Corpuls3") {
+          category = "Modular Monitor";
+          icon = <FaStethoscope size={14} />;
+        }
+
+        const step = item.step || 1;
+        let lineName = item.lineName || "Lab";
+        // 라인 자동 배정 (없으면)
+        if (!item.lineName) {
+          if (step <= 2)
+            lineName = item.id % 2 !== 0 ? 'AREX #1 (18")' : 'AREX #2 (24")';
+          else lineName = "Lab";
+        }
+
+        let currentStatus = item.testStatus || "IN_PROGRESS";
+        if (currentStatus === "PENDING") currentStatus = "IN_PROGRESS";
+        if (currentStatus === "PASS" && step < 5) currentStatus = "IN_PROGRESS";
+
+        return {
+          id: item.id,
+          model: item.model,
+          category: category,
+          serial: item.serial || item.productCode || `WO-${item.id}`,
+          step: step,
+          operator: item.worker || "미배정",
+          testStatus: currentStatus,
+          productIcon: icon,
+          lineName: lineName,
+          isWorkOrder: false,
+        };
+      });
+
+      // 6. 데이터 합치기 (작업지시 + 제품)
+
+      const combinedMap = new Map();
+      formattedOrders.forEach((item) => combinedMap.set(item.serial, item));
+      formattedProducts.forEach((item) => combinedMap.set(item.serial, item));
+      const combinedData = Array.from(combinedMap.values());
+
+      // 7. 최종 필터링 (우리 회사 제품만)
+      const filteredData = combinedData.filter((item) =>
+        OUR_PRODUCTS.includes(item.model),
+      );
+
+      setProducts(
+        filteredData.sort((a, b) => b.serial.localeCompare(a.serial)),
+      );
     } catch (error) {
-      console.error("API 에러:", error);
+      console.error("데이터 로드 실패:", error);
     }
   };
-
-  useEffect(() => {
-    fetchProducts();
-  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -263,26 +296,19 @@ const LineMonitoring = () => {
     window.scrollTo(0, 0);
   };
 
-  // 상태에 따라 모드(이슈등록 vs 조치) 결정
   const openModal = (product) => {
     setSelectedProduct(product);
     setReportComment("");
-
-    // 이슈 여부 확인 (PASS나 IN_PROGRESS가 아니면 이슈임)
     const isIssue = ["NG", "HOLD", "ERROR", "FAIL"].includes(
       product.testStatus,
     );
-
     if (isIssue) {
-      // 이미 불량 -> 조치(Action) 모드
       setReportType("REWORK");
       setReportReason(ACTION_TYPES["REWORK"].reasons[0]);
     } else {
-      // 정상 -> 이슈 등록(Issue) 모드
       setReportType("NG");
       setReportReason(ISSUE_TYPES["NG"].reasons[0]);
     }
-
     setIsModalOpen(true);
   };
 
@@ -291,17 +317,12 @@ const LineMonitoring = () => {
     setSelectedProduct(null);
   };
 
-  // 조치 완료 시 공정 단계 확인
   const handleSaveIssue = async () => {
     if (!selectedProduct) return;
-
     let finalStatus = reportType;
     let label = "";
 
-    // 1. 조치 완료(PASS) 체크 시
     if (reportType === "PASS") {
-      // 마지막 단계(5단계)여야만 "적합"
-      // 그 외에는 이슈가 해결되었으므로 다시 "진행중(IN_PROGRESS)"으로 복귀
       if (selectedProduct.step >= PROCESS_STEPS.length) {
         finalStatus = "PASS";
         label = "최종 적합 판정 완료";
@@ -310,25 +331,33 @@ const LineMonitoring = () => {
         label = "조치 완료 및 공정 재개";
       }
     } else {
-      // 일반 이슈/조치 상태 변경
       const currentTypes = getCurrentModalTypes();
       label = currentTypes[reportType]?.label || reportType;
     }
 
-    // API 호출
-
-    alert(`[${label.split("(")[0]}] 처리가 완료되었습니다.`);
-
-    const updatedProducts = products.map((p) =>
-      p.id === selectedProduct.id ? { ...p, testStatus: finalStatus } : p,
-    );
-    setProducts(updatedProducts);
-    closeModal();
+    try {
+      if (selectedProduct.isWorkOrder) {
+        const rawId = selectedProduct.id.replace("WO-", "");
+        await client.put(`/production/work-orders/${rawId}`, {
+          status: finalStatus,
+        });
+      } else {
+        await client.put(`/production/product-mgmt/${selectedProduct.id}`, {
+          testStatus: finalStatus,
+        });
+      }
+      alert(`[${label.split("(")[0]}] 저장되었습니다.`);
+      fetchData();
+      closeModal();
+    } catch (e) {
+      console.error("서버 저장 실패:", e);
+      alert("저장에 실패했습니다.");
+    }
   };
 
   const getCurrentModalTypes = () => {
     if (!selectedProduct) return ISSUE_TYPES;
-
+    if (selectedProduct.testStatus === "PASS") return ACTION_TYPES;
     const isIssue = ["NG", "HOLD", "ERROR", "FAIL"].includes(
       selectedProduct.testStatus,
     );
@@ -340,7 +369,6 @@ const LineMonitoring = () => {
       color = "#1565C0",
       text = "진행중",
       icon = <FaPauseCircle size={10} />;
-
     if (["FAIL", "NG"].includes(status)) {
       bg = "#FFEBEE";
       color = "#C62828";
@@ -409,7 +437,6 @@ const LineMonitoring = () => {
           <FaClipboardList size={22} color={THEME_COLOR} />
           <h2 style={styles.title}>실시간 라인 모니터링</h2>
         </div>
-
         <div style={styles.controls}>
           <div style={styles.searchBox}>
             <FaSearch color="#aaa" />
@@ -421,7 +448,6 @@ const LineMonitoring = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
           <div style={styles.filterContainer}>
             <span style={styles.filterLabel}>라인:</span>
             <select
@@ -436,7 +462,6 @@ const LineMonitoring = () => {
               <option value="OFFICE">OFFICE</option>
             </select>
           </div>
-
           <div style={styles.filterContainer}>
             <span style={styles.filterLabel}>장비:</span>
             <select
@@ -459,7 +484,6 @@ const LineMonitoring = () => {
           const isIssue = ["FAIL", "NG", "HOLD", "ERROR"].includes(
             product.testStatus,
           );
-
           return (
             <div
               key={product.id}
@@ -477,14 +501,12 @@ const LineMonitoring = () => {
                   {product.productIcon}
                   {product.category}
                 </div>
-
                 <div
                   style={{ ...styles.lineBadge, backgroundColor: lineColor }}
                 >
                   <FaMapMarkerAlt size={9} />
                   {product.lineName}
                 </div>
-
                 <button
                   style={{
                     ...styles.defectBtn,
@@ -505,7 +527,6 @@ const LineMonitoring = () => {
                   {isIssue ? "조치 필요" : "이슈 등록"}
                 </button>
               </div>
-
               <div
                 style={{
                   marginBottom: "20px",
@@ -521,14 +542,12 @@ const LineMonitoring = () => {
                     <span style={{ color: "#333", fontWeight: "600" }}>
                       {product.serial}
                     </span>
-                    <span style={{ margin: "0 6px", color: "#ddd" }}>|</span>
-                    Op:{" "}
+                    <span style={{ margin: "0 6px", color: "#ddd" }}>|</span>Op:{" "}
                     <span style={{ color: "#555" }}>{product.operator}</span>
                   </div>
                 </div>
                 {renderStatusBadge(product.testStatus)}
               </div>
-
               <div style={styles.progressWrapper}>
                 <div
                   style={{
@@ -558,13 +577,11 @@ const LineMonitoring = () => {
                     }}
                   ></div>
                 </div>
-
                 <div style={styles.stepsContainer}>
                   {PROCESS_STEPS.map((stepName, idx) => {
                     const stepNum = idx + 1;
                     const isActive = product.step >= stepNum;
                     const isCurrent = product.step === stepNum;
-
                     return (
                       <div key={idx} style={styles.stepItem}>
                         <div
@@ -600,7 +617,6 @@ const LineMonitoring = () => {
             </div>
           );
         })}
-
         {filteredProducts.length === 0 && (
           <div style={styles.emptyState}>데이터가 없습니다.</div>
         )}
@@ -660,7 +676,6 @@ const LineMonitoring = () => {
                   S/N: {selectedProduct.serial}
                 </p>
               </div>
-
               <label style={styles.label}>
                 {["NG", "HOLD", "ERROR", "FAIL"].includes(
                   selectedProduct.testStatus,
@@ -668,7 +683,6 @@ const LineMonitoring = () => {
                   ? "조치 방법 선택"
                   : "이슈 유형 선택"}
               </label>
-
               <div
                 style={{ display: "flex", gap: "10px", marginBottom: "15px" }}
               >
@@ -709,7 +723,6 @@ const LineMonitoring = () => {
                   );
                 })}
               </div>
-
               <label style={styles.label}>
                 세부 사유 ({getCurrentModalTypes()[reportType]?.label})
               </label>
@@ -724,7 +737,6 @@ const LineMonitoring = () => {
                   </option>
                 ))}
               </select>
-
               <label style={styles.label}>상세 내용 / 비고</label>
               <textarea
                 rows="3"
@@ -733,8 +745,6 @@ const LineMonitoring = () => {
                 value={reportComment}
                 onChange={(e) => setReportComment(e.target.value)}
               ></textarea>
-
-              {/* 불량 상태일 때만 PASS 체크박스 표시 */}
               {["NG", "HOLD", "ERROR", "FAIL"].includes(
                 selectedProduct.testStatus,
               ) && (
@@ -786,24 +796,11 @@ const LineMonitoring = () => {
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes pulse { 
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7); } 
-            70% { transform: scale(1.05); box-shadow: 0 0 0 6px rgba(255, 68, 68, 0); } 
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); } 
-        }
-        @keyframes cardPulse { 
-            0% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.4); border-color: rgba(255, 68, 68, 1); } 
-            70% { box-shadow: 0 0 0 12px rgba(255, 68, 68, 0); border-color: rgba(255, 68, 68, 0.5); } 
-            100% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); border-color: rgba(255, 68, 68, 1); } 
-        }
-      `}</style>
+      <style>{`@keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 6px rgba(255, 68, 68, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); } } @keyframes cardPulse { 0% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.4); border-color: rgba(255, 68, 68, 1); } 70% { box-shadow: 0 0 0 12px rgba(255, 68, 68, 0); border-color: rgba(255, 68, 68, 0.5); } 100% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); border-color: rgba(255, 68, 68, 1); } }`}</style>
     </div>
   );
 };
 
-// 스타일
 const styles = {
   container: {
     padding: "30px",
@@ -857,13 +854,11 @@ const styles = {
     cursor: "pointer",
     fontWeight: "600",
   },
-
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
     gap: "20px",
   },
-
   card: {
     backgroundColor: "#fff",
     borderRadius: "16px",
@@ -878,7 +873,6 @@ const styles = {
     alignItems: "center",
     marginBottom: "15px",
   },
-
   categoryBadge: {
     display: "flex",
     alignItems: "center",
@@ -897,7 +891,6 @@ const styles = {
     alignItems: "center",
     gap: "3px",
   },
-
   defectBtn: {
     fontSize: "11px",
     padding: "5px 10px",
@@ -908,7 +901,6 @@ const styles = {
     alignItems: "center",
     transition: "all 0.3s",
   },
-
   modelName: {
     fontSize: "17px",
     fontWeight: "800",
@@ -916,7 +908,6 @@ const styles = {
     margin: "0 0 6px 0",
   },
   subInfo: { fontSize: "12px", color: "#888" },
-
   progressWrapper: {
     position: "relative",
     marginTop: "auto",
@@ -948,7 +939,6 @@ const styles = {
     border: "2px solid #fff",
   },
   stepText: { fontSize: "9px", textAlign: "center", whiteSpace: "nowrap" },
-
   emptyState: {
     gridColumn: "1 / -1",
     textAlign: "center",
@@ -973,7 +963,6 @@ const styles = {
     justifyContent: "center",
     color: "#555",
   },
-
   overlay: {
     position: "fixed",
     top: 0,
