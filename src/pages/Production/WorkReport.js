@@ -9,12 +9,18 @@ import {
   FaCommentDots,
   FaPlus,
   FaTrash,
+  FaUserEdit,
+  FaTimes,
+  FaUndo,
+  FaCheckCircle,
 } from "react-icons/fa";
 
 import {
   getTodayWorkOrders,
   reportWorkResult,
   getDefectTypes,
+  getTodayWorkReports,
+  cancelWorkReport,
 } from "../../api/productionApi";
 
 const COLORS = {
@@ -41,10 +47,13 @@ const WorkReport = () => {
   const [isDefectLoading, setIsDefectLoading] = useState(false);
   const [defectTypes, setDefectTypes] = useState([]);
 
+  const [editingId, setEditingId] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [inputs, setInputs] = useState({
-    goodQty: "",
     shortfallReason: "",
     memo: "",
+    worker: "",
     isShiftEnd: false,
   });
 
@@ -54,20 +63,23 @@ const WorkReport = () => {
     qty: "",
   });
 
-  // 3초 자동 갱신
   useEffect(() => {
     fetchData();
-    const interval = setInterval(() => fetchData(), 3000);
+    fetchHistory();
+    const interval = setInterval(() => {
+      // 주기적 업데이트
+      fetchData(true, true);
+      fetchHistory(true);
+    }, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedOrder?.id]);
 
-  // 시계
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (isSilent = false, maintainSelection = true) => {
     try {
       const orderData = await getTodayWorkOrders();
       const mapped = orderData.map((item) => ({
@@ -77,13 +89,24 @@ const WorkReport = () => {
         product: item.productName,
         targetQty: item.targetQty || 0,
         currentQty: item.currentQty || 0,
-        defectQty: item.defectQty || 0, // [C#에서 넘어온 DB 불량 수량]
+        defectQty: item.defectQty || 0,
         status: item.status,
         manager: item.worker,
       }));
+
+      // 정렬: 진행중 -> 대기 -> 완료
+      mapped.sort((a, b) => {
+        const score = (status) => {
+          if (status === "IN_PROGRESS") return 0;
+          if (status === "WAITING") return 1;
+          return 2; // COMPLETED
+        };
+        return score(a.status) - score(b.status);
+      });
+
       setWorkOrders(mapped);
 
-      if (selectedOrder) {
+      if (maintainSelection && selectedOrder) {
         const updated = mapped.find((o) => o.id === selectedOrder.id);
         if (updated) {
           setSelectedOrder((prev) => ({
@@ -94,104 +117,144 @@ const WorkReport = () => {
           }));
         }
       }
-
-      if (defectTypes.length === 0) {
-        setIsDefectLoading(true);
-        try {
-          const typeData = await getDefectTypes();
-          let finalData = Array.isArray(typeData)
-            ? typeData
-            : typeData.data || [];
-          setDefectTypes(finalData);
-          if (finalData.length > 0) {
-            setCurrentDefect((prev) => ({ ...prev, code: finalData[0].code }));
-          }
-        } catch (innerErr) {
-          console.error("불량 유형 로드 실패:", innerErr);
-        } finally {
-          setIsDefectLoading(false);
-        }
-      }
     } catch (err) {
-      console.error("데이터 로드 실패:", err);
+      console.error(err);
     }
   };
 
-  const resetInputs = () => {
+  const fetchHistory = async (isSilent = false) => {
+    try {
+      const historyData = await getTodayWorkReports();
+      if (!historyData || !Array.isArray(historyData)) {
+        setReportHistory([]);
+        return;
+      }
+      const mappedHistory = historyData.map((log) => {
+        const reportedBad = log.badQty ?? log.addedBad ?? 0;
+        return {
+          id: log.id,
+          time: new Date(log.reportTime).toLocaleTimeString("ko-KR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          orderCode: log.workOrderCode,
+          displayTotalGood: log.currentTotalGood || 0,
+          reportedBad: Number(reportedBad),
+          badReason: log.badReason,
+          worker: log.workerName || log.worker || "-",
+          note: log.memo || "-",
+        };
+      });
+      setReportHistory(mappedHistory);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // [기능 분리] 데이터를 폼에 채워넣는 로직 (재사용을 위해 분리함)
+  const fillFormWithLog = (log, order) => {
+    setSelectedOrder(order);
+    setEditingId(log.id); // 수정 모드 활성화
+
     setInputs({
-      goodQty: "",
+      shortfallReason: "",
+      memo: log.note === "-" || !log.note ? "" : log.note,
+      worker: log.worker === "-" || !log.worker ? "" : log.worker,
+      isShiftEnd: false,
+    });
+
+    if (log.badReason && log.badReason !== "N/A" && defectTypes.length > 0) {
+      const restoredDefects = [];
+      const parts = log.badReason.split(", ");
+      parts.forEach((part) => {
+        const match = part.match(/(.+)\((\d+)\)/);
+        if (match) {
+          const name = match[1].trim();
+          const qty = parseInt(match[2], 10);
+          const type = defectTypes.find((t) => t.name === name);
+          if (type) {
+            restoredDefects.push({
+              code: type.code,
+              name: type.name,
+              qty: qty,
+            });
+          }
+        }
+      });
+      setDefectList(restoredDefects);
+    } else {
+      setDefectList([]);
+    }
+  };
+
+  // [핵심 수정] 카드 선택 시 -> 이미 내역이 있으면 '수정 모드'로 직행
+  const handleSelectOrder = (order) => {
+    // 1. 토글 (이미 선택된 거 누르면 닫기)
+    if (selectedOrder?.id === order.id) {
+      setSelectedOrder(null);
+      setEditingId(null);
+      return;
+    }
+
+    // 2. 이 오더에 대한 기존 보고 내역이 있는지 찾기
+    const existingLogs = reportHistory.filter(
+      (log) => log.orderCode === order.code,
+    );
+
+    if (existingLogs.length > 0) {
+      // 내역이 있다면? -> 가장 최신 내역(ID가 큰 것)을 불러오기
+      const latestLog = existingLogs.sort((a, b) => b.id - a.id)[0];
+
+      // [중복 방지] 새 등록이 아니라 기존 내역 수정으로 모드 전환
+      fillFormWithLog(latestLog, order);
+    } else {
+      // 내역이 없다면? -> 새 등록 모드
+      setSelectedOrder(order);
+      resetInputs(order);
+    }
+  };
+
+  const resetInputs = (order = selectedOrder) => {
+    setInputs({
       shortfallReason: "",
       memo: "",
+      worker: order?.manager || "",
       isShiftEnd: false,
     });
     setDefectList([]);
     if (defectTypes.length > 0) {
       setCurrentDefect({ code: defectTypes[0].code, qty: "" });
-    } else {
-      setCurrentDefect({ code: "", qty: "" });
     }
+    setEditingId(null);
   };
 
-  // [사용자가 입력한 불량 수량 합계]
+  // 내역 리스트에서 클릭했을 때 (여전히 명시적으로 수정 의사를 물어봄)
+  const handleEditHistory = (log) => {
+    const targetOrder = workOrders.find((o) => o.code === log.orderCode);
+    if (!targetOrder) {
+      alert("✅ 이미 완료된 보고입니다.\n(수정할 수 없습니다)");
+      return;
+    }
+    if (!window.confirm("이 내역을 수정하시겠습니까?")) return;
+
+    fillFormWithLog(log, targetOrder);
+  };
+
+  const handleCancelEdit = () => {
+    setSelectedOrder(null);
+    setEditingId(null);
+  };
+
   const currentInputBadQty = defectList.reduce(
     (sum, item) => sum + Number(item.qty),
     0,
   );
 
-  // ▼▼▼ [최종 수정] C# 불량수 == 사용자 입력 불량수 일치 시 자동 종료 ▼▼▼
-  useEffect(() => {
-    if (!selectedOrder) return;
-
-    // 1. C# 장비가 보낸 DB 불량 수량
-    const dbBadQty = selectedOrder.defectQty;
-
-    // 2. 사용자가 리스트에 입력한 불량 수량
-    const userBadQty = currentInputBadQty;
-
-    // 3. 총 생산량 예측 (양품 + 불량)
-    const grandTotal =
-      selectedOrder.currentQty + // 기존 양품
-      (Number(inputs.goodQty) || 0) + // 입력 중인 양품
-      dbBadQty; // 불량은 DB값 기준 (일치해야 하므로)
-
-    const target = selectedOrder.targetQty;
-
-    // [조건]
-    // 1. 총 생산량이 목표를 달성했는가? (grandTotal >= target)
-    // 2. AND 사용자가 불량 분류를 완벽하게 했는가? (dbBadQty === userBadQty)
-    const isTargetMet = grandTotal >= target;
-    const isDefectMatched = dbBadQty === userBadQty;
-
-    if (isTargetMet && isDefectMatched) {
-      setInputs((prev) => ({ ...prev, isShiftEnd: true }));
-    } else {
-      setInputs((prev) => ({ ...prev, isShiftEnd: false }));
-    }
-  }, [inputs.goodQty, currentInputBadQty, selectedOrder]);
-
-  const handleSelectOrder = (order) => {
-    setSelectedOrder(order);
-    resetInputs();
-  };
-
-  const handleFillRemaining = () => {
-    if (!selectedOrder) return;
-    const dbTotal = selectedOrder.currentQty + selectedOrder.defectQty;
-    const remaining = selectedOrder.targetQty - dbTotal; // 잔량은 DB기준으로 계산
-
-    if (remaining > 0) {
-      setInputs({ ...inputs, goodQty: remaining.toString() });
-    } else {
-      setInputs({ ...inputs, goodQty: "0" });
-    }
-  };
-
   const handleAddDefect = () => {
-    if (!currentDefect.qty || Number(currentDefect.qty) <= 0) {
-      return alert("불량 수량을 입력해주세요.");
-    }
+    if (!currentDefect.qty || Number(currentDefect.qty) <= 0)
+      return alert("수량 입력 필요");
     const defectType = defectTypes.find((d) => d.code === currentDefect.code);
-    if (!defectType) return alert("선택된 불량 유형이 없습니다.");
+    if (!defectType) return;
 
     const existingIndex = defectList.findIndex(
       (d) => d.code === currentDefect.code,
@@ -220,103 +283,98 @@ const WorkReport = () => {
     setDefectList(newList);
   };
 
+  const handleDeleteReport = async (reportId, silent = false) => {
+    if (!silent && !window.confirm("내역을 삭제하시겠습니까?")) return;
+    try {
+      await cancelWorkReport(reportId);
+      setReportHistory((prev) => prev.filter((item) => item.id !== reportId));
+      if (!silent) {
+        fetchData(false, true);
+        if (editingId === reportId) {
+          setSelectedOrder(null);
+          setEditingId(null);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedOrder) return;
+    if (isSubmitting) return;
 
-    const addGood = Number(inputs.goodQty) || 0;
-
-    // [중요] 불량은 '이미 C#이 넣었으니까' 추가로 더하지 않을지,
-    // 아니면 '분류 정보만 업데이트' 할지 정책에 따름.
-    // 여기서는 요청대로 '사용자 입력값'을 보냅니다.
     const addBad = currentInputBadQty;
 
-    const totalAdd = addGood + addBad;
-
-    if (totalAdd === 0 && !inputs.isShiftEnd) {
-      return alert("수량을 입력하거나 작업을 종료해주세요.");
+    if (addBad === 0 && !inputs.isShiftEnd) {
+      return alert("불량 내역을 입력하거나 작업을 종료해주세요.");
     }
 
-    // [검증 강화] 작업 종료 시, 불량 수량 일치 여부 확인
     if (inputs.isShiftEnd) {
       const dbBad = selectedOrder.defectQty;
       const userBad = currentInputBadQty;
-
-      // 불량이 있는데 분류를 안 했거나 덜 했으면 경고
       if (dbBad > 0 && userBad !== dbBad) {
-        if (
-          !window.confirm(
-            `경고: C# 감지 불량(${dbBad}개)와 입력 불량(${userBad}개)가 일치하지 않습니다. 그래도 종료합니까?`,
-          )
-        ) {
+        if (!window.confirm("불량 수량이 일치하지 않습니다. 종료합니까?"))
           return;
-        }
       }
     }
 
-    const currentTotal =
-      selectedOrder.currentQty + selectedOrder.defectQty + totalAdd;
-    const target = selectedOrder.targetQty;
+    setIsSubmitting(true);
 
-    if (
-      inputs.isShiftEnd &&
-      currentTotal < target &&
-      !inputs.shortfallReason.trim()
-    ) {
-      return alert(
-        "❌ 목표 수량 미달입니다! 사유를 입력해야 종료할 수 있습니다.",
-      );
+    if (editingId) {
+      try {
+        await cancelWorkReport(editingId);
+      } catch (err) {
+        setIsSubmitting(false);
+        alert("수정 전 기존 내역 삭제 실패. 다시 시도해주세요.");
+        return;
+      }
     }
 
-    const combinedBadReason =
-      defectList.length > 0
-        ? defectList.map((d) => `${d.name}(${d.qty})`).join(", ")
-        : "";
+    const combinedBadReason = defectList
+      .map((d) => `${d.name}(${d.qty})`)
+      .join(", ");
 
     const reportData = {
-      goodQty: addGood,
+      goodQty: 0,
       badQty: addBad,
       badReason: combinedBadReason || "N/A",
       memo: inputs.memo,
+      worker: inputs.worker,
       isShiftEnd: inputs.isShiftEnd,
       shortfallReason: inputs.shortfallReason,
     };
 
     try {
       await reportWorkResult(selectedOrder.id, reportData);
-      alert("✅ 실적이 보고되었습니다.");
-      await fetchData();
 
-      const newReport = {
-        id: Date.now(),
-        time: new Date().toLocaleTimeString("ko-KR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        orderCode: selectedOrder.code,
-        addedGood: addGood,
-        addedBad: addBad,
-        totalResult: `${currentTotal} / ${target}`,
-        note: inputs.isShiftEnd ? "작업 종료" : inputs.memo || "중간 보고",
-      };
-      setReportHistory([newReport, ...reportHistory]);
+      const isEdit = !!editingId;
       resetInputs();
+
+      // 저장 완료 후, 선택을 풀어버려서 화면을 비워줌 (중복 클릭 방지)
+      await fetchData(false, false);
+      await fetchHistory();
+
+      setSelectedOrder(null);
+      setEditingId(null);
+
+      alert(isEdit ? "✅ 수정 완료" : "✅ 불량 보고 완료");
     } catch (err) {
-      alert("보고 실패: " + (err.response?.data || err.message));
+      alert("실패: " + (err.response?.data || err.message));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const calculateProgress = () => {
     if (!selectedOrder)
       return { currentPercent: 0, predictPercent: 0, totalPercent: 0 };
-
     const target = selectedOrder.targetQty;
     const dbTotal = selectedOrder.currentQty + selectedOrder.defectQty;
-    const inputTotal = (Number(inputs.goodQty) || 0) + currentInputBadQty;
-
+    const inputTotal = currentInputBadQty;
     const currentPercent = Math.min((dbTotal / target) * 100, 100);
     const totalPercent = Math.min(((dbTotal + inputTotal) / target) * 100, 100);
     const predictPercent = totalPercent - currentPercent;
-
     return { currentPercent, predictPercent, totalPercent };
   };
 
@@ -324,12 +382,13 @@ const WorkReport = () => {
 
   return (
     <div style={styles.container}>
+      <style>{`.hidden-scroll::-webkit-scrollbar { display: none; } .hidden-scroll { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
+
+      {/* Header */}
       <div style={styles.header}>
         <div>
-          <h2 style={styles.title}>📊 생산 실적 보고</h2>
-          <p style={styles.subtitle}>
-            현장 작업 지시별 실적 등록 및 특이사항 보고
-          </p>
+          <h2 style={styles.title}>📊 생산 불량 보고</h2>
+          <p style={styles.subtitle}>기계 자동 양품 카운트 / 수동 불량 등록</p>
         </div>
         <div style={styles.clockBox}>
           <FaClock style={{ marginRight: "8px" }} />{" "}
@@ -337,415 +396,457 @@ const WorkReport = () => {
         </div>
       </div>
 
-      <div style={styles.layout}>
-        <div style={styles.leftPanel}>
-          <div style={styles.panelHeader}>
-            <FaClipboardList /> 금일 작업 지시 목록
-          </div>
-          <div style={styles.orderList}>
-            {workOrders.length === 0 ? (
-              <div
-                style={{ padding: "20px", textAlign: "center", color: "#999" }}
-              >
-                진행 중인 작업 지시가 없습니다.
-              </div>
-            ) : (
-              workOrders.map((order) => {
-                const totalProduced = order.currentQty + order.defectQty;
-                const progress = Math.min(
-                  (totalProduced / order.targetQty) * 100,
-                  100,
-                );
-                const isSelected = selectedOrder?.id === order.id;
-
-                let statusText = "대기";
-                let statusColor = COLORS.warning;
-                if (order.status === "IN_PROGRESS") {
-                  statusText = "진행중";
-                  statusColor = COLORS.success;
-                } else if (order.status === "COMPLETED") {
-                  statusText = "완료";
-                  statusColor = COLORS.gray;
-                }
-
-                return (
-                  <div
-                    key={order.id}
-                    onClick={() => handleSelectOrder(order)}
-                    style={{
-                      ...styles.orderCard,
-                      border: isSelected
-                        ? `2px solid ${COLORS.primary}`
-                        : `1px solid ${COLORS.border}`,
-                      backgroundColor: isSelected ? "#F3F1FF" : "white",
-                      opacity: order.status === "COMPLETED" ? 0.6 : 1,
-                    }}
-                  >
-                    <div style={styles.cardTop}>
-                      <span style={styles.lineBadge}>{order.line}</span>
-                      <span
-                        style={{
-                          ...styles.statusBadge,
-                          backgroundColor: statusColor,
-                        }}
-                      >
-                        {statusText}
-                      </span>
-                    </div>
-                    <div style={styles.productName}>{order.product}</div>
-                    <div style={styles.orderId}>{order.code}</div>
-                    <div style={styles.progressContainer}>
-                      <div style={styles.progressInfo}>
-                        <span>
-                          달성률: <strong>{Math.round(progress)}%</strong>
-                        </span>
-                        <span>
-                          {totalProduced} / {order.targetQty} ea
-                        </span>
-                      </div>
-                      <div style={styles.progressBarBg}>
-                        <div
-                          style={{
-                            ...styles.progressBarFill,
-                            width: `${progress}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+      {/* Top List */}
+      <div style={styles.topListContainer}>
+        <div style={styles.sectionHeader}>
+          <FaClipboardList /> 금일 작업 지시 목록 (클릭시 선택/해제)
         </div>
+        <div style={styles.horizontalList} className="hidden-scroll">
+          {workOrders.length === 0 ? (
+            <div style={styles.emptyList}>진행 중인 작업 지시가 없습니다.</div>
+          ) : (
+            workOrders.map((order) => {
+              const totalProduced = order.currentQty + order.defectQty;
+              const progress = Math.min(
+                (totalProduced / order.targetQty) * 100,
+                100,
+              );
+              const isSelected = selectedOrder?.id === order.id;
 
-        <div style={styles.rightPanel}>
-          <div style={styles.formCard}>
-            <h3 style={styles.formTitle}>📝 실적 등록 및 종료</h3>
-            {selectedOrder ? (
-              <>
-                <div style={styles.infoSummary}>
-                  <div>
-                    <strong>지시번호:</strong> {selectedOrder.code}
-                  </div>
-                  <div>
-                    <strong>제품명:</strong> {selectedOrder.product}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
-                  >
-                    <div>
-                      <strong>현재(DB):</strong>{" "}
-                      <span style={{ color: COLORS.success }}>
-                        {selectedOrder.currentQty}
-                      </span>
-                      (양) /{" "}
-                      <span style={{ color: COLORS.danger }}>
-                        {selectedOrder.defectQty}
-                      </span>
-                      (불)
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#999" }}>
-                      (목표: {selectedOrder.targetQty})
-                    </div>
-                  </div>
-                </div>
+              let statusText = "대기",
+                statusColor = COLORS.warning;
+              if (order.status === "IN_PROGRESS") {
+                statusText = "진행중";
+                statusColor = COLORS.success;
+              } else if (order.status === "COMPLETED") {
+                statusText = "완료";
+                statusColor = COLORS.gray;
+              }
 
-                <div style={styles.predictionBox}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: "12px",
-                      marginBottom: "5px",
-                    }}
-                  >
-                    <span>목표 달성 예측 (양품+불량)</span>
-                    <span style={{ fontWeight: "bold", color: COLORS.primary }}>
-                      {Math.round(totalPercent)}%
-                    </span>
-                  </div>
-                  <div style={styles.progressBarBg}>
-                    <div
+              return (
+                <div
+                  key={order.id}
+                  onClick={() => handleSelectOrder(order)}
+                  style={{
+                    ...styles.orderCard,
+                    border: isSelected
+                      ? `2px solid ${COLORS.primary}`
+                      : `1px solid ${COLORS.border}`,
+                    backgroundColor: isSelected ? "#F3F1FF" : "white",
+                    opacity: order.status === "COMPLETED" ? 0.6 : 1,
+                  }}
+                >
+                  <div style={styles.cardTop}>
+                    <span style={styles.lineBadge}>{order.line}</span>
+                    <span
                       style={{
-                        ...styles.progressBarFill,
-                        width: `${currentPercent}%`,
-                        zIndex: 2,
-                      }}
-                    ></div>
-                    <div
-                      style={{
-                        ...styles.predictionFill,
-                        left: `${currentPercent}%`,
-                        width: `${predictPercent}%`,
-                        zIndex: 1,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div style={styles.inputGrid}>
-                  <div style={styles.inputGroup}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "5px",
+                        ...styles.statusBadge,
+                        backgroundColor: statusColor,
                       }}
                     >
-                      <label style={styles.label}>양품 수량</label>
-                      <button
-                        onClick={handleFillRemaining}
-                        style={styles.smallBtn}
-                      >
-                        잔량 채우기
-                      </button>
+                      {statusText}
+                    </span>
+                  </div>
+                  <div style={styles.productName}>{order.product}</div>
+                  <div style={styles.orderId}>{order.code}</div>
+                  <div style={styles.progressContainer}>
+                    <div style={styles.progressInfo}>
+                      <span>
+                        <strong>{Math.round(progress)}%</strong>
+                      </span>
+                      <span>
+                        {totalProduced}/{order.targetQty}
+                      </span>
                     </div>
+                    <div style={styles.progressBarBg}>
+                      <div
+                        style={{
+                          ...styles.progressBarFill,
+                          width: `${progress}%`,
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Section */}
+      <div style={styles.bottomContainer}>
+        {/* Form Panel */}
+        <div style={styles.formPanel}>
+          <div style={styles.panelTitle}>
+            <FaSave /> {editingId ? "불량 내역 수정" : "불량 등록"}
+            {editingId && (
+              <button onClick={handleCancelEdit} style={styles.cancelEditBtn}>
+                <FaUndo size={11} style={{ marginRight: "3px" }} /> 닫기
+              </button>
+            )}
+          </div>
+          {selectedOrder ? (
+            <div style={styles.formContent} className="hidden-scroll">
+              <div style={styles.infoSummary}>
+                <div style={{ flex: 1 }}>
+                  <strong>{selectedOrder.product}</strong>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      marginLeft: "8px",
+                      color: COLORS.gray,
+                    }}
+                  >
+                    {selectedOrder.code}
+                  </span>
+
+                  <div style={styles.inlineWorkerEdit}>
+                    <FaUserEdit
+                      size={12}
+                      color="#666"
+                      style={{ marginRight: "5px" }}
+                    />
                     <input
-                      type="number"
-                      style={styles.input}
-                      placeholder="0"
-                      value={inputs.goodQty}
+                      type="text"
+                      value={inputs.worker}
                       onChange={(e) =>
-                        setInputs({ ...inputs, goodQty: e.target.value })
+                        setInputs({ ...inputs, worker: e.target.value })
                       }
+                      placeholder={selectedOrder.manager || "작업자 입력"}
+                      style={styles.inlineInput}
                     />
                   </div>
                 </div>
 
-                <div style={styles.divider}></div>
-
-                <div style={styles.defectSection}>
-                  <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <label
-                      style={{
-                        ...styles.label,
-                        color: COLORS.danger,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      불량 분류 (C# 감지: {selectedOrder.defectQty}개)
-                    </label>
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: "bold",
-                        color:
-                          currentInputBadQty === selectedOrder.defectQty
-                            ? COLORS.success
-                            : COLORS.danger,
-                      }}
-                    >
-                      입력됨: {currentInputBadQty}개
+                <div style={{ textAlign: "right", minWidth: "100px" }}>
+                  <div style={{ fontSize: "11px", color: "#888" }}>
+                    현재 생산 실적
+                  </div>
+                  <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+                    <span style={{ color: COLORS.success }}>
+                      {selectedOrder.currentQty}
+                    </span>{" "}
+                    /{" "}
+                    <span style={{ color: COLORS.danger }}>
+                      {selectedOrder.defectQty}
                     </span>
                   </div>
+                </div>
+              </div>
 
+              <div style={styles.predictionBox}>
+                <div style={styles.predHeader}>
+                  <span>예측 달성률</span>
+                  <span style={{ fontWeight: "bold", color: COLORS.primary }}>
+                    {Math.round(totalPercent)}%
+                  </span>
+                </div>
+                <div style={styles.progressBarBg}>
                   <div
                     style={{
-                      display: "flex",
-                      gap: "10px",
-                      alignItems: "flex-end",
+                      ...styles.progressBarFill,
+                      width: `${currentPercent}%`,
+                      zIndex: 2,
+                    }}
+                  ></div>
+                  <div
+                    style={{
+                      ...styles.predictionFill,
+                      left: `${currentPercent}%`,
+                      width: `${predictPercent}%`,
+                      zIndex: 1,
+                    }}
+                  ></div>
+                </div>
+              </div>
+
+              <div
+                style={
+                  editingId
+                    ? {
+                        ...styles.fullWidthBox,
+                        borderColor: COLORS.warning,
+                        borderWidth: "2px",
+                      }
+                    : styles.fullWidthBox
+                }
+              >
+                <div style={styles.labelRow}>
+                  <label style={{ ...styles.label, color: COLORS.danger }}>
+                    불량 등록
+                  </label>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: "bold",
+                      color:
+                        currentInputBadQty === selectedOrder.defectQty
+                          ? COLORS.success
+                          : COLORS.danger,
                     }}
                   >
-                    <div style={{ flex: 2 }}>
-                      <span style={styles.miniLabel}>유형</span>
-                      <select
-                        style={styles.select}
-                        value={currentDefect.code}
-                        onChange={(e) =>
-                          setCurrentDefect({
-                            ...currentDefect,
-                            code: e.target.value,
-                          })
-                        }
+                    {currentInputBadQty === selectedOrder.defectQty ? (
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
                       >
-                        {isDefectLoading && (
-                          <option value="">로딩 중...</option>
-                        )}
-                        {!isDefectLoading && defectTypes.length === 0 && (
-                          <option value="">유형 없음</option>
-                        )}
-                        {!isDefectLoading &&
-                          defectTypes.map((type) => (
-                            <option key={type.code} value={type.code}>
-                              {type.name}
-                            </option>
-                          ))}
-                      </select>
+                        <FaCheckCircle /> 일치
+                      </span>
+                    ) : currentInputBadQty > 0 ? (
+                      `입력:${currentInputBadQty}`
+                    ) : (
+                      "-"
+                    )}
+                  </span>
+                </div>
+
+                <div
+                  style={{ display: "flex", gap: "5px", marginBottom: "8px" }}
+                >
+                  <select
+                    style={{ ...styles.select, flex: 3 }}
+                    value={currentDefect.code}
+                    onChange={(e) =>
+                      setCurrentDefect({
+                        ...currentDefect,
+                        code: e.target.value,
+                      })
+                    }
+                  >
+                    {!isDefectLoading &&
+                      defectTypes.map((t) => (
+                        <option key={t.code} value={t.code}>
+                          {t.name}
+                        </option>
+                      ))}
+                  </select>
+                  <input
+                    type="number"
+                    style={{ ...styles.subInput, width: "60px" }}
+                    placeholder="0"
+                    value={currentDefect.qty}
+                    onChange={(e) =>
+                      setCurrentDefect({
+                        ...currentDefect,
+                        qty: e.target.value,
+                      })
+                    }
+                  />
+                  <button onClick={handleAddDefect} style={styles.addBtnIcon}>
+                    <FaPlus />
+                  </button>
+                </div>
+
+                <div style={styles.miniDefectList} className="hidden-scroll">
+                  {defectList.length === 0 ? (
+                    <div
+                      style={{
+                        color: "#ccc",
+                        fontSize: "11px",
+                        textAlign: "center",
+                        padding: "15px",
+                      }}
+                    >
+                      등록된 불량 없음
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <span style={styles.miniLabel}>수량</span>
-                      <input
-                        type="number"
-                        style={{ ...styles.input, textAlign: "center" }}
-                        placeholder="0"
-                        value={currentDefect.qty}
-                        onChange={(e) =>
-                          setCurrentDefect({
-                            ...currentDefect,
-                            qty: e.target.value,
-                          })
-                        }
-                      />
+                  ) : (
+                    defectList.map((d, i) => (
+                      <div key={i} style={styles.miniDefectItem}>
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            maxWidth: "80%",
+                          }}
+                        >
+                          {d.name}
+                        </span>
+                        <span style={{ display: "flex", alignItems: "center" }}>
+                          <b
+                            style={{
+                              color: COLORS.danger,
+                              marginRight: "10px",
+                            }}
+                          >
+                            {d.qty}
+                          </b>
+                          <FaTrash
+                            style={{ cursor: "pointer", color: "#aaa" }}
+                            onClick={() => handleDeleteDefect(i)}
+                          />
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div style={{ marginTop: "15px" }}>
+                <input
+                  type="text"
+                  style={styles.memoInput}
+                  placeholder="메모 입력..."
+                  value={inputs.memo}
+                  onChange={(e) =>
+                    setInputs({ ...inputs, memo: e.target.value })
+                  }
+                />
+              </div>
+
+              <div style={styles.checkSection}>
+                <label style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={inputs.isShiftEnd}
+                    onChange={(e) =>
+                      setInputs({ ...inputs, isShiftEnd: e.target.checked })
+                    }
+                    style={{
+                      marginRight: "10px",
+                      width: "18px",
+                      height: "18px",
+                    }}
+                  />
+                  작업 종료 처리
+                </label>
+              </div>
+
+              {inputs.isShiftEnd &&
+                selectedOrder.currentQty + selectedOrder.defectQty <
+                  selectedOrder.targetQty && (
+                  <div style={styles.warningBox}>
+                    <div style={styles.warningTitle}>
+                      <FaExclamationTriangle /> 미달 사유 입력
                     </div>
-                    <button onClick={handleAddDefect} style={styles.addBtn}>
-                      <FaPlus /> 추가
+                    <textarea
+                      style={styles.textarea}
+                      placeholder="사유 입력"
+                      value={inputs.shortfallReason}
+                      onChange={(e) =>
+                        setInputs({
+                          ...inputs,
+                          shortfallReason: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                )}
+
+              <div style={{ marginTop: "auto", paddingTop: "20px" }}>
+                <button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  style={{
+                    ...styles.submitBtn,
+                    backgroundColor: isSubmitting
+                      ? COLORS.gray
+                      : editingId
+                        ? COLORS.warning
+                        : COLORS.primary,
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <FaSave />{" "}
+                  {isSubmitting
+                    ? "처리 중..."
+                    : editingId
+                      ? "수정 완료"
+                      : "불량 보고 저장"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={styles.emptyState}>
+              <FaIndustry size={40} color="#ddd" />
+              <p>작업 지시를 선택하세요.</p>
+            </div>
+          )}
+        </div>
+
+        {/* History Panel */}
+        <div style={styles.historyPanel}>
+          <div style={styles.panelTitle}>
+            <FaHistory /> 보고 내역 (클릭 시 수정)
+          </div>
+          <div style={styles.historyListScroll} className="hidden-scroll">
+            {reportHistory.length === 0 ? (
+              <div style={styles.emptyStateSimple}>내역 없음</div>
+            ) : (
+              reportHistory.map((log) => (
+                <div
+                  key={log.id}
+                  style={{
+                    ...styles.historyRowItem,
+                    cursor: "pointer",
+                    border:
+                      editingId === log.id
+                        ? `2px solid ${COLORS.warning}`
+                        : `1px solid ${COLORS.border}`,
+                    backgroundColor:
+                      editingId === log.id ? "#FFF8E1" : "#F9FAFB",
+                  }}
+                  onClick={() => handleEditHistory(log)}
+                >
+                  <div style={styles.historyRowTop}>
+                    <span style={styles.histTime}>{log.time}</span>
+                    <span style={{ fontSize: "11px", color: "#555" }}>
+                      {log.worker}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteReport(log.id);
+                      }}
+                      style={styles.deleteReportBtn}
+                    >
+                      <FaTimes size={12} />
                     </button>
                   </div>
 
-                  {defectList.length > 0 && (
-                    <div style={styles.defectListContainer}>
-                      {defectList.map((item, index) => (
-                        <div key={index} style={styles.defectItem}>
-                          <span style={styles.defectName}>{item.name}</span>
-                          <span style={styles.defectQty}>{item.qty}개</span>
-                          <button
-                            onClick={() => handleDeleteDefect(index)}
-                            style={styles.deleteBtn}
-                          >
-                            <FaTrash size={12} />
-                          </button>
-                        </div>
-                      ))}
-                      <div style={styles.defectTotal}>
-                        총 불량: {currentInputBadQty}개
-                      </div>
+                  <div style={styles.historyRowMid}>
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        display: "flex",
+                        width: "100%",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span style={{ color: "#555" }}>
+                        현재 양품(누적){" "}
+                        <b
+                          style={{
+                            color: COLORS.success,
+                            fontSize: "14px",
+                          }}
+                        >
+                          {log.displayTotalGood}
+                        </b>
+                      </span>
+                      <span style={{ color: "#555" }}>
+                        불량 신고{" "}
+                        <b style={{ color: COLORS.danger, fontSize: "14px" }}>
+                          {log.reportedBad}
+                        </b>
+                      </span>
+                    </span>
+                  </div>
+
+                  {log.note && log.note !== "-" && (
+                    <div style={styles.historyRowBot}>
+                      <FaCommentDots size={10} style={{ marginRight: "4px" }} />{" "}
+                      {log.note}
                     </div>
                   )}
                 </div>
-
-                <div style={{ marginTop: "15px" }}>
-                  <label style={styles.label}>
-                    <FaCommentDots style={{ marginRight: "5px" }} /> 특이사항
-                    메모
-                  </label>
-                  <input
-                    type="text"
-                    style={styles.textInput}
-                    placeholder="예: 설비 소음 발생 등"
-                    value={inputs.memo}
-                    onChange={(e) =>
-                      setInputs({ ...inputs, memo: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div style={styles.divider}></div>
-
-                <div style={styles.checkSection}>
-                  <label style={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={inputs.isShiftEnd}
-                      onChange={(e) =>
-                        setInputs({ ...inputs, isShiftEnd: e.target.checked })
-                      }
-                      style={{ marginRight: "10px", transform: "scale(1.2)" }}
-                    />
-                    금일 작업(교대) 종료 또는 지시 완료
-                  </label>
-                </div>
-
-                {inputs.isShiftEnd &&
-                  selectedOrder.currentQty +
-                    selectedOrder.defectQty +
-                    Number(inputs.goodQty) <
-                    selectedOrder.targetQty && (
-                    <div style={styles.warningBox}>
-                      <div style={styles.warningTitle}>
-                        <FaExclamationTriangle /> 목표 수량 미달
-                      </div>
-                      <p style={styles.warningText}>
-                        목표({selectedOrder.targetQty}) 대비 부족합니다. 사유를
-                        입력하세요.
-                      </p>
-                      <textarea
-                        style={styles.textarea}
-                        placeholder="사유 입력..."
-                        value={inputs.shortfallReason}
-                        onChange={(e) =>
-                          setInputs({
-                            ...inputs,
-                            shortfallReason: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  )}
-
-                <button onClick={handleSubmit} style={styles.submitBtn}>
-                  <FaSave /> 실적 보고 및 저장
-                </button>
-              </>
-            ) : (
-              <div style={styles.emptyState}>
-                <FaIndustry size={40} color="#ddd" />
-                <p>좌측 목록에서 작업할 지시를 선택해주세요.</p>
-              </div>
+              ))
             )}
-          </div>
-
-          <div style={styles.historyCard}>
-            <div style={styles.panelHeader}>
-              <FaHistory /> 금일 실적 보고 내역 (세션)
-            </div>
-            <div style={styles.tableWrapper}>
-              <table style={styles.table}>
-                <thead>
-                  <tr style={{ background: "#f9f9f9" }}>
-                    <th style={styles.th}>시간</th>
-                    <th style={styles.th}>지시번호</th>
-                    <th style={styles.th}>양품/불량</th>
-                    <th style={styles.th}>누적(합계)</th>
-                    <th style={styles.th}>비고</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportHistory.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan="5"
-                        style={{
-                          ...styles.td,
-                          textAlign: "center",
-                          color: "#999",
-                          padding: "30px",
-                        }}
-                      >
-                        보고된 이력이 없습니다.
-                      </td>
-                    </tr>
-                  ) : (
-                    reportHistory.map((log) => (
-                      <tr key={log.id}>
-                        <td style={styles.td}>{log.time}</td>
-                        <td style={styles.td}>{log.orderCode}</td>
-                        <td style={styles.td}>
-                          <span style={{ color: COLORS.success }}>
-                            +{log.addedGood}
-                          </span>{" "}
-                          /{" "}
-                          <span style={{ color: COLORS.danger }}>
-                            +{log.addedBad}
-                          </span>
-                        </td>
-                        <td style={{ ...styles.td, fontWeight: "bold" }}>
-                          {log.totalResult}
-                        </td>
-                        <td style={styles.td}>{log.note}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
           </div>
         </div>
       </div>
@@ -757,7 +858,7 @@ const styles = {
   container: {
     padding: "20px",
     backgroundColor: COLORS.bg,
-    height: "100vh",
+    minHeight: "100vh",
     display: "flex",
     flexDirection: "column",
     boxSizing: "border-box",
@@ -766,7 +867,7 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "15px",
+    marginBottom: "10px",
     flexShrink: 0,
   },
   title: {
@@ -787,49 +888,60 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
-  layout: { display: "flex", gap: "20px", flex: 1, overflow: "hidden" },
-  leftPanel: {
-    flex: "0 0 350px",
+  topListContainer: {
     backgroundColor: "white",
     borderRadius: "12px",
     boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+    padding: "15px",
+    marginBottom: "15px",
+    height: "180px",
     display: "flex",
     flexDirection: "column",
-    overflow: "hidden",
   },
-  panelHeader: {
-    padding: "15px 20px",
-    borderBottom: `1px solid ${COLORS.border}`,
+  sectionHeader: {
+    fontSize: "14px",
     fontWeight: "bold",
     color: COLORS.text,
+    marginBottom: "10px",
     display: "flex",
     alignItems: "center",
-    gap: "8px",
-    backgroundColor: "#fff",
-    flexShrink: 0,
+    gap: "6px",
   },
-  orderList: {
-    padding: "15px",
-    overflowY: "auto",
+  horizontalList: {
     display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-    flex: 1,
+    gap: "15px",
+    overflowX: "auto",
+    paddingBottom: "10px",
+    height: "100%",
+    alignItems: "center",
+  },
+  emptyList: {
+    width: "100%",
+    textAlign: "center",
+    color: "#ccc",
+    marginTop: "30px",
   },
   orderCard: {
+    minWidth: "220px",
+    height: "100%",
     borderRadius: "10px",
-    padding: "15px",
+    padding: "12px",
     cursor: "pointer",
-    transition: "all 0.2s",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.02)",
+    transition: "transform 0.2s, box-shadow 0.2s",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    position: "relative",
+    boxSizing: "border-box",
   },
   cardTop: {
     display: "flex",
     justifyContent: "space-between",
-    marginBottom: "8px",
+    marginBottom: "2px",
   },
   lineBadge: {
-    fontSize: "11px",
+    fontSize: "10px",
     fontWeight: "bold",
     color: "#666",
     backgroundColor: "#eee",
@@ -839,23 +951,26 @@ const styles = {
   statusBadge: {
     fontSize: "10px",
     color: "white",
-    padding: "3px 8px",
-    borderRadius: "10px",
+    padding: "2px 6px",
+    borderRadius: "8px",
     fontWeight: "bold",
   },
   productName: {
-    fontSize: "15px",
+    fontSize: "14px",
     fontWeight: "bold",
     color: "#333",
-    marginBottom: "4px",
+    marginBottom: "2px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
-  orderId: { fontSize: "12px", color: "#999", marginBottom: "12px" },
+  orderId: { fontSize: "11px", color: "#999" },
   progressContainer: { marginTop: "5px" },
   progressInfo: {
     display: "flex",
     justifyContent: "space-between",
-    fontSize: "12px",
-    marginBottom: "4px",
+    fontSize: "11px",
+    marginBottom: "2px",
     color: "#666",
   },
   progressBarBg: {
@@ -873,42 +988,68 @@ const styles = {
     top: 0,
     left: 0,
   },
-  rightPanel: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: "20px",
-    overflowY: "auto",
-    paddingRight: "5px",
-  },
-  formCard: {
+  bottomContainer: { display: "flex", gap: "15px", alignItems: "flex-start" },
+  formPanel: {
+    flex: 2.2,
     backgroundColor: "white",
     borderRadius: "12px",
-    padding: "25px",
     boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
-    flexShrink: 0,
+    padding: "20px",
+    display: "flex",
+    flexDirection: "column",
   },
-  formTitle: {
-    fontSize: "18px",
+  panelTitle: {
+    fontSize: "16px",
     fontWeight: "bold",
-    marginBottom: "20px",
+    marginBottom: "15px",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
     color: "#333",
   },
+  formContent: { flex: 1, display: "flex", flexDirection: "column" },
   infoSummary: {
     backgroundColor: "#F8F9FA",
-    padding: "15px",
+    padding: "12px",
     borderRadius: "8px",
     marginBottom: "15px",
     display: "flex",
     justifyContent: "space-between",
     fontSize: "14px",
     border: `1px solid ${COLORS.border}`,
+    alignItems: "center",
   },
+
+  inlineWorkerEdit: {
+    marginTop: "8px",
+    display: "flex",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: "4px",
+    padding: "2px 5px",
+    border: `1px solid ${COLORS.border}`,
+    maxWidth: "180px",
+  },
+  inlineInput: {
+    border: "none",
+    fontSize: "13px",
+    width: "100%",
+    outline: "none",
+    color: "#333",
+    background: "transparent",
+  },
+
   predictionBox: {
-    marginBottom: "20px",
+    marginBottom: "15px",
     padding: "10px",
     borderRadius: "8px",
     backgroundColor: `${COLORS.secondary}`,
+  },
+  predHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: "12px",
+    marginBottom: "5px",
   },
   predictionFill: {
     position: "absolute",
@@ -919,123 +1060,92 @@ const styles = {
     transition: "width 0.3s ease",
     top: 0,
   },
-  inputGrid: { display: "flex", gap: "20px" },
-  inputGroup: { flex: 1, display: "flex", flexDirection: "column" },
-  label: {
-    fontSize: "13px",
-    fontWeight: "bold",
-    color: "#555",
-    display: "flex",
-    alignItems: "center",
-  },
-  miniLabel: {
-    fontSize: "11px",
-    color: "#888",
-    marginBottom: "4px",
-    display: "block",
-  },
-  smallBtn: {
-    fontSize: "11px",
-    padding: "2px 8px",
-    borderRadius: "4px",
-    border: `1px solid ${COLORS.primary}`,
-    backgroundColor: "white",
-    color: COLORS.primary,
-    cursor: "pointer",
-    fontWeight: "bold",
-  },
-  addBtn: {
-    height: "45px",
-    padding: "0 15px",
-    backgroundColor: COLORS.danger,
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontWeight: "bold",
-    display: "flex",
-    alignItems: "center",
-    gap: "5px",
-    fontSize: "13px",
-  },
-  input: {
+
+  fullWidthBox: {
     width: "100%",
-    padding: "12px",
-    borderRadius: "8px",
+    minHeight: "160px",
+    backgroundColor: "#fff",
     border: `1px solid ${COLORS.border}`,
-    fontSize: "16px",
-    fontWeight: "bold",
-    textAlign: "right",
-    boxSizing: "border-box",
-  },
-  textInput: {
-    width: "100%",
-    padding: "10px",
     borderRadius: "8px",
-    border: `1px solid ${COLORS.border}`,
-    fontSize: "14px",
-    boxSizing: "border-box",
-  },
-  select: {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "8px",
-    border: `1px solid ${COLORS.border}`,
-    fontSize: "14px",
-    height: "45px",
-  },
-  divider: { height: "1px", backgroundColor: COLORS.border, margin: "20px 0" },
-  defectSection: {
-    backgroundColor: "#FFF9F9",
     padding: "15px",
-    borderRadius: "8px",
-    border: `1px dashed ${COLORS.dangerLight}`,
+    display: "flex",
+    flexDirection: "column",
+    boxSizing: "border-box",
   },
-  defectListContainer: {
-    marginTop: "10px",
-    backgroundColor: "white",
-    borderRadius: "6px",
-    border: `1px solid ${COLORS.border}`,
-    padding: "10px",
-  },
-  defectItem: {
+
+  labelRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "6px 0",
-    borderBottom: "1px solid #eee",
-    fontSize: "13px",
+    marginBottom: "10px",
+    whiteSpace: "nowrap",
   },
-  defectName: { color: "#333", fontWeight: "bold" },
-  defectQty: { color: COLORS.danger, fontWeight: "bold" },
-  defectTotal: {
-    textAlign: "right",
-    marginTop: "8px",
-    fontSize: "13px",
-    fontWeight: "bold",
-    color: "#333",
+  label: { fontSize: "14px", fontWeight: "bold", color: "#555" },
+  subInput: {
+    padding: "8px",
+    borderRadius: "6px",
+    border: `1px solid ${COLORS.border}`,
+    fontSize: "14px",
+    textAlign: "center",
   },
-  deleteBtn: {
+  select: {
+    padding: "8px",
+    borderRadius: "6px",
+    border: `1px solid ${COLORS.border}`,
+    fontSize: "13px",
+    minWidth: 0,
+  },
+  addBtnIcon: {
+    backgroundColor: COLORS.danger,
+    color: "white",
     border: "none",
-    background: "none",
-    color: "#999",
+    borderRadius: "6px",
+    width: "35px",
     cursor: "pointer",
-    padding: "4px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
-  checkSection: { marginBottom: "15px" },
+  miniDefectList: {
+    marginTop: "8px",
+    backgroundColor: "#f9f9f9",
+    borderRadius: "4px",
+    flex: 1,
+    overflowY: "auto",
+    padding: "0 5px",
+  },
+  miniDefectItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    fontSize: "12px",
+    padding: "6px 2px",
+    borderBottom: "1px dashed #ddd",
+  },
+  memoInput: {
+    width: "100%",
+    padding: "12px",
+    borderRadius: "6px",
+    border: `1px solid ${COLORS.border}`,
+    fontSize: "14px",
+    boxSizing: "border-box",
+  },
+  checkSection: { marginTop: "15px", marginBottom: "15px" },
   checkboxLabel: {
     display: "flex",
     alignItems: "center",
     fontSize: "15px",
     fontWeight: "bold",
     cursor: "pointer",
+    color: "#333",
   },
   warningBox: {
     backgroundColor: "#FFF4F4",
     border: `1px solid ${COLORS.danger}`,
-    padding: "15px",
+    padding: "10px",
     borderRadius: "8px",
-    marginBottom: "20px",
+    marginBottom: "15px",
   },
   warningTitle: {
     display: "flex",
@@ -1044,15 +1154,15 @@ const styles = {
     color: COLORS.danger,
     fontWeight: "bold",
     marginBottom: "5px",
+    fontSize: "13px",
   },
-  warningText: { fontSize: "12px", color: "#555", marginBottom: "8px" },
   textarea: {
     width: "100%",
     padding: "10px",
     borderRadius: "6px",
     border: `1px solid ${COLORS.danger}`,
-    minHeight: "60px",
-    fontSize: "14px",
+    minHeight: "50px",
+    fontSize: "13px",
     boxSizing: "border-box",
   },
   submitBtn: {
@@ -1068,42 +1178,85 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "10px",
+    gap: "8px",
+    marginTop: "auto",
   },
   emptyState: {
-    padding: "60px",
-    textAlign: "center",
-    color: "#999",
-    border: "2px dashed #eee",
-    borderRadius: "8px",
-  },
-  historyCard: {
-    backgroundColor: "white",
-    borderRadius: "12px",
     display: "flex",
     flexDirection: "column",
-    flexShrink: 0,
-    minHeight: "300px",
+    alignItems: "center",
+    justifyContent: "center",
+    height: "100%",
+    color: "#ccc",
+  },
+  historyPanel: {
+    flex: 1,
+    backgroundColor: "white",
+    borderRadius: "12px",
     boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+    padding: "20px",
+    display: "flex",
+    flexDirection: "column",
     overflow: "hidden",
-    marginBottom: "20px",
   },
-  tableWrapper: { flex: 1, overflowY: "auto" },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: "13px" },
-  th: {
-    padding: "12px",
-    borderBottom: `1px solid ${COLORS.border}`,
-    textAlign: "center",
+  historyListScroll: { display: "flex", flexDirection: "column", gap: "10px" },
+  historyRowItem: {
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: "8px",
+    padding: "10px",
+    fontSize: "13px",
+    backgroundColor: "#F9FAFB",
+    position: "relative",
+  },
+  historyRowTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "5px",
     color: "#666",
-    position: "sticky",
-    top: 0,
-    backgroundColor: "#f9f9f9",
+    fontSize: "12px",
   },
-  td: {
-    padding: "12px",
-    borderBottom: `1px solid ${COLORS.border}`,
-    color: "#333",
+  histTime: { color: COLORS.gray },
+  historyRowMid: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "5px",
+    alignItems: "center",
+  },
+  historyRowBot: {
+    marginTop: "5px",
+    paddingTop: "5px",
+    borderTop: "1px dashed #eee",
+    fontSize: "12px",
+    color: "#666",
+    display: "flex",
+    alignItems: "center",
+  },
+  emptyStateSimple: {
     textAlign: "center",
+    color: "#ccc",
+    marginTop: "30px",
+    fontSize: "13px",
+  },
+  deleteReportBtn: {
+    border: "none",
+    background: "transparent",
+    color: "#999",
+    cursor: "pointer",
+    padding: "0 5px",
+    transition: "color 0.2s",
+    ":hover": { color: COLORS.danger },
+  },
+  cancelEditBtn: {
+    marginLeft: "10px",
+    fontSize: "11px",
+    padding: "3px 8px",
+    borderRadius: "4px",
+    border: "1px solid #ccc",
+    backgroundColor: "#fff",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    color: "#666",
   },
 };
 

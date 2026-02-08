@@ -45,26 +45,20 @@ const ProductionSchedule = () => {
   const [schedules, setSchedules] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 상세 모달용 선택된 데이터
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
-  // ▼▼▼ [수정 1] 자동 새로고침 로직 추가 (3초마다 갱신) ▼▼▼
   useEffect(() => {
-    fetchSchedules(true); // 첫 로딩은 로딩바 표시 (true)
-
+    fetchSchedules(true);
     const interval = setInterval(() => {
-      fetchSchedules(false); // 배경 갱신은 로딩바 숨김 (false)
+      fetchSchedules(false);
     }, 3000);
-
     return () => clearInterval(interval);
   }, []);
 
-  // ▼▼▼ [수정 2] 깜빡임 방지 (isInitialLoad 플래그 사용) ▼▼▼
   const fetchSchedules = async (isInitialLoad = false) => {
     if (isInitialLoad) setIsLoading(true);
     try {
       const data = await getProductionPlans();
-      // 데이터가 있을 때만 업데이트 (빈 배열이 오면 기존 데이터 유지 등은 선택사항)
       setSchedules(data || []);
     } catch (error) {
       console.error("데이터 로드 실패:", error);
@@ -85,44 +79,32 @@ const ProductionSchedule = () => {
   const progressRate =
     totalPlan === 0 ? 0 : Math.round((totalDone / totalPlan) * 100);
 
-  // 상세 모달 열기
   const openDetailModal = (item) => {
     setSelectedSchedule(item);
   };
 
-  // 상세 모달 닫기
   const closeDetailModal = () => {
     setSelectedSchedule(null);
   };
 
-  // 생산 계획 전용 엑셀 다운로드 로직
   const handleDownloadExcel = () => {
-    // 1. 헤더 수정
     const headers = [
       "지시일자,라인,품목명,계획수량,생산수량,진척률,담당자,상태",
     ];
-
-    // 2. 데이터 매핑
     const rows = filteredSchedules.map((item) => {
       const rate =
         item.planQty > 0 ? Math.round((item.doneQty / item.planQty) * 100) : 0;
-      // null 체크 추가
       const lineName = item.line || "-";
       const prodName = item.product || "-";
       const mgrName = item.manager || "-";
-
       return `${item.date},${lineName},${prodName},${item.planQty},${item.doneQty},${rate}%,${mgrName},${item.status}`;
     });
 
-    // 3. CSV 생성 (한글 깨짐 방지 BOM 추가)
     const csvContent =
       "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
-
-    // 4. 다운로드 실행
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-
     link.setAttribute(
       "download",
       `생산지시서_${new Date().toISOString().slice(0, 10)}.csv`,
@@ -207,15 +189,12 @@ const ProductionSchedule = () => {
           </div>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          {/* 새로고침 버튼 */}
           <button
             style={styles.refreshBtn}
             onClick={() => fetchSchedules(true)}
           >
             <FaSyncAlt /> 새로고침
           </button>
-
-          {/* 엑셀 다운로드 버튼 */}
           <button style={styles.excelButton} onClick={handleDownloadExcel}>
             <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
           </button>
@@ -228,16 +207,15 @@ const ProductionSchedule = () => {
           <table style={styles.table}>
             <thead>
               <tr style={styles.theadTr}>
-                <th style={styles.th}>긴급</th>
-                <th style={styles.th}>마감일</th>
-                <th style={styles.th}>라인</th>
-                <th style={styles.th}>품목명</th>
-                <th style={styles.th}>자재</th>
-                <th style={styles.th}>계획/실적</th>
-                <th style={styles.th}>진척률</th>
-                <th style={styles.th}>담당자</th>
-                <th style={styles.th}>상태</th>
-                <th style={styles.th}>관리</th>
+                {/* [수정] 긴급/관리 컬럼 삭제하고 핵심 컬럼만 유지 */}
+                <th style={{ ...styles.th, width: "12%" }}>마감일</th>
+                <th style={{ ...styles.th, width: "10%" }}>라인</th>
+                <th style={{ ...styles.th, width: "20%" }}>품목명</th>
+                <th style={{ ...styles.th, width: "12%" }}>자재</th>
+                <th style={{ ...styles.th, width: "15%" }}>계획/실적</th>
+                <th style={{ ...styles.th, width: "15%" }}>진척률</th>
+                <th style={{ ...styles.th, width: "8%" }}>담당자</th>
+                <th style={{ ...styles.th, width: "8%" }}>상태</th>
               </tr>
             </thead>
             <tbody>
@@ -250,7 +228,7 @@ const ProductionSchedule = () => {
               ))}
               {filteredSchedules.length === 0 && (
                 <tr>
-                  <td colSpan="10" style={styles.emptyState}>
+                  <td colSpan="8" style={styles.emptyState}>
                     {isLoading ? "로딩 중..." : "데이터가 없습니다."}
                   </td>
                 </tr>
@@ -270,7 +248,6 @@ const ProductionSchedule = () => {
         </div>
       )}
 
-      {/* 상세 정보 모달 */}
       {selectedSchedule && (
         <div style={styles.modalOverlay}>
           <div style={styles.detailModal}>
@@ -332,8 +309,7 @@ const ProductionSchedule = () => {
                   <FaBullhorn /> 작업 지시 사항
                 </h4>
                 <div style={styles.textBox}>
-                  패널 조립 시 베젤 유격 0.5mm 이내 관리 요망. (DB 데이터 연동
-                  필요)
+                  패널 조립 시 베젤 유격 0.5mm 이내 관리 요망.
                 </div>
               </div>
 
@@ -348,7 +324,7 @@ const ProductionSchedule = () => {
                     borderColor: "#FFECB3",
                   }}
                 >
-                  자재 입고 지연으로 10:00 시작함. (DB 데이터 연동 필요)
+                  자재 입고 지연으로 10:00 시작함.
                 </div>
               </div>
             </div>
@@ -374,18 +350,18 @@ const ScheduleRow = ({ item, onOpen }) => {
       : 0;
   return (
     <tr style={styles.tbodyTr} onClick={onOpen}>
-      <td style={styles.td}>
-        {item.isEmergency ? (
-          <span style={styles.emergencyBadge}>URGENT</span>
-        ) : (
-          "-"
-        )}
-      </td>
+      {/* 1. 긴급 컬럼 삭제됨 */}
       <td style={styles.td}>{item.date}</td>
       <td style={{ ...styles.td, fontWeight: "bold", color: THEME.primary }}>
         {item.line}
       </td>
-      <td style={{ ...styles.td, fontWeight: "600" }}>{item.product}</td>
+      <td style={{ ...styles.td, fontWeight: "600" }}>
+        {/* [수정] 긴급일 경우 품목명 옆에 빨간 점 표시 (공간 절약) */}
+        {item.product}
+        {item.isEmergency && (
+          <span style={styles.urgentDot} title="긴급 지시"></span>
+        )}
+      </td>
       <td style={styles.td}>
         <MaterialBadge status={item.materialStatus} />
       </td>
@@ -402,17 +378,7 @@ const ScheduleRow = ({ item, onOpen }) => {
       <td style={styles.td}>
         <StatusBadge status={item.status} />
       </td>
-      <td style={styles.td}>
-        <button
-          style={styles.actionBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen();
-          }}
-        >
-          <FaEllipsisV />
-        </button>
-      </td>
+      {/* 2. 관리 버튼 컬럼 삭제됨 */}
     </tr>
   );
 };
@@ -599,7 +565,12 @@ const styles = {
     flexWrap: "wrap",
     gap: "10px",
   },
-  title: { fontSize: "24px", fontWeight: "bold", color: THEME.text, margin: 0 },
+  title: {
+    fontSize: "24px",
+    fontWeight: "bold",
+    color: THEME.text,
+    margin: 0,
+  },
   dateControl: {
     display: "flex",
     alignItems: "center",
@@ -740,7 +711,8 @@ const styles = {
     overflowX: "auto",
     flex: 1,
   },
-  table: { width: "100%", borderCollapse: "collapse", minWidth: "1000px" },
+  // [수정] minWidth 제거 -> 100%로 유연하게 맞춤
+  table: { width: "100%", borderCollapse: "collapse" },
   theadTr: { borderBottom: `2px solid ${THEME.border}` },
   th: {
     padding: "15px",
@@ -748,6 +720,7 @@ const styles = {
     fontSize: "13px",
     color: THEME.gray,
     fontWeight: "bold",
+    whiteSpace: "nowrap", // 글자 줄바꿈 방지
   },
   tbodyTr: {
     borderBottom: `1px solid #f5f5f5`,
@@ -759,6 +732,18 @@ const styles = {
     fontSize: "14px",
     color: THEME.text,
     verticalAlign: "middle",
+    whiteSpace: "nowrap", // 글자 줄바꿈 방지
+  },
+  // [추가] 긴급 표시용 작은 빨간 점
+  urgentDot: {
+    display: "inline-block",
+    width: "8px",
+    height: "8px",
+    borderRadius: "50%",
+    backgroundColor: THEME.danger,
+    marginLeft: "8px",
+    verticalAlign: "middle",
+    boxShadow: "0 0 4px rgba(255, 68, 68, 0.4)",
   },
   gridContainer: {
     display: "grid",
