@@ -787,7 +787,17 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
-  layout: { display: "flex", gap: "20px", flex: 1, overflow: "hidden" },
+
+  // ▼▼▼ [수정 1] 레이아웃 높이 꽉 채우기 ▼▼▼
+  layout: {
+    display: "flex",
+    gap: "20px",
+    flex: 1,
+    overflow: "hidden", // 전체 스크롤 방지
+    height: "100%", // 부모 높이 상속
+  },
+
+  // ▼▼▼ [수정 2] 왼쪽 패널 높이 자동 조절 ▼▼▼
   leftPanel: {
     flex: "0 0 350px",
     backgroundColor: "white",
@@ -796,6 +806,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
+    height: "100%", // 높이 100% 강제
   },
   panelHeader: {
     padding: "15px 20px",
@@ -873,20 +884,26 @@ const styles = {
     top: 0,
     left: 0,
   },
+
+  // ▼▼▼ [수정 3] 오른쪽 패널을 Flex Column으로 변경 ▼▼▼
   rightPanel: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     gap: "20px",
-    overflowY: "auto",
-    paddingRight: "5px",
+    overflow: "hidden", // 내부 스크롤로 처리
+    height: "100%", // 높이 100% 강제
   },
+
+  // ▼▼▼ [수정 4] 위쪽 카드 (등록폼)는 내용만큼만 크기 차지 ▼▼▼
   formCard: {
     backgroundColor: "white",
     borderRadius: "12px",
     padding: "25px",
     boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
-    flexShrink: 0,
+    flexShrink: 0, // 줄어들지 않음 (내용물 크기 유지)
+    maxHeight: "65%", // 너무 길어지면 스크롤 생기게 제한 (선택사항)
+    overflowY: "auto",
   },
   formTitle: {
     fontSize: "18px",
@@ -1077,16 +1094,21 @@ const styles = {
     border: "2px dashed #eee",
     borderRadius: "8px",
   },
+
+  // ▼▼▼ [수정 5] 아래쪽 카드 (내역)는 남은 공간을 모두 차지 (flex: 1) ▼▼▼
   historyCard: {
     backgroundColor: "white",
     borderRadius: "12px",
     display: "flex",
     flexDirection: "column",
-    flexShrink: 0,
-    minHeight: "300px",
+
+    // 핵심 수정 사항: 남은 공간 꽉 채우기
+    flex: 1,
+    minHeight: 0, // flex 자식의 scroll 버그 방지
+    marginBottom: 0, // 바닥 여백 제거
+
     boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
     overflow: "hidden",
-    marginBottom: "20px",
   },
   tableWrapper: { flex: 1, overflowY: "auto" },
   table: { width: "100%", borderCollapse: "collapse", fontSize: "13px" },
