@@ -8,11 +8,8 @@ import {
   FaThermometerHalf,
   FaCalendarAlt,
   FaTruckLoading,
-<<<<<<< HEAD
-=======
-  FaCheckCircle,
-  FaSyncAlt, // [추가]
->>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
+  FaCheckCircle, // 충돌 해결: 아이콘 유지
+  FaSyncAlt, // 충돌 해결: 아이콘 유지
 } from "react-icons/fa";
 
 const COLORS = {
@@ -193,14 +190,11 @@ const LotTracking = () => {
                           </span>
                         </div>
 
-<<<<<<< HEAD
-                        {/* ▼▼▼ div 태그 사용 확인 ▼▼▼ */}
+                        {/* 충돌 해결: 데이터 박스 표시 로직 유지 */}
                         {log.processData && (
                           <div style={styles.logDataBox}>{log.processData}</div>
                         )}
 
-=======
->>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
                         {isProductMade ? (
                           <div style={styles.productBadge}>
                             <span style={{ color: "#666" }}>
@@ -276,16 +270,11 @@ const styles = {
     minHeight: "100vh",
     boxSizing: "border-box",
     width: "100%",
-<<<<<<< HEAD
-    overflowX: "hidden",
-  },
-  header: { marginBottom: "15px" },
-=======
     maxWidth: "100%",
     overflowX: "hidden",
   },
 
-  // [수정] 헤더 flex 수정
+  // [충돌 해결] 헤더 Flex 스타일 적용 (새로고침 버튼 배치용)
   header: {
     marginBottom: "15px",
     display: "flex",
@@ -298,7 +287,7 @@ const styles = {
   headerRight: {
     flexShrink: 0,
   },
->>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
+
   pageTitle: {
     fontSize: "20px",
     fontWeight: "bold",
@@ -323,18 +312,15 @@ const styles = {
   },
 
   searchSection: { marginBottom: "20px" },
+
+  // [충돌 해결] 스타일 통합
   searchBar: {
     display: "flex",
     alignItems: "center",
     backgroundColor: "white",
     padding: "8px 15px",
     borderRadius: "8px",
-<<<<<<< HEAD
-=======
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-    width: "100%",
-    maxWidth: "500px",
->>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)", // 그림자 추가
     border: `1px solid ${COLORS.border}`,
     maxWidth: "500px",
     width: "100%",
@@ -382,30 +368,20 @@ const styles = {
     top: "20px",
   },
 
-  // ✅ [수정 1] 오른쪽 패널이 내부 텍스트 때문에 무한정 늘어나는 것 방지 (minWidth: 0 필수)
+  // [충돌 해결] 텍스트 흘러넘침 방지 스타일 적용
   rightPanel: {
-<<<<<<< HEAD
     flex: "999 1 300px",
-    minWidth: "0", // 줄어들기 허용
+    minWidth: "0", // 줄어들기 허용 (중요)
     width: "100%", // 가로 꽉 채우기
-    overflow: "hidden", // ★ 핵심: 자식이 커져도 부모 크기를 유지하도록 강제함
-=======
-    flex: "999 1 400px",
-    minWidth: "300px",
-    width: "100%",
->>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
+    overflow: "hidden", // 자식이 커져도 부모 크기를 유지하도록 강제
   },
 
   card: {
     backgroundColor: "white",
     borderRadius: "10px",
     padding: "20px",
-<<<<<<< HEAD
-=======
     boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
->>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
     border: `1px solid ${COLORS.border}`,
-    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
   },
   cardHeader: {
     display: "flex",
@@ -496,7 +472,7 @@ const styles = {
     border: "1px solid #eee",
   },
 
-  // ✅ [수정 2] 타임라인 박스 강제 크기 조절
+  // [충돌 해결] 타임라인 컨텐츠 박스 강제 크기 조절
   timelineContent: {
     backgroundColor: "#fff",
     padding: "12px",
@@ -504,11 +480,9 @@ const styles = {
     border: "1px solid #eee",
     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
     fontSize: "13px",
-
-    // ★ 부모를 절대 뚫고 나가지 않게 하는 설정 ★
     width: "100%",
     boxSizing: "border-box",
-    wordBreak: "break-all", // 모든 긴 단어 강제 줄바꿈
+    wordBreak: "break-all",
     overflowWrap: "anywhere",
   },
 
@@ -531,7 +505,7 @@ const styles = {
     wordBreak: "break-all",
   },
 
-  // ✅ [수정 3] 데이터 로그 박스 스타일
+  // [충돌 해결] 데이터 로그 박스 스타일 유지
   logDataBox: {
     marginTop: "8px",
     padding: "10px",
@@ -541,14 +515,12 @@ const styles = {
     fontSize: "11px",
     color: "#333",
     fontFamily: "monospace",
-
-    // ★ 텍스트 줄바꿈 핵심 설정 ★
-    display: "block", // span 대신 block 요소로 처리
-    width: "100%", // 부모 너비 100% 사용
-    whiteSpace: "pre-wrap", // 공백/엔터 유지하며 자동 줄바꿈
-    wordBreak: "break-all", // 띄어쓰기 없는 긴 단어(JSON) 강제 절단
-    overflowWrap: "anywhere", // 최신 브라우저 줄바꿈 지원
-    boxSizing: "border-box", // 테두리 포함 크기
+    display: "block",
+    width: "100%",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-all",
+    overflowWrap: "anywhere",
+    boxSizing: "border-box",
   },
 
   productBadge: {

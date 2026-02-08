@@ -130,14 +130,10 @@ const LineMonitoring = () => {
     try {
       const response = await client.get("/production/product-mgmt");
       if (response.ok) {
-<<<<<<< HEAD
         const data = response.data;
-=======
-        const data = await response.json();
         const filteredData = data.filter((item) =>
           OUR_PRODUCTS.includes(item.model),
         );
->>>>>>> 8a27b299f74187a04e1f564532515af36a9d6de4
 
         const unifiedData = filteredData.map((item) => {
           let icon = <FaHeartbeat size={14} />;
