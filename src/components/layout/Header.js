@@ -23,7 +23,6 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   FaSignOutAlt,
   FaClock,
-  FaUserCircle,
   FaMapMarkerAlt,
   FaTimes,
   FaHome,
@@ -35,10 +34,20 @@ import {
   FaCloudRain,
   FaSnowflake,
   FaExclamationTriangle,
-  FaBolt,
-  FaSmog,
+  FaTrashAlt,
+  // 사이드바 메뉴 아이콘들
+  FaBoxOpen,
+  FaIndustry,
+  FaCogs,
+  FaUtensils,
+  FaUserCog,
+  FaWarehouse,
+  FaSitemap,
+  FaMicrochip,
+  FaFileAlt,
 } from "react-icons/fa";
 
+// 🎨 디자인 상수
 const COLORS = {
   primary: "#8C85FF",
   text: "#333",
@@ -46,6 +55,94 @@ const COLORS = {
   border: "#E0E0E0",
   activeTabBg: "#F3F1FF",
   activeTabBorder: "#8C85FF",
+  danger: "#FF5252",
+};
+const THEME_COLOR = "#8C85FF";
+
+// 🌳 메뉴 구조 데이터
+const MENU_STRUCTURE = [
+  {
+    id: "material",
+    icon: <FaBoxOpen size={14} />,
+    subItems: [
+      { to: "/material/inout", label: "자재 입출고" },
+      { to: "/material/history", label: "입/출고 이력" },
+    ],
+  },
+  {
+    id: "inventory",
+    icon: <FaWarehouse size={14} />,
+    subItems: [
+      { to: "/inventory/current", label: "재고 현황" },
+      { to: "/inventory/history", label: "재고 이력" },
+    ],
+  },
+  {
+    id: "production",
+    icon: <FaIndustry size={14} />,
+    subItems: [
+      { to: "/production/schedule", label: "생산 계획" },
+      { to: "/production/work-order", label: "작업 지시서" },
+      { to: "/production/report", label: "생산 보고" },
+    ],
+  },
+  {
+    id: "process",
+    icon: <FaMicrochip size={14} />,
+    subItems: [
+      { to: "/process/bom", label: "BOM 관리" },
+      { to: "/equipment", label: "설비 모니터링" },
+      { to: "/process/line-monitoring", label: "BM / NCR 모니터링" },
+    ],
+  },
+  {
+    id: "quality",
+    icon: <FaCogs size={14} />,
+    subItems: [
+      { to: "/quality/defect", label: "불량 관리" },
+      { to: "/quality/calibration", label: "캘리브레이션" },
+      { to: "/quality/bonding", label: "본딩(Bonding)" },
+      { to: "/quality/aging", label: "에이징(Aging)" },
+      { to: "/quality/reliability", label: "신뢰성 테스트" },
+    ],
+  },
+  {
+    id: "traceability",
+    icon: <FaSitemap size={14} />,
+    subItems: [
+      { to: "/traceability/lot", label: "LOT 추적" },
+      { to: "/traceability/dhr", label: "이력 추적 (DHR)" },
+    ],
+  },
+  {
+    id: "support",
+    icon: <FaUtensils size={14} />,
+    subItems: [
+      { to: "/support/notice", label: "공지사항" },
+      { to: "/support/cafeteria", label: "식단표" },
+    ],
+  },
+  {
+    id: "admin",
+    icon: <FaUserCog size={14} />,
+    subItems: [
+      { to: "/admin/employees", label: "사원 관리" },
+      { to: "/admin/process", label: "공정 관리" },
+      { to: "/admin/production-order", label: "생산 지시 관리" },
+      { to: "/admin/work-order", label: "작업 지시 관리" },
+      { to: "/admin/notices", label: "공지사항 관리" },
+    ],
+  },
+];
+
+const getMenuInfo = (path) => {
+  for (const menu of MENU_STRUCTURE) {
+    const foundSub = menu.subItems.find((sub) => sub.to === path);
+    if (foundSub) {
+      return { label: foundSub.label, icon: menu.icon };
+    }
+  }
+  return { label: null, icon: <FaFileAlt size={14} /> };
 };
 
 // --- [Sub Component] Sortable Tab Item ---
@@ -58,6 +155,9 @@ const SortableTab = ({ tab, isActive, onClick, onClose }) => {
     transition,
     isDragging,
   } = useSortable({ id: tab.path });
+
+  const menuInfo = getMenuInfo(tab.path);
+  const displayName = menuInfo.label || tab.name;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -82,19 +182,27 @@ const SortableTab = ({ tab, isActive, onClick, onClose }) => {
       {...listeners}
       onClick={onClick}
     >
-      <span style={{ pointerEvents: "none", whiteSpace: "nowrap" }}>
-        {tab.name}
+      <span
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {menuInfo.icon}
+        {displayName}
       </span>
       <button
         style={{
           ...styles.closeTabBtn,
           color: isActive ? COLORS.primary : "#bbb",
         }}
-        // [중요] 마우스 누르는 순간 이벤트 전파 중단 (드래그/클릭 방지)
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
-          e.stopPropagation(); // 클릭 이벤트 상위 전파 중단
-          onClose(); // 탭 닫기 실행
+          e.stopPropagation();
+          onClose();
         }}
       >
         <FaTimes size={10} />
@@ -113,7 +221,6 @@ const Header = () => {
   const scrollRef = useRef(null);
   const [showList, setShowList] = useState(false);
 
-  // --- 날씨 & 시간 ---
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState({
     temp: null,
@@ -138,7 +245,6 @@ const Header = () => {
         const data = await response.json();
         const weatherMain = data.weather[0].main;
 
-        // 날씨 상태 텍스트
         let statusText = "맑음";
         if (weatherMain === "Clouds") statusText = "흐림";
         else if (weatherMain === "Rain") statusText = "비";
@@ -180,8 +286,27 @@ const Header = () => {
     }
   };
 
-  const formattedDate = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, "0")}-${String(currentTime.getDate()).padStart(2, "0")} (${"일월화수목금토"[currentTime.getDay()]})`;
-  const formattedTime = `${String(currentTime.getHours()).padStart(2, "0")}:${String(currentTime.getMinutes()).padStart(2, "0")}:${String(currentTime.getSeconds()).padStart(2, "0")}`;
+  const handleCloseAllTabs = () => {
+    if (window.confirm("모든 탭을 닫고 대시보드로 이동하시겠습니까?")) {
+      navigate("/dashboard", { replace: true });
+      setTimeout(() => {
+        setTabs([]);
+      }, 50);
+    }
+  };
+
+  const formattedDate = `${currentTime.getFullYear()}-${String(
+    currentTime.getMonth() + 1,
+  ).padStart(2, "0")}-${String(currentTime.getDate()).padStart(
+    2,
+    "0",
+  )} (${"일월화수목금토"[currentTime.getDay()]})`;
+  const formattedTime = `${String(currentTime.getHours()).padStart(
+    2,
+    "0",
+  )}:${String(currentTime.getMinutes()).padStart(2, "0")}:${String(
+    currentTime.getSeconds(),
+  ).padStart(2, "0")}`;
   const isDashboard = location.pathname === "/dashboard";
 
   // --- DND Logic ---
@@ -207,11 +332,11 @@ const Header = () => {
     }
   };
 
-  // 대시보드를 제외한 탭 목록 (드래그 대상)
   const draggableTabs = tabs.filter((t) => t.path !== "/dashboard");
 
   return (
     <header style={styles.headerWrapper}>
+      {/* Top Bar */}
       <div style={styles.topBar}>
         <div style={styles.leftSection}>
           <div style={styles.infoGroup}>
@@ -246,10 +371,14 @@ const Header = () => {
                 <div style={styles.userInfo}>
                   <span style={styles.userName}>{user.name} 님</span>
                   <span style={styles.userRole}>
-                    {user.dept} / {user.role}
+                    {/* ✨ [수정] 영문 Role을 한글로 변환 (사이드바와 동일 로직) */}
+                    {user.dept} / {user.role === "ADMIN" ? "관리자" : "사원"}
                   </span>
                 </div>
-                <FaUserCircle size={32} color="#e0e0e0" />
+
+                <div style={styles.avatarCircle}>
+                  {user.name ? user.name.charAt(0) : "U"}
+                </div>
               </div>
               <button onClick={handleLogoutClick} style={styles.logoutButton}>
                 <FaSignOutAlt size={14} />
@@ -259,8 +388,9 @@ const Header = () => {
         </div>
       </div>
 
+      {/* Toolbar (Tabs) */}
       <div style={styles.tabContainer}>
-        {/* 홈 버튼 (고정) */}
+        {/* 홈 버튼 */}
         <div
           style={{
             ...styles.homeTab,
@@ -271,6 +401,7 @@ const Header = () => {
               : "2px solid transparent",
           }}
           onClick={() => navigate("/dashboard")}
+          title="대시보드"
         >
           <FaHome size={18} />
         </div>
@@ -280,7 +411,7 @@ const Header = () => {
           <FaChevronLeft />
         </button>
 
-        {/* DND 영역 */}
+        {/* DND 탭 영역 */}
         <div style={styles.scrollTabs} ref={scrollRef}>
           <DndContext
             sensors={sensors}
@@ -310,27 +441,67 @@ const Header = () => {
 
         <div style={styles.tabDivider} />
 
-        <div style={{ position: "relative" }}>
+        {/* 우측 컨트롤 버튼 그룹 */}
+        <div style={{ display: "flex", gap: "5px", position: "relative" }}>
+          {/* 전체 삭제 버튼 */}
+          {draggableTabs.length > 0 && (
+            <button
+              style={styles.closeAllBtn}
+              onClick={handleCloseAllTabs}
+              title="모든 탭 닫기"
+            >
+              <FaTrashAlt size={12} />
+            </button>
+          )}
+
+          {/* 리스트 보기 버튼 */}
           <button style={styles.listBtn} onClick={() => setShowList(!showList)}>
             <FaList />
           </button>
+
           {showList && (
             <div style={styles.dropdownMenu}>
               <div style={styles.dropdownHeader}>
                 Opened Pages ({draggableTabs.length})
               </div>
-              {draggableTabs.map((tab) => (
+              {draggableTabs.length === 0 ? (
                 <div
-                  key={tab.path}
-                  style={styles.dropdownItem}
-                  onClick={() => {
-                    navigate(tab.path);
-                    setShowList(false);
+                  style={{
+                    padding: "10px",
+                    textAlign: "center",
+                    color: "#ccc",
+                    fontSize: "12px",
                   }}
                 >
-                  {tab.name}
+                  열린 탭이 없습니다.
                 </div>
-              ))}
+              ) : (
+                draggableTabs.map((tab) => {
+                  const info = getMenuInfo(tab.path);
+                  return (
+                    <div
+                      key={tab.path}
+                      style={styles.dropdownItem}
+                      onClick={() => {
+                        navigate(tab.path);
+                        setShowList(false);
+                      }}
+                    >
+                      <span
+                        style={{
+                          marginRight: "8px",
+                          color: "#888",
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                      >
+                        {info.icon}
+                      </span>
+                      {info.label || tab.name}
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
         </div>
@@ -406,6 +577,21 @@ const styles = {
   userInfo: { display: "flex", flexDirection: "column" },
   userName: { fontSize: "13px", fontWeight: "bold", color: COLORS.text },
   userRole: { fontSize: "11px", color: COLORS.primary, fontWeight: "600" },
+
+  avatarCircle: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    backgroundColor: THEME_COLOR,
+    color: "white",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    fontWeight: "bold",
+    fontSize: "14px",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
+  },
+
   logoutButton: {
     display: "flex",
     alignItems: "center",
@@ -468,7 +654,7 @@ const styles = {
     background: "transparent",
     border: "none",
     cursor: "pointer",
-    padding: "4px", // 패딩 늘림 (클릭 영역 확보)
+    padding: "4px",
     marginLeft: "8px",
     borderRadius: "50%",
     display: "flex",
@@ -498,11 +684,28 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
   },
+  closeAllBtn: {
+    background: "#FFF0F0",
+    border: `1px solid ${COLORS.danger}40`,
+    color: COLORS.danger,
+    cursor: "pointer",
+    width: "32px",
+    height: "32px",
+    borderRadius: "8px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.2s",
+    "&:hover": {
+      backgroundColor: COLORS.danger,
+      color: "#fff",
+    },
+  },
   dropdownMenu: {
     position: "absolute",
     top: "40px",
     right: 0,
-    width: "200px",
+    width: "220px",
     backgroundColor: "white",
     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
     borderRadius: "8px",
@@ -524,6 +727,8 @@ const styles = {
     color: "#333",
     cursor: "pointer",
     borderBottom: "1px solid #f5f5f5",
+    display: "flex",
+    alignItems: "center",
     "&:hover": { backgroundColor: "#F3F1FF", color: COLORS.primary },
   },
 };
