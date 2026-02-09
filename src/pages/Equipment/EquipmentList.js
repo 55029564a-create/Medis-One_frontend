@@ -23,7 +23,7 @@ import {
   FaEye,
   FaWaveSquare,
   FaTachometerAlt,
-  FaSyncAlt, // [추가] 새로고침 아이콘
+  FaSyncAlt,
 } from "react-icons/fa";
 import { MdCleaningServices, MdOutlineViewInAr } from "react-icons/md";
 
@@ -45,91 +45,19 @@ const COLORS = {
 const EquipmentList = () => {
   const navigate = useNavigate();
 
-  // // 🏭 [한글화 완료] 디스플레이 공정 설비 데이터
-  // const machines = [
-  //   // {
-  //   //   id: "EQ-10",
-  //   //   process: "전처리 공정", // Pre-Process
-  //   //   name: "플라즈마 세정기 #01", // Plasma Cleaner
-  //   //   type: "CLEANER",
-  //   //   status: "RUN",
-  //   //   metrics: [
-  //   //     { label: "가스 유량", value: "50 sccm", icon: <FaWind /> },
-  //   //     { label: "RF 파워", value: "2.5 kW", icon: <FaBolt /> },
-  //   //   ],
-  //   //   operator: "김세정",
-  //   //   uptime: "08:12",
-  //   // },
-  //   // {
-  //   //   id: "EQ-20",
-  //   //   process: "메인 공정", // Main Process
-  //   //   name: "광학 본딩기 A호기", // Optical Bonder
-  //   //   type: "BONDER",
-  //   //   status: "RUN",
-  //   //   metrics: [
-  //   //     { label: "진공도", value: "-98 kPa", icon: <FaWind /> },
-  //   //     { label: "갭(Gap) 두께", value: "0.15 mm", icon: <FaLayerGroup /> },
-  //   //   ],
-  //   //   operator: "이민호",
-  //   //   uptime: "04:30",
-  //   // },
-  //   // {
-  //   //   id: "EQ-30",
-  //   //   process: "후처리 공정", // Post Process
-  //   //   name: "오토클레이브 (탈포)", // Autoclave
-  //   //   type: "AUTOCLAVE",
-  //   //   status: "RUN",
-  //   //   metrics: [
-  //   //     { label: "가압력", value: "5.0 bar", icon: <FaCompressArrowsAlt /> },
-  //   //     { label: "챔버 온도", value: "60°C", icon: <FaThermometerHalf /> },
-  //   //   ],
-  //   //   operator: "박지성",
-  //   //   uptime: "12:00",
-  //   // },
-  //   // {
-  //   //   id: "EQ-40",
-  //   //   process: "신뢰성 테스트", // Reliability
-  //   //   name: "에이징 챔버 #1", // Aging Chamber
-  //   //   type: "AGING",
-  //   //   status: "ERROR",
-  //   //   metrics: [
-  //   //     { label: "내부 온도", value: "45°C", icon: <FaThermometerHalf /> },
-  //   //     { label: "진행 시간", value: "2시간 10분", icon: <FaHistory /> },
-  //   //   ],
-  //   //   operator: "시스템",
-  //   //   uptime: "02:10",
-  //   // },
-  //   // {
-  //   //   id: "EQ-50",
-  //   //   process: "신뢰성 테스트",
-  //   //   name: "에이징 챔버 #2",
-  //   //   type: "AGING",
-  //   //   status: "RUN",
-  //   //   metrics: [
-  //   //     { label: "내부 온도", value: "45°C", icon: <FaThermometerHalf /> },
-  //   //     { label: "진행 시간", value: "4시간 00분", icon: <FaHistory /> },
-  //   //   ],
-  //   //   operator: "시스템",
-  //   //   uptime: "04:00",
-  //   // },
-  //   // {
-  //   //   id: "EQ-60",
-  //   //   process: "최종 검사", // Final Insp
-  //   //   name: "비전 외관 검사기", // Vision Inspector
-  //   //   type: "VISION",
-  //   //   status: "STOP",
-  //   //   metrics: [
-  //   //     { label: "수율 (Yield)", value: "99.5%", icon: <FaCheckCircle /> },
-  //   //     {
-  //   //       label: "금일 검사량",
-  //   //       value: "1,200 EA",
-  //   //       icon: <MdOutlineViewInAr />,
-  //   //     },
-  //   //   ],
-  //   //   operator: "최유나",
-  //   //   uptime: "00:00",
-  //   // },
-  // ];
+  /* 🚨 [수정] 아래 machines 배열 선언이 하단의 useState와 충돌하여 에러를 발생시켰습니다.
+    이미 아래에서 API 데이터를 담을 machines 상태를 선언했으므로, 이 정적 배열은 주석 처리합니다.
+  
+  const machines = [
+    // {
+    //   id: "EQ-10",
+    //   process: "전처리 공정",
+    //   name: "플라즈마 세정기 #01",
+    //   ...
+    // },
+  ]; 
+  */
+
   // 1. 상태 관리
   const [machines, setMachines] = useState([]); // 전체 데이터
   const [filteredMachines, setFilteredMachines] = useState([]); // 필터링된 데이터
@@ -173,7 +101,6 @@ const EquipmentList = () => {
     }
   };
 
-  // [신규] 수동 새로고침 함수
   const handleManualRefresh = () => {
     fetchEquipmentList();
     alert("최신 설비 현황으로 갱신되었습니다.");
@@ -202,7 +129,7 @@ const EquipmentList = () => {
     setFilteredMachines(result);
   }, [selectedLine, selectedProcess, searchText, machines]);
 
-  // 🛠️ 데이터 변환 함수 (Backend DTO -> Frontend UI)
+  // 🛠️ 데이터 변환 함수
   const transformData = (dto) => {
     let type = "TOOLS";
     if (dto.eqName.includes("세정")) type = "CLEANER";
@@ -227,7 +154,11 @@ const EquipmentList = () => {
     const metrics = getMetricsByType(type, dto.eqData);
 
     return {
-      id: dto.eqCode,
+      // 1. 백엔드 통신용 (Long 타입 ID)
+      id: dto.eqId,
+
+      // 2. 화면 표시 및 식별용 (String 타입 코드)
+      eqCode: dto.eqCode,
       lineCode: dto.lineCode,
       process: dto.processName,
       name: dto.eqName,
@@ -360,7 +291,6 @@ const EquipmentList = () => {
 
   return (
     <div style={styles.container}>
-      {/* 헤더 */}
       <div style={styles.header}>
         <div style={styles.titleGroup}>
           <div style={styles.titleIcon}>
@@ -372,13 +302,10 @@ const EquipmentList = () => {
           </div>
         </div>
 
-        {/* 우측 컨트롤 (새로고침 + 범례) */}
         <div style={styles.headerControls}>
-          {/* [추가] 새로고침 버튼 */}
           <button style={styles.refreshBtn} onClick={handleManualRefresh}>
             <FaSyncAlt /> 새로고침
           </button>
-
           <div style={styles.legend}>
             <StatusLegend color={COLORS.success} label="가동중" />
             <StatusLegend color={COLORS.danger} label="점검필요" />
@@ -387,12 +314,10 @@ const EquipmentList = () => {
         </div>
       </div>
 
-      {/* 필터 바 */}
       <div style={styles.filterBar}>
         <div style={styles.filterGroup}>
           <FaFilter color={COLORS.subText} />
           <span style={styles.filterLabel}>Filter By:</span>
-
           <select
             style={styles.select}
             value={selectedLine}
@@ -438,7 +363,6 @@ const EquipmentList = () => {
         </div>
       </div>
 
-      {/* 설비 카드 그리드 */}
       {loading ? (
         <div
           style={{
@@ -476,6 +400,9 @@ const EquipmentList = () => {
     </div>
   );
 };
+
+// ... (EquipmentCard, StatusLegend, styles 코드는 동일하므로 생략하거나 필요시 추가)
+// 아래에 컴포넌트와 스타일이 계속 이어집니다.
 
 const EquipmentCard = ({ data, onClick }) => {
   const getStatusColor = (s) => {
@@ -552,7 +479,7 @@ const EquipmentCard = ({ data, onClick }) => {
         </div>
         <div>
           <h3 style={styles.machineName}>{data.name}</h3>
-          <span style={styles.machineId}>{data.id}</span>
+          <span style={styles.machineId}>{data.eqCode}</span>
         </div>
       </div>
 
@@ -631,14 +558,7 @@ const styles = {
     margin: 0,
   },
   subTitle: { fontSize: "13px", color: COLORS.subText, marginTop: "2px" },
-
-  // [수정] 헤더 우측 컨트롤 영역 (버튼 + 범례)
-  headerControls: {
-    display: "flex",
-    alignItems: "center",
-    gap: "15px",
-  },
-  // [추가] 새로고침 버튼 스타일
+  headerControls: { display: "flex", alignItems: "center", gap: "15px" },
   refreshBtn: {
     display: "flex",
     alignItems: "center",
@@ -651,19 +571,18 @@ const styles = {
     fontWeight: "bold",
     color: "#555",
     fontSize: "13px",
-    height: "40px", // 범례 높이와 맞춤
+    height: "40px",
   },
   legend: {
     display: "flex",
     gap: "15px",
     backgroundColor: "white",
     padding: "0 16px",
-    height: "40px", // 높이 고정
+    height: "40px",
     alignItems: "center",
     borderRadius: "20px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
   },
-
   filterBar: {
     display: "flex",
     justifyContent: "space-between",
@@ -674,11 +593,7 @@ const styles = {
     marginBottom: "25px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
   },
-  filterGroup: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-  },
+  filterGroup: { display: "flex", alignItems: "center", gap: "12px" },
   filterLabel: {
     fontSize: "13px",
     fontWeight: "600",
@@ -713,13 +628,11 @@ const styles = {
     color: COLORS.text,
     width: "100%",
   },
-
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
     gap: "20px",
   },
-
   card: {
     backgroundColor: COLORS.cardBg,
     borderRadius: "16px",
@@ -730,10 +643,6 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: "15px",
-    ":hover": {
-      transform: "translateY(-5px)",
-      boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
-    },
   },
   cardHeader: {
     display: "flex",
