@@ -8,7 +8,7 @@ import {
   FaSpinner,
   FaClock,
   FaUserCircle,
-  FaSyncAlt, // [추가] 새로고침 아이콘
+  FaSyncAlt,
 } from "react-icons/fa";
 
 import {
@@ -250,14 +250,7 @@ const WorkOrder = () => {
               />
               월간 작업 지시 이력 (Monthly)
             </h3>
-            <div style={styles.searchBox}>
-              <FaSearch color={COLORS.subText} />
-              <input
-                type="text"
-                placeholder="검색..."
-                style={styles.searchInput}
-              />
-            </div>
+            {/* 🛑 검색바 제거됨 */}
           </div>
 
           <div style={styles.listHeader}>

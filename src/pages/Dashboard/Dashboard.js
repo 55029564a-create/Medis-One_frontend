@@ -24,7 +24,7 @@ import {
 } from "react-icons/fa";
 import { MdVerifiedUser } from "react-icons/md";
 import { getDashboardData } from "../../api/dashboardApi";
-import useAutoFetch from "../../hooks/useAutoFetch"; // [신규] 커스텀 훅 import
+import useAutoFetch from "../../hooks/useAutoFetch";
 
 const COLORS = {
   primary: "#8C85FF",
@@ -40,11 +40,10 @@ const COLORS = {
 const PIE_COLORS = ["#8C85FF", "#FFBB33", "#FF4444", "#00C851", "#33B5E5"];
 
 const Dashboard = () => {
-  // ✅ 30000ms(30초)마다 자동 갱신! (커스텀 훅 사용)
-  // 데이터가 로딩 중일 때도 기존 데이터가 있으면 화면을 유지합니다.
+  // ✅ 30000ms(30초)마다 자동 갱신!
   const { data, loading } = useAutoFetch(getDashboardData, 30000);
 
-  // 초기 로딩 시에만 로딩 화면 표시 (데이터가 없는데 로딩 중일 때)
+  // 초기 로딩 시에만 로딩 화면 표시
   if (loading && !data) {
     return (
       <div style={{ padding: "50px", textAlign: "center" }}>
@@ -153,7 +152,7 @@ const Dashboard = () => {
                 <Pie
                   data={data.defectTypes}
                   cx="50%"
-                  cy="50%"
+                  cy="42%"
                   innerRadius={60}
                   outerRadius={80}
                   paddingAngle={5}
@@ -167,7 +166,11 @@ const Dashboard = () => {
                   ))}
                 </Pie>
                 <Tooltip />
-                <Legend verticalAlign="bottom" height={36} />
+                <Legend
+                  verticalAlign="bottom"
+                  height={60} // 범례 높이를 늘려 글씨 공간 확보
+                  wrapperStyle={{ fontSize: "12px" }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -176,7 +179,7 @@ const Dashboard = () => {
 
       {/* 3. Bottom Widgets */}
       <div style={styles.grid3}>
-        {/* [A구역] ② 생산 라인 가동 현황 (상단 전체 배치 & 가로 카드형) */}
+        {/* [A구역] ② 생산 라인 가동 현황 */}
         <div style={{ ...styles.card, gridColumn: "1 / -1" }}>
           <div style={styles.cardHeader}>
             <h3>🏭 생산 라인 가동 현황</h3>
@@ -555,7 +558,7 @@ const styles = {
     padding: "10px",
   },
 
-  // [수정] Grid Layout 및 Card 스타일
+  // Grid Layout 및 Card 스타일
   lineGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(4, 1fr)", // 4개의 컬럼
