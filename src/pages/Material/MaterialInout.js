@@ -170,25 +170,61 @@ const MaterialInout = () => {
   };
 
   const handleScan = async (e) => {
+    // 1. 엔터키가 눌렸고, 내용이 있을 때만 실행
     if (e.key === "Enter" && inputs.lot) {
       try {
+        console.log("📡 조회 요청 LOT:", inputs.lot); // [디버깅] 요청 확인
         const dataList = await getMaterialInfo(inputs.lot);
+
+        console.log("🔥 서버 응답 데이터:", dataList); // [중요] F12 콘솔에서 이 내용을 확인해야 함
+
         if (dataList && dataList.length > 0) {
+          // 가장 최신 데이터(0번 인덱스) 사용
           const target = dataList[0];
+
+          // 2. [자재명 찾기] 서버가 어떤 이름으로 줄지 몰라서 다 찾아봄
+          const foundItemName =
+            target.matName ||
+            target.materialName ||
+            target.productName ||
+            target.item ||
+            "";
+
+          // 3. [업체명 찾기] 역시 여러 이름으로 찾아봄
+          const foundVendorName =
+            target.company ||
+            target.vendorName ||
+            target.vendor ||
+            target.client ||
+            "";
+
+          console.log(
+            `✅ 찾은 결과 -> 자재명: ${foundItemName}, 업체명: ${foundVendorName}`,
+          );
+
+          // 4. 상태 업데이트 (자동 기입)
           setInputs((prev) => ({
             ...prev,
-            item: target.matName,
-            qty: "",
-            // 스캔 시 해당 Lot의 기존 업체 정보가 있다면 자동 입력도 가능
-            vendor: target.company || prev.vendor,
+            item: foundItemName, // 자재명 자동입력
+            vendor: foundVendorName, // 업체명 자동입력 (IN일 때만 유효하지만 값은 넣어둠)
+            qty: "", // 수량은 직접 입력하도록 비움
+            currentQty: target.currentQty || 0, // 현재고
           }));
+
+          // 5. 편의성: 수량 입력창으로 포커스 이동
           document.getElementById("qtyInput")?.focus();
         } else {
-          setInputs((prev) => ({ ...prev, item: "" }));
+          alert("❌ 해당 LOT 번호의 정보가 없습니다.");
+          setInputs((prev) => ({
+            ...prev,
+            item: "",
+            vendor: "",
+            currentQty: 0,
+          }));
         }
       } catch (error) {
-        console.error("스캔 실패:", error);
-        setInputs((prev) => ({ ...prev, item: "" }));
+        console.error("❌ 스캔 에러:", error);
+        alert("LOT 정보 조회 중 오류가 발생했습니다.");
       }
     }
   };

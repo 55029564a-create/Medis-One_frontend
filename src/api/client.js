@@ -1,17 +1,12 @@
 import axios from "axios";
 
-// 1. Axios 인스턴스 생성 (기본 설정)
+// 1. 기본 설정
 const client = axios.create({
-  // [중요] 백엔드 서버 주소 (IntelliJ 콘솔에 뜬 포트 번호 확인 필수!)
-  baseURL: "http://localhost:8111/api",
-
-  // 요청 타임아웃 (10초)
+  // 🔥 [중요] 포트 번호를 8111로 꼭 맞춰주세요!
+  baseURL: "http://192.168.0.85:8111/api",
   timeout: 10000,
-
-  headers: {
-    "Content-Type": "application/json",
-  },
-  withCredentials: true, // CORS 관련 쿠키/헤더 허용
+  headers: { "Content-Type": "application/json" },
+  withCredentials: true,
 });
 
 // ----------------------------------------------------------------------
@@ -64,10 +59,13 @@ client.interceptors.response.use(
 
         // 2. 백엔드에 토큰 재발급 요청
         // [수정 완료] 포트 번호를 3000 -> 8111 (백엔드 포트)로 변경
-        const res = await axios.post("http://localhost:8111/api/auth/refresh", {
-          accessToken: accessToken,
-          refreshToken: refreshToken,
-        });
+        const res = await axios.post(
+          "http://192.168.0.85:8111/api/auth/refresh",
+          {
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+          },
+        );
 
         // 3. 새로운 토큰 저장
         const { accessToken: newAccessToken, refreshToken: newRefreshToken } =

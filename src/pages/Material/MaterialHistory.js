@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 // import client from "../../api/client";
 import { getMaterialHistory } from "../../api/materialApi";
+import { QRCodeSVG } from "qrcode.react"; // [필수] npm install qrcode.react
 
 import {
   FaFileExcel,
@@ -17,7 +18,12 @@ import {
   FaUndo,
   FaChevronDown,
   FaCopy,
-  FaSyncAlt, // [추가] 아이콘
+  FaSyncAlt,
+  FaTruck,
+  FaIndustry,
+  FaHistory,
+  FaQrcode,
+  FaMobileAlt,
 } from "react-icons/fa";
 
 // 🎨 테마 컬러
@@ -35,9 +41,11 @@ const COLORS = {
   dark: "#424242",
 };
 
+// 📱 QR 스캔용 내 PC IP (회사 내부망 IP로 변경하세요)
+const MY_IP_ADDRESS = "192.168.0.85";
+
 const MaterialHistory = () => {
   const [history, setHistory] = useState([]);
-
   const [filterType, setFilterType] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -46,50 +54,75 @@ const MaterialHistory = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // 모달 관련 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
-  // 🔄 데이터 로드
+  const [lotTimeline, setLotTimeline] = useState([]);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  // 🛠 [핵심 수정] 데이터 매핑 함수
+  // 보여주신 로직(v.company)을 참고하여 dto.company를 최우선으로 매핑합니다.
+  const mapServerData = (data) => {
+    return data.map((dto, index) => {
+      let typeCode = "ETC";
+      const rawType = dto.type || "";
+
+      // 1. 입출고 구분 처리
+      if (rawType === "입고" || rawType === "INBOUND" || rawType === "기타") {
+        typeCode = "IN";
+      } else if (
+        rawType === "출고" ||
+        rawType === "생산투입" ||
+        rawType === "PRODUCTION_IN"
+      ) {
+        typeCode = "OUT";
+      }
+
+      // 2. [위치/업체 정보 매핑]
+      // 보여주신 코드에서 'company' 필드를 쓰므로, 여기서도 dto.company를 1순위로 확인합니다.
+      let foundLocation = "-";
+
+      if (dto.company) {
+        foundLocation = dto.company; // ★ 1순위: DB 컬럼명 company
+      } else if (dto.vendorName) {
+        foundLocation = dto.vendorName; // 2순위: 혹시 모를 변수명
+      } else if (dto.warehouse) {
+        foundLocation = dto.warehouse; // 3순위: 창고명
+      } else if (dto.lineName) {
+        foundLocation = dto.lineName; // 4순위: 라인명
+      }
+
+      return {
+        id: dto.id || `HIST-${index}`,
+        rawDate: dto.date || dto.regDate,
+        date: dto.date ? dto.date.replace("T", " ").substring(0, 16) : "-",
+        type: typeCode,
+        rawType: rawType,
+
+        // 자재명
+        item: dto.matName || dto.materialName || "이름 없음",
+        // LOT 번호
+        lot: dto.lotNum || dto.lotNumber || "-",
+        // 수량
+        qty: dto.changeQty || dto.qty || 0,
+        currentQty: dto.currentQty || 0,
+
+        // ★ 찾은 위치 정보 적용
+        location: foundLocation,
+
+        worker: dto.empName || dto.worker || "시스템",
+        note: dto.note || dto.description || `변동수량: ${dto.changeQty || 0}`,
+      };
+    });
+  };
+
+  // 🔄 메인 목록 데이터 로드
   const fetchData = async () => {
     try {
       const data = await getMaterialHistory(searchTerm);
-
-      console.log("🔥 서버에서 받은 전체 데이터:", data);
-
       if (data && data.length > 0) {
-        const mappedData = data.map((dto, index) => {
-          console.log(`Row ${index} Type:`, dto.type);
-
-          let typeCode = "ETC";
-          const rawType = dto.type || "";
-
-          if (
-            rawType === "입고" ||
-            rawType === "INBOUND" ||
-            rawType === "기타"
-          ) {
-            typeCode = "IN";
-          } else if (
-            rawType === "출고" ||
-            rawType === "생산투입" ||
-            rawType === "PRODUCTION_IN"
-          ) {
-            typeCode = "OUT";
-          }
-          return {
-            id: `HIST-${index}`,
-            rawDate: dto.date || dto.regDate,
-            date: dto.date ? dto.date.replace("T", " ").substring(0, 16) : "-",
-            type: typeCode,
-            item: dto.matName || "이름 없음",
-            lot: dto.lotNum || "-",
-            qty: dto.changeQty || 0,
-            location: dto.company || "-",
-            worker: dto.empName || "시스템",
-            note: `이전: ${dto.prevQty} → 현재: ${dto.currentQty}`,
-          };
-        });
-        setHistory(mappedData);
+        setHistory(mapServerData(data));
       } else {
         setHistory([]);
       }
@@ -114,7 +147,6 @@ const MaterialHistory = () => {
     fetchData();
   };
 
-  // [신규] 수동 새로고침 함수
   const handleManualRefresh = () => {
     fetchData();
     alert("최신 데이터로 갱신되었습니다.");
@@ -141,36 +173,24 @@ const MaterialHistory = () => {
   const filteredHistory = history.filter((item) => {
     if (item.id === "ERROR") return true;
     if (!item) return false;
-
     const typeMatch = filterType === "ALL" ? true : item.type === filterType;
-
     let dateMatch = true;
     if (startDate && item.rawDate)
       dateMatch = dateMatch && item.rawDate >= startDate;
     if (endDate && item.rawDate)
       dateMatch = dateMatch && item.rawDate.substring(0, 10) <= endDate;
-
     return typeMatch && dateMatch;
   });
 
-  // 엑셀 다운로드 핸들러
   const handleDownloadExcel = () => {
-    // 1. 헤더 정의
     const headers = ["일시,구분,자재명,LOT번호,수량,업체/위치,담당자,비고"];
-
-    // 2. 데이터 매핑
     const rows = filteredHistory.map((item) => {
       const typeLabel =
         item.type === "IN" ? "입고" : item.type === "OUT" ? "출고" : "기타";
-
       return `${item.date},${typeLabel},${item.item},${item.lot},${item.qty},${item.location},${item.worker},${item.note}`;
     });
-
-    // 3. CSV 생성 (BOM 추가로 한글 깨짐 방지)
     const csvContent =
       "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
-
-    // 4. 다운로드 실행
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -200,130 +220,81 @@ const MaterialHistory = () => {
     total: validHistory.length,
   };
 
-  const openModal = (item) => {
+  // --- 모달 열기 로직 (상세조회 포함) ---
+  const openModal = async (item) => {
     setSelectedItem(item);
     setIsModalOpen(true);
+    setIsLoadingDetail(true);
+    setLotTimeline([]);
+
+    try {
+      if (!item.lot || item.lot === "-") {
+        setLotTimeline([item]);
+      } else {
+        const data = await getMaterialHistory(item.lot);
+        if (data && data.length > 0) {
+          const mapped = mapServerData(data);
+          const sorted = mapped.sort(
+            (a, b) => new Date(b.rawDate) - new Date(a.rawDate),
+          );
+          setLotTimeline(sorted);
+        } else {
+          setLotTimeline([item]);
+        }
+      }
+    } catch (e) {
+      console.error("상세 이력 조회 실패", e);
+      setLotTimeline([item]);
+    } finally {
+      setIsLoadingDetail(false);
+    }
   };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedItem(null);
+    setLotTimeline([]);
   };
 
   return (
     <>
       <style>{`
-        /* 레이아웃 */
         .history-container { padding: 20px; background-color: ${COLORS.bg}; min-height: 100vh; display: flex; flex-direction: column; gap: 15px; }
         .page-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 15px; }
-        
-        .dashboard-toolbar { 
-          display: flex; 
-          flex-direction: column; 
-          gap: 15px; 
-          background-color: white;
-          padding: 20px;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-
-        .controls-row { 
-          display: flex; 
-          align-items: center; 
-          gap: 10px; 
-          flex-wrap: wrap; 
-          padding-bottom: 15px;
-          border-bottom: 1px solid #eee;
-        }
-
-        /* 검색 박스 스타일 */
-        .search-container-box {
-          display: flex; 
-          align-items: center;
-          height: 36px;
-          border: 1px solid #E0E0E0;
-          background-color: white; 
-          border-radius: 8px;
-          flex: 1;
-          min-width: 250px;
-          padding: 0 10px;
-          box-sizing: border-box;
-          transition: border-color 0.2s;
-        }
-        
-        .search-container-box:focus-within {
-          border-color: ${COLORS.primary};
-          box-shadow: 0 0 0 2px rgba(140, 133, 255, 0.1);
-        }
-
-        .search-icon-fixed {
-          color: #999;
-          font-size: 14px;
-          margin-right: 8px; 
-          flex-shrink: 0; 
-        }
-
-        .search-input-transparent {
-          border: none;
-          outline: none;
-          background: transparent;
-          width: 100%;
-          font-size: 13px;
-          color: #333;
-          height: 100%;
-          font-family: inherit;
-        }
-
-        /* 공통 인풋 스타일 */
-        .common-input-box {
-          height: 36px; 
-          border: 1px solid #E0E0E0;
-          background-color: #fff; 
-          padding: 0 10px;
-          font-size: 13px;
-          color: #333;
-          outline: none;
-          box-sizing: border-box;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          border-radius: 8px;
-        }
+        .dashboard-toolbar { display: flex; flex-direction: column; gap: 15px; background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .controls-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        .search-container-box { display: flex; align-items: center; height: 36px; border: 1px solid #E0E0E0; background-color: white; border-radius: 8px; flex: 1; min-width: 250px; padding: 0 10px; box-sizing: border-box; transition: border-color 0.2s; }
+        .search-container-box:focus-within { border-color: ${COLORS.primary}; box-shadow: 0 0 0 2px rgba(140, 133, 255, 0.1); }
+        .search-icon-fixed { color: #999; font-size: 14px; margin-right: 8px; flex-shrink: 0; }
+        .search-input-transparent { border: none; outline: none; background: transparent; width: 100%; font-size: 13px; color: #333; height: 100%; font-family: inherit; }
+        .common-input-box { height: 36px; border: 1px solid #E0E0E0; background-color: #fff; padding: 0 10px; font-size: 13px; color: #333; outline: none; box-sizing: border-box; display: flex; align-items: center; gap: 6px; border-radius: 8px; }
         .common-input-box:focus-within { border-color: ${COLORS.primary}; box-shadow: 0 0 0 2px rgba(140, 133, 255, 0.1); }
-        
         .date-input-clean { border: none; outline: none; background: transparent; color: #555; width: 105px; cursor: pointer; font-family: inherit; }
-        
         .select-wrapper { position: relative; min-width: 110px; flex-shrink: 0; }
-        .select-real { 
-          width: 100%; height: 36px; 
-          border: 1px solid #E0E0E0; background-color: white; 
-          padding: 0 25px 0 10px; 
-          appearance: none; -webkit-appearance: none; 
-          font-size: 13px; color: #333; outline: none; cursor: pointer;
-          border-radius: 8px;
-          font-family: inherit;
-        }
+        .select-real { width: 100%; height: 36px; border: 1px solid #E0E0E0; background-color: white; padding: 0 25px 0 10px; appearance: none; -webkit-appearance: none; font-size: 13px; color: #333; outline: none; cursor: pointer; border-radius: 8px; font-family: inherit; }
         .select-real:focus { border-color: ${COLORS.primary}; box-shadow: 0 0 0 2px rgba(140, 133, 255, 0.1); }
         .select-arrow-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #888; font-size: 11px; pointer-events: none; }
-
-        /* 버튼 */
         .btn-action { height: 36px; background-color: ${COLORS.primary}; color: white; border: none; padding: 0 18px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; }
         .btn-reset-icon { height: 36px; width: 36px; display: flex; align-items: center; justify-content: center; background-color: #F5F6FA; color: #666; border: 1px solid #E0E0E0; border-radius: 8px; cursor: pointer; }
-
         .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
-
         .table-container { background-color: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); overflow-x: auto; }
         .desktop-table { width: 100%; border-collapse: collapse; min-width: 800px; }
         .th-row { border-bottom: 1px solid #eee; background-color: #FAFAFA; }
         .th-cell { padding: 10px 8px; text-align: left; font-size: 12px; color: #666; font-weight: bold; white-space: nowrap; }
         .tr-row { border-bottom: 1px solid #f5f5f5; }
         .td-cell { padding: 10px 8px; fontSize: 13px; color: #333; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
         .lot-copyable { background-color: ${COLORS.primaryLight}; color: ${COLORS.primary}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-family: monospace; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
-        
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #8C85FF; }
+
+        .timeline-container { position: relative; padding-left: 20px; border-left: 2px solid #eee; margin-left: 10px; margin-top: 10px; }
+        .timeline-item { position: relative; margin-bottom: 25px; }
+        .timeline-dot { position: absolute; left: -26px; top: 0; width: 10px; height: 10px; border-radius: 50%; background-color: white; border: 2px solid ${COLORS.primary}; box-shadow: 0 0 0 3px #fff; }
+        .timeline-content { background-color: #f9f9f9; padding: 15px; border-radius: 8px; font-size: 13px; border: 1px solid #eee; }
+        .timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .timeline-date { font-size: 12px; color: #888; display: flex; align-items: center; gap: 4px; }
 
         @media (max-width: 768px) {
           .controls-row { flex-direction: column; align-items: stretch; }
@@ -333,6 +304,7 @@ const MaterialHistory = () => {
       `}</style>
 
       <div className="history-container">
+        {/* 헤더 */}
         <div className="page-header">
           <div>
             <h2
@@ -349,9 +321,7 @@ const MaterialHistory = () => {
               자재의 이동 경로와 수량 변화를 추적합니다.
             </p>
           </div>
-
           <div style={{ display: "flex", gap: "10px" }}>
-            {/* [추가] 새로고침 버튼 */}
             <button
               className="btn-action"
               onClick={handleManualRefresh}
@@ -366,7 +336,6 @@ const MaterialHistory = () => {
             >
               <FaSyncAlt /> 새로고침
             </button>
-
             <button
               className="btn-action"
               onClick={handleDownloadExcel}
@@ -382,10 +351,9 @@ const MaterialHistory = () => {
           </div>
         </div>
 
-        {/* ... (이하 기존 코드 동일) ... */}
+        {/* 툴바 */}
         <div className="dashboard-toolbar">
           <div className="controls-row">
-            {/* 날짜 선택 */}
             <div className="common-input-box">
               <FaCalendarAlt color={COLORS.primary} size={12} />
               <input
@@ -403,7 +371,6 @@ const MaterialHistory = () => {
               />
             </div>
 
-            {/* 유형 선택 */}
             <div className="select-wrapper">
               <select
                 className="select-real"
@@ -417,7 +384,6 @@ const MaterialHistory = () => {
               <FaChevronDown className="select-arrow-icon" />
             </div>
 
-            {/* 검색 박스 */}
             <div className="search-container-box">
               <FaSearch className="search-icon-fixed" />
               <input
@@ -470,6 +436,7 @@ const MaterialHistory = () => {
           </div>
         </div>
 
+        {/* 테이블 */}
         <div className="table-container">
           <table className="desktop-table">
             <thead>
@@ -555,18 +522,24 @@ const MaterialHistory = () => {
                           : ""}
                       {item.qty.toLocaleString()}
                     </td>
+                    {/* [수정됨] 위치 정보 렌더링 */}
                     <td className="td-cell">{item.location}</td>
+
                     <td className="td-cell">{item.worker}</td>
                     <td className="td-cell" style={{ textAlign: "center" }}>
                       <button
                         onClick={() => openModal(item)}
+                        title="QR 및 상세 이력"
                         style={{
                           border: `1px solid ${COLORS.border}`,
                           backgroundColor: "white",
-                          padding: "4px 8px",
+                          padding: "6px 10px",
                           borderRadius: "6px",
                           cursor: "pointer",
-                          color: "#555",
+                          color: COLORS.primary,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
                         }}
                       >
                         <FaEye />
@@ -660,6 +633,7 @@ const MaterialHistory = () => {
         </div>
       </div>
 
+      {/* 🚀 [모달] QR코드 + 상세 이력 타임라인 */}
       {isModalOpen && selectedItem && (
         <div
           style={{
@@ -679,31 +653,56 @@ const MaterialHistory = () => {
           <div
             style={{
               backgroundColor: "white",
-              borderRadius: "12px",
+              borderRadius: "16px",
               width: "90%",
-              maxWidth: "400px",
-              padding: "20px",
-              boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+              maxWidth: "550px",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* 모달 헤더 */}
             <div
               style={{
+                padding: "20px 25px",
+                borderBottom: "1px solid #eee",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "20px",
-                borderBottom: "1px solid #eee",
-                paddingBottom: "10px",
               }}
             >
-              <h3 style={{ fontSize: "18px", margin: 0 }}>상세 이력 정보</h3>
+              <div>
+                <h3
+                  style={{
+                    fontSize: "18px",
+                    margin: 0,
+                    fontWeight: "bold",
+                    color: "#333",
+                  }}
+                >
+                  LOT 추적 상세
+                </h3>
+                <span
+                  style={{
+                    fontSize: "12px",
+                    color: COLORS.gray,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    marginTop: "4px",
+                  }}
+                >
+                  <FaQrcode /> Mobile Scan Available
+                </span>
+              </div>
               <button
                 onClick={closeModal}
                 style={{
                   border: "none",
                   background: "none",
-                  fontSize: "18px",
+                  fontSize: "20px",
                   cursor: "pointer",
                   color: "#999",
                 }}
@@ -711,74 +710,196 @@ const MaterialHistory = () => {
                 <FaTimes />
               </button>
             </div>
-            <div>
-              <ModalRow label="일시" value={selectedItem.date} />
-              <ModalRow
-                label="구분"
-                value={<TypeBadge type={selectedItem.type} />}
-              />
+
+            {/* 모달 바디 (스크롤 가능) */}
+            <div style={{ padding: "25px", overflowY: "auto" }}>
+              {/* 1. QR 코드 섹션 (중앙 배치) */}
               <div
                 style={{
-                  height: "1px",
-                  backgroundColor: "#eee",
-                  margin: "10px 0",
-                }}
-              />
-              <ModalRow label="품목명" value={selectedItem.item} bold />
-              <ModalRow label="LOT ID" value={selectedItem.lot} />
-              <ModalRow
-                label="수량"
-                value={`${selectedItem.qty.toLocaleString()} 개`}
-                color={getQtyColor(selectedItem.type)}
-                bold
-              />
-              <div
-                style={{
-                  height: "1px",
-                  backgroundColor: "#eee",
-                  margin: "10px 0",
-                }}
-              />
-              <ModalRow label="업체/위치" value={selectedItem.location} />
-              <ModalRow label="담당자" value={selectedItem.worker} />
-              <div
-                style={{
-                  backgroundColor: "#F9FAFB",
-                  padding: "10px",
-                  borderRadius: "8px",
-                  marginTop: "10px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  backgroundColor: "#F3F1FF",
+                  padding: "20px",
+                  borderRadius: "12px",
+                  marginBottom: "25px",
+                  border: "1px dashed #8C85FF",
                 }}
               >
+                <QRCodeSVG
+                  value={`http://${MY_IP_ADDRESS}:3000/mobile/tracking/${selectedItem.lot}`}
+                  size={140}
+                  bgColor={"#F3F1FF"}
+                  fgColor={"#333"}
+                  level={"M"}
+                />
                 <div
                   style={{
-                    fontSize: "11px",
-                    color: "#888",
-                    marginBottom: "4px",
+                    marginTop: "15px",
+                    fontSize: "13px",
                     fontWeight: "bold",
+                    color: COLORS.primary,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
                   }}
                 >
-                  재고 변동 내역
+                  <FaMobileAlt /> 모바일로 스캔하여 조회
                 </div>
-                <div style={{ fontSize: "13px", color: "#333" }}>
-                  {selectedItem.note}
+                <div
+                  style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}
+                >
+                  LOT: {selectedItem.lot}
                 </div>
               </div>
+
+              {/* 2. 상세 타임라인 */}
+              <h4
+                style={{
+                  fontSize: "14px",
+                  fontWeight: "bold",
+                  marginBottom: "15px",
+                  color: "#555",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                📜 전체 이력 내역
+              </h4>
+
+              {isLoadingDetail ? (
+                <div
+                  style={{
+                    padding: "30px",
+                    textAlign: "center",
+                    color: COLORS.primary,
+                  }}
+                >
+                  <FaSyncAlt
+                    className="fa-spin"
+                    style={{ animation: "spin 1s linear infinite" }}
+                  />{" "}
+                  조회 중...
+                  <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                </div>
+              ) : (
+                <div className="timeline-container">
+                  {lotTimeline.map((log, idx) => (
+                    <div key={idx} className="timeline-item">
+                      {/* 타임라인 점 */}
+                      <div
+                        className="timeline-dot"
+                        style={{
+                          borderColor:
+                            log.type === "IN"
+                              ? COLORS.success
+                              : log.type === "OUT"
+                                ? COLORS.danger
+                                : COLORS.gray,
+                        }}
+                      />
+
+                      {/* 내용 박스 */}
+                      <div className="timeline-content">
+                        <div className="timeline-header">
+                          <TypeBadge type={log.type} />
+                          <span className="timeline-date">
+                            <FaCalendarAlt /> {log.date}
+                          </span>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: "bold",
+                              color: "#333",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "5px",
+                            }}
+                          >
+                            {/* 입고면 트럭, 아니면 공장 아이콘 + 위치정보(업체명/라인명) */}
+                            {log.type === "IN" ? (
+                              <FaTruck color={COLORS.success} />
+                            ) : (
+                              <FaIndustry color={COLORS.danger} />
+                            )}
+                            {log.location}
+                          </span>
+                          <span
+                            style={{
+                              fontWeight: "bold",
+                              color: getQtyColor(log.type),
+                              fontSize: "14px",
+                            }}
+                          >
+                            {log.type === "IN"
+                              ? "+"
+                              : log.type === "OUT"
+                                ? "-"
+                                : ""}{" "}
+                            {log.qty.toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "#666",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          담당자: {log.worker}
+                        </div>
+                        {log.note && (
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#999",
+                              borderTop: "1px dashed #ddd",
+                              paddingTop: "4px",
+                              marginTop: "4px",
+                            }}
+                          >
+                            {log.note}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div style={{ textAlign: "center", marginTop: "20px" }}>
+
+            {/* 모달 푸터 */}
+            <div
+              style={{
+                padding: "20px",
+                borderTop: "1px solid #eee",
+                textAlign: "right",
+              }}
+            >
               <button
                 onClick={closeModal}
                 style={{
-                  width: "100%",
                   backgroundColor: COLORS.primary,
                   color: "white",
                   border: "none",
-                  padding: "12px",
+                  padding: "10px 20px",
                   borderRadius: "8px",
                   fontWeight: "bold",
                   cursor: "pointer",
                 }}
               >
-                확인
+                닫기
               </button>
             </div>
           </div>
@@ -825,28 +946,6 @@ const MiniCard = ({ label, value, color, icon }) => (
         {value}
       </div>
     </div>
-  </div>
-);
-
-const ModalRow = ({ label, value, bold, color }) => (
-  <div
-    style={{
-      display: "flex",
-      justifyContent: "space-between",
-      marginBottom: "12px",
-      fontSize: "13px",
-    }}
-  >
-    <span style={{ color: "#888", minWidth: "80px" }}>{label}</span>
-    <span
-      style={{
-        fontWeight: bold ? "bold" : "normal",
-        color: color || "#333",
-        textAlign: "right",
-      }}
-    >
-      {value}
-    </span>
   </div>
 );
 
