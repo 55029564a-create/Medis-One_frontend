@@ -57,11 +57,8 @@ const ProductionSchedule = () => {
       const data = await getProductionPlans();
 
       const mappedData = (data || []).map((item) => {
-        // 1. 마감일 처리 (값이 없으면 임의의 날짜 or 하이픈)
         const rawDate = item.deadline || item.endDate || item.planDate;
         const formattedDate = rawDate ? rawDate.split("T")[0] : "2026-02-15";
-
-        // 2. 자재명 처리 (값이 없으면 "Main Assy Kit" 표시)
         const matName =
           item.material ||
           item.materialName ||
@@ -71,7 +68,6 @@ const ProductionSchedule = () => {
           ...item,
           deadline: formattedDate,
           material: matName,
-          // 3. 기타 필드 안전 처리
           line: item.line || item.lineName || "Line-1",
           product: item.product || item.productName || "Unknown Product",
           manager: item.manager || item.worker || "담당자 미정",
@@ -244,27 +240,79 @@ const ProductionSchedule = () => {
         <div style={styles.modalOverlay}>
           <div style={styles.detailModal}>
             <div style={styles.modalHeader}>
-              <h3>상세 정보</h3>
+              <h3 style={styles.modalTitle}>
+                <FaClipboardList
+                  style={{ marginRight: "8px", fontSize: "16px" }}
+                />
+                생산 지시 상세
+              </h3>
               <button style={styles.closeBtn} onClick={closeDetailModal}>
                 <FaTimes />
               </button>
             </div>
             <div style={styles.modalBody}>
-              <p>
-                <strong>품목:</strong> {selectedSchedule.product}
-              </p>
-              <p>
-                <strong>라인:</strong> {selectedSchedule.line}
-              </p>
-              <p>
-                <strong>자재:</strong> {selectedSchedule.material}
-              </p>
-              <p>
-                <strong>마감일:</strong> {selectedSchedule.deadline}
-              </p>
-              <p>
-                <strong>상태:</strong> {selectedSchedule.status}
-              </p>
+              {/* 정보 그리드 (2열 유지하되 간격 좁힘) */}
+              <div style={styles.infoGrid}>
+                <InfoItem
+                  label="지시번호"
+                  value={selectedSchedule.id || "WO-001"}
+                />
+                <InfoItem
+                  label="지시일자"
+                  value={new Date().toISOString().split("T")[0]}
+                />
+                <InfoItem label="담당 라인" value={selectedSchedule.line} />
+                <InfoItem label="담당자" value={selectedSchedule.manager} />
+                <InfoItem
+                  label="생산 품목"
+                  value={selectedSchedule.product}
+                  bold
+                />
+                <InfoItem
+                  label="목표 수량"
+                  value={`${selectedSchedule.planQty} EA`}
+                  color={THEME.primary}
+                  bold
+                />
+              </div>
+
+              {/* 상태 표시 (중앙 정렬) */}
+              <div style={styles.statusSection}>
+                <span className="label">현재 상태</span>
+                <StatusBadge status={selectedSchedule.status} />
+              </div>
+
+              {/* 지시사항 박스 */}
+              <div style={styles.detailSection}>
+                <label style={styles.detailLabel}>
+                  <FaBullhorn style={{ marginRight: "5px" }} /> 작업 지시 사항
+                </label>
+                <div style={styles.detailBox}>
+                  패널 조립 시 베젤 유격 0.5mm 이내 관리 요망.
+                </div>
+              </div>
+
+              {/* 비고 박스 */}
+              <div style={styles.detailSection}>
+                <label style={styles.detailLabel}>
+                  <FaEdit style={{ marginRight: "5px" }} /> 비고 / 특이사항
+                </label>
+                <div
+                  style={{
+                    ...styles.detailBox,
+                    backgroundColor: "#FFF8E1",
+                    color: "#5D4037",
+                    border: "none",
+                  }}
+                >
+                  자재 입고 지연으로 10:00 시작함.
+                </div>
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button style={styles.confirmBtn} onClick={closeDetailModal}>
+                확인
+              </button>
             </div>
           </div>
         </div>
@@ -273,7 +321,23 @@ const ProductionSchedule = () => {
   );
 };
 
-// --- 하위 컴포넌트 ---
+// --- 서브 컴포넌트 ---
+
+const InfoItem = ({ label, value, bold, color }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+    <span style={{ fontSize: "11px", color: "#999" }}>{label}</span>
+    <span
+      style={{
+        fontSize: "13px",
+        fontWeight: bold ? "600" : "normal",
+        color: color || "#333",
+        letterSpacing: "-0.3px",
+      }}
+    >
+      {value}
+    </span>
+  </div>
+);
 
 const ScheduleRow = ({ item, onOpen }) => {
   const progress =
@@ -281,11 +345,9 @@ const ScheduleRow = ({ item, onOpen }) => {
 
   return (
     <tr style={styles.tr} onClick={onOpen}>
-      {/* 마감일 데이터 표시 */}
       <td style={{ ...styles.td, color: THEME.gray }}>{item.deadline}</td>
       <td style={styles.td}>{item.line}</td>
       <td style={{ ...styles.td, fontWeight: "bold" }}>{item.product}</td>
-      {/* 자재 데이터 표시 */}
       <td style={styles.td}>
         <div style={styles.materialTag}>
           <FaBox size={10} style={{ marginRight: 4 }} />
@@ -398,10 +460,10 @@ const StatusBadge = ({ status }) => {
       style={{
         backgroundColor: `${color}20`,
         color: color,
-        padding: "4px 8px",
-        borderRadius: "4px",
+        padding: "3px 8px",
+        borderRadius: "12px",
         fontSize: "11px",
-        fontWeight: "bold",
+        fontWeight: "600",
       }}
     >
       {text}
@@ -561,6 +623,7 @@ const styles = {
     fontSize: "14px",
   },
 
+  // Grid View Styles
   gridContainer: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
@@ -639,6 +702,7 @@ const styles = {
     gap: "6px",
     boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
   },
+
   modalOverlay: {
     position: "fixed",
     top: 0,
@@ -653,18 +717,29 @@ const styles = {
   },
   detailModal: {
     backgroundColor: THEME.white,
-    padding: "30px",
-    borderRadius: "16px",
-    width: "400px",
-    boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+    padding: "30px 25px",
+    borderRadius: "12px",
+    width: "380px",
+    minHeight: "550px",
+    boxShadow: "0 15px 40px rgba(0,0,0,0.25)",
+    display: "flex",
+    flexDirection: "column",
   },
   modalHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "20px",
+    paddingBottom: "15px",
     borderBottom: `1px solid ${THEME.border}`,
-    paddingBottom: "10px",
+  },
+  modalTitle: {
+    fontSize: "17px",
+    fontWeight: "bold",
+    color: THEME.text,
+    display: "flex",
+    alignItems: "center",
+    margin: 0,
   },
   closeBtn: {
     background: "transparent",
@@ -672,8 +747,67 @@ const styles = {
     fontSize: "18px",
     cursor: "pointer",
     color: THEME.gray,
+    padding: 0,
   },
-  modalBody: { fontSize: "14px", lineHeight: "1.6", color: THEME.text },
+  modalBody: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+  },
+  infoGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "18px 10px",
+    marginBottom: "25px",
+  },
+  statusSection: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: "20px",
+    padding: "10px",
+    backgroundColor: "#F9F9F9",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: "bold",
+    color: "#666",
+  },
+  detailSection: {
+    marginBottom: "15px",
+  },
+  detailLabel: {
+    fontSize: "12px",
+    fontWeight: "bold",
+    color: "#555",
+    marginBottom: "6px",
+    display: "flex",
+    alignItems: "center",
+  },
+  detailBox: {
+    backgroundColor: "#F9F9F9",
+    padding: "12px",
+    borderRadius: "8px",
+    fontSize: "13px",
+    border: `1px solid ${THEME.border}`,
+    lineHeight: "1.5",
+    minHeight: "60px",
+  },
+  modalFooter: {
+    marginTop: "20px",
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+  confirmBtn: {
+    backgroundColor: THEME.primary,
+    color: "white",
+    border: "none",
+    padding: "10px 0",
+    width: "100%",
+    borderRadius: "8px",
+    fontWeight: "bold",
+    fontSize: "14px",
+    cursor: "pointer",
+  },
   materialTag: {
     display: "inline-flex",
     alignItems: "center",
