@@ -69,9 +69,15 @@ const WorkOrderMgmt = () => {
         getLines(),
         getProductOrders(),
       ]);
-      setOrders(woData || []); // null 방지
+
+      // [핵심] DB에는 남아있지만, UI 목록에서는 COMPLETED를 제외함
+      const activeOrders = (woData || []).filter(
+        (order) => order.status !== "COMPLETED",
+      );
+
+      setOrders(activeOrders); // 필터링된 데이터만 저장
       setLines(lineData || []);
-      setParentPlans((poData || []).filter((p) => p.status !== "COMPLETED"));
+      setParentPlans(poData || []);
     } catch (error) {
       console.error("데이터 로드 실패", error);
     } finally {
@@ -156,15 +162,34 @@ const WorkOrderMgmt = () => {
     }
   };
 
+  const handleForceComplete = async () => {
+    if (window.confirm("이 작업을 완료 처리하고 목록에서 제외하시겠습니까?")) {
+      try {
+        const payload = {
+          ...currentOrder,
+          status: "COMPLETED", // 서버에 완료 상태 전송
+        };
+
+        await updateWorkOrder(currentOrder.id, payload);
+
+        alert("완료 처리되었습니다.");
+        setIsModalOpen(false); // 모달 닫기
+        fetchData(true); // 목록 새로고침 (이때 위에서 만든 필터가 작동함)
+      } catch (e) {
+        alert("처리 실패: " + (e.response?.data || e.message));
+      }
+    }
+  };
   const handleDelete = async () => {
-    if (window.confirm("정말 삭제하시겠습니까?")) {
+    if (window.confirm("완료된 데이터를 DB에서 영구 삭제하시겠습니까?")) {
       try {
         await deleteWorkOrder(currentOrder.id);
         alert("삭제되었습니다.");
-        setIsModalOpen(false);
-        fetchData(true); // 삭제 후 즉시 갱신
+        setIsModalOpen(false); // 삭제 후 모달 닫기
+        fetchData(true); // 목록 새로고침
       } catch (e) {
-        alert("삭제 실패: " + (e.response?.data?.message || e.message));
+        console.error("삭제 실패:", e.response?.data);
+        alert("삭제 실패: 연관 데이터(실적 등)가 있어 삭제할 수 없습니다.");
       }
     }
   };
@@ -371,11 +396,12 @@ const WorkOrderMgmt = () => {
             </div>
             <div style={styles.modalFooter}>
               {isEditMode && (
-                <button onClick={handleDelete} style={styles.btnDelete}>
-                  삭제
+                <button onClick={handleForceComplete} style={styles.btnDone}>
+                  강제 완료
                 </button>
               )}
-              <div style={{ display: "flex", gap: "10px" }}>
+
+              <div style={{ display: "flex", gap: "10px", marginLeft: "auto" }}>
                 <button
                   onClick={() => setIsModalOpen(false)}
                   style={styles.btnCancel}
@@ -574,6 +600,25 @@ const styles = {
     padding: "10px 20px",
     borderRadius: "10px",
     cursor: "pointer",
+  },
+  btnDone: {
+    backgroundColor: "white",
+    color: COLORS.success,
+    border: `1px solid ${COLORS.success}`,
+    padding: "10px 20px",
+    borderRadius: "10px",
+    cursor: "pointer",
+    fontWeight: "bold",
+  },
+
+  btnDeleteReal: {
+    backgroundColor: COLORS.danger, // #FF4444
+    color: "white",
+    border: "none",
+    padding: "10px 20px",
+    borderRadius: "10px",
+    cursor: "pointer",
+    fontWeight: "bold",
   },
 };
 
