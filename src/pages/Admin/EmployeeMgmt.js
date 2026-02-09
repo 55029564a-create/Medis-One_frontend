@@ -7,7 +7,7 @@ import {
   FaTrashAlt,
   FaEdit,
   FaPhoneAlt,
-  FaSyncAlt, // [추가] 새로고침 아이콘
+  FaSyncAlt,
 } from "react-icons/fa";
 import { MdCheckBox, MdCheckBoxOutlineBlank } from "react-icons/md";
 import {
@@ -77,7 +77,7 @@ const EmployeeMgmt = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentEmp, setCurrentEmp] = useState(null);
 
-  // [1. 데이터 로드] 백엔드 데이터를 프론트엔드 변수명으로 매핑
+  // [1. 데이터 로드]
   const fetchEmployees = async () => {
     try {
       const data = await getEmployees();
@@ -87,12 +87,9 @@ const EmployeeMgmt = () => {
         name: emp.name,
         email: emp.email,
         phone: emp.phone,
-
-        // ★ 핵심: 백엔드(Dto) -> 프론트(State) 변수명 통일 및 기본값 설정
         dept: emp.department || "PRD1",
         rank: emp.position || "STAFF",
         line: emp.processes || "OFFICE",
-
         status: emp.status || "Active",
         permissions: [],
         joinDate: emp.joinDate,
@@ -107,7 +104,7 @@ const EmployeeMgmt = () => {
     fetchEmployees();
   }, []);
 
-  // [신규] 수동 새로고침 함수
+  // 수동 새로고침
   const handleManualRefresh = () => {
     fetchEmployees();
     alert("사원 목록이 최신 상태로 갱신되었습니다.");
@@ -120,7 +117,6 @@ const EmployeeMgmt = () => {
     );
   };
 
-  // [2. 신규 등록 초기화] 프론트엔드 변수명(dept, rank, line)으로 초기화
   const handleAddNew = () => {
     const newId = `E2600${employees.length + 1}`;
     setCurrentEmp({
@@ -129,12 +125,9 @@ const EmployeeMgmt = () => {
       name: "",
       email: "",
       phone: "",
-
-      // ★ 여기가 중요: SelectGroup의 name 속성과 똑같이 맞춰야 함
       dept: "PRD1",
       rank: "STAFF",
       line: "A-18",
-
       status: "Active",
       permissions: [],
       joinDate: new Date().toISOString().slice(0, 10),
@@ -142,36 +135,26 @@ const EmployeeMgmt = () => {
     setIsAddModalOpen(true);
   };
 
-  // [3. 수정 모달 열기] 리스트에 있는 데이터를 그대로 사용
   const openEditModal = (emp) => {
-    // fetchEmployees에서 이미 dept, rank, line으로 매핑해두었으므로 그대로 복사
     setCurrentEmp({ ...emp });
     setIsEditModalOpen(true);
   };
 
-  // [4. 저장 로직] 프론트(State) -> 백엔드(Payload) 변환 전송
   const handleSave = async (isEdit) => {
     if (!currentEmp.name) return alert("이름은 필수입니다.");
 
-    // ★ Payload 구성: 여기서 백엔드가 원하는 이름으로 변환합니다.
     const payload = {
       employeeNumber: currentEmp.employeeNumber,
       password: currentEmp.password,
       name: currentEmp.name,
       email: currentEmp.email,
       phone: currentEmp.phone,
-
-      // ▼▼▼ 여기가 문제 해결의 핵심입니다 ▼▼▼
-      department: currentEmp.dept, // state.dept -> dto.department
-      position: currentEmp.rank, // state.rank -> dto.position (직급 수정 반영)
-      processes: currentEmp.line, // state.line -> dto.processes (공정 수정 반영)
-      // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
+      department: currentEmp.dept,
+      position: currentEmp.rank,
+      processes: currentEmp.line,
       status: currentEmp.status,
       permissions: currentEmp.permissions,
     };
-
-    console.log("서버로 전송되는 데이터:", payload); // F12 콘솔에서 확인 가능
 
     try {
       if (isEdit) {
@@ -184,7 +167,7 @@ const EmployeeMgmt = () => {
 
       setIsAddModalOpen(false);
       setIsEditModalOpen(false);
-      fetchEmployees(); // 목록 갱신
+      fetchEmployees();
     } catch (error) {
       console.error("저장 실패:", error);
       alert("저장 중 오류가 발생했습니다.");
@@ -193,19 +176,29 @@ const EmployeeMgmt = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    // 기존 값을 유지하면서 변경된 값만 업데이트
     setCurrentEmp((prev) => ({ ...prev, [name]: value }));
   };
 
+  // 퇴사 처리 로직
   const handleResign = async () => {
     if (window.confirm(`${currentEmp.name}님을 퇴사 처리하시겠습니까?`)) {
       try {
+        // 1. 서버에 퇴사 요청 전송
         await resignEmployee(currentEmp.realId);
+
+        // 2. [강제 업데이트] 서버에서 데이터를 다시 불러오지 않고(fetchEmployees X),
+        // 현재 화면에 있는 데이터(State)를 직접 수정해서 즉시 반영합니다.
+        setEmployees((prevEmployees) =>
+          prevEmployees.map((emp) =>
+            emp.id === currentEmp.id ? { ...emp, status: "Resigned" } : emp,
+          ),
+        );
+
         alert("퇴사 처리되었습니다.");
         setIsEditModalOpen(false);
-        fetchEmployees();
       } catch (error) {
-        alert("오류 발생");
+        console.error("퇴사 처리 오류:", error);
+        alert("오류가 발생했습니다.");
       }
     }
   };
@@ -249,7 +242,7 @@ const EmployeeMgmt = () => {
           </p>
         </div>
         <div style={styles.actions}>
-          {/* [추가] 새로고침 버튼 */}
+          {/* 새로고침 버튼 */}
           <button style={styles.refreshBtn} onClick={handleManualRefresh}>
             <FaSyncAlt /> 새로고침
           </button>
@@ -443,7 +436,8 @@ const EmployeeMgmt = () => {
   );
 };
 
-// --- [모달] Input name을 state key (dept, rank, line)와 반드시 일치시켜야 함 ---
+// ... (AddEmployeeModal, EditEmployeeModal, InputGroup, SelectGroup, styles 코드는 기존과 동일하므로 생략하지 않고 아래에 그대로 둡니다)
+
 const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
   <div style={styles.modalOverlay}>
     <div style={styles.modalContent}>
@@ -490,7 +484,6 @@ const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
             onChange={onChange}
           />
 
-          {/* name="dept" -> currentEmp.dept 업데이트 */}
           <SelectGroup
             label="부서"
             name="dept"
@@ -498,7 +491,6 @@ const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
             options={DEPARTMENTS}
             onChange={onChange}
           />
-          {/* name="rank" -> currentEmp.rank 업데이트 */}
           <SelectGroup
             label="직급"
             name="rank"
@@ -506,7 +498,6 @@ const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
             options={POSITIONS}
             onChange={onChange}
           />
-          {/* name="line" -> currentEmp.line 업데이트 */}
           <SelectGroup
             label="담당 라인"
             name="line"
@@ -631,7 +622,7 @@ const EditEmployeeModal = ({
         ) : (
           <div />
         )}
-        <div style={{ display: "flex", gap: "10px" }}>
+        <div style={styles.displayFlex}>
           <button style={styles.cancelButton} onClick={onClose}>
             닫기
           </button>
@@ -645,7 +636,6 @@ const EditEmployeeModal = ({
   </div>
 );
 
-// 공통 컴포넌트
 const InputGroup = ({ label, name, value, onChange, readOnly }) => (
   <div style={{ display: "flex", flexDirection: "column" }}>
     <label style={styles.label}>{label}</label>
@@ -711,7 +701,6 @@ const styles = {
     fontSize: "14px",
     width: "200px",
   },
-  // [추가] 새로고침 버튼 스타일
   refreshBtn: {
     padding: "8px 16px",
     backgroundColor: "#fff",
@@ -868,6 +857,7 @@ const styles = {
     borderTop: "1px solid #eee",
     paddingTop: "20px",
   },
+  displayFlex: { display: "flex", gap: "10px" },
   saveButton: {
     backgroundColor: COLORS.primary,
     color: "#fff",
