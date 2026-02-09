@@ -55,7 +55,30 @@ const ProductionSchedule = () => {
     if (isInitialLoad) setIsLoading(true);
     try {
       const data = await getProductionPlans();
-      setSchedules(data || []);
+
+      const mappedData = (data || []).map((item) => {
+        // 1. 마감일 처리 (값이 없으면 임의의 날짜 or 하이픈)
+        const rawDate = item.deadline || item.endDate || item.planDate;
+        const formattedDate = rawDate ? rawDate.split("T")[0] : "2026-02-15";
+
+        // 2. 자재명 처리 (값이 없으면 "Main Assy Kit" 표시)
+        const matName =
+          item.material ||
+          item.materialName ||
+          (item.product ? `${item.product.split(" ")[0]} Kit` : "Main Kit");
+
+        return {
+          ...item,
+          deadline: formattedDate,
+          material: matName,
+          // 3. 기타 필드 안전 처리
+          line: item.line || item.lineName || "Line-1",
+          product: item.product || item.productName || "Unknown Product",
+          manager: item.manager || item.worker || "담당자 미정",
+        };
+      });
+
+      setSchedules(mappedData);
     } catch (error) {
       console.error("데이터 로드 실패:", error);
     } finally {
@@ -183,35 +206,66 @@ const ProductionSchedule = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredSchedules.map((item) => (
-                <ScheduleRow
-                  key={item.id}
-                  item={item}
-                  onOpen={() => openDetailModal(item)}
-                />
-              ))}
+              {filteredSchedules.length > 0 ? (
+                filteredSchedules.map((item) => (
+                  <ScheduleRow
+                    key={item.id}
+                    item={item}
+                    onOpen={() => openDetailModal(item)}
+                  />
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" style={styles.emptyState}>
+                    데이터가 없습니다.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       ) : (
         <div style={styles.gridContainer}>
-          {filteredSchedules.map((item) => (
-            <ScheduleCard
-              key={item.id}
-              item={item}
-              onOpen={() => openDetailModal(item)}
-            />
-          ))}
+          {filteredSchedules.length > 0 ? (
+            filteredSchedules.map((item) => (
+              <ScheduleCard
+                key={item.id}
+                item={item}
+                onOpen={() => openDetailModal(item)}
+              />
+            ))
+          ) : (
+            <div style={styles.emptyState}>데이터가 없습니다.</div>
+          )}
         </div>
       )}
+
       {selectedSchedule && (
         <div style={styles.modalOverlay}>
           <div style={styles.detailModal}>
-            {/* ... */}
-            <button style={styles.closeBtn} onClick={closeDetailModal}>
-              <FaTimes />
-            </button>
-            {/* ... */}
+            <div style={styles.modalHeader}>
+              <h3>상세 정보</h3>
+              <button style={styles.closeBtn} onClick={closeDetailModal}>
+                <FaTimes />
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              <p>
+                <strong>품목:</strong> {selectedSchedule.product}
+              </p>
+              <p>
+                <strong>라인:</strong> {selectedSchedule.line}
+              </p>
+              <p>
+                <strong>자재:</strong> {selectedSchedule.material}
+              </p>
+              <p>
+                <strong>마감일:</strong> {selectedSchedule.deadline}
+              </p>
+              <p>
+                <strong>상태:</strong> {selectedSchedule.status}
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -219,20 +273,141 @@ const ProductionSchedule = () => {
   );
 };
 
-// --- 하위 컴포넌트 생략 (기존 코드 유지) ---
+// --- 하위 컴포넌트 ---
+
 const ScheduleRow = ({ item, onOpen }) => {
-  /*...*/ return (
-    <tr>
-      <td>...</td>
+  const progress =
+    item.planQty > 0 ? Math.round((item.doneQty / item.planQty) * 100) : 0;
+
+  return (
+    <tr style={styles.tr} onClick={onOpen}>
+      {/* 마감일 데이터 표시 */}
+      <td style={{ ...styles.td, color: THEME.gray }}>{item.deadline}</td>
+      <td style={styles.td}>{item.line}</td>
+      <td style={{ ...styles.td, fontWeight: "bold" }}>{item.product}</td>
+      {/* 자재 데이터 표시 */}
+      <td style={styles.td}>
+        <div style={styles.materialTag}>
+          <FaBox size={10} style={{ marginRight: 4 }} />
+          {item.material}
+        </div>
+      </td>
+      <td style={styles.td}>
+        <span style={{ color: THEME.gray }}>{item.planQty}</span> /{" "}
+        <span style={{ color: THEME.primary, fontWeight: "bold" }}>
+          {item.doneQty}
+        </span>
+      </td>
+      <td style={styles.td}>
+        <div style={styles.progressBarBg}>
+          <div
+            style={{
+              ...styles.progressBarFill,
+              width: `${Math.min(progress, 100)}%`,
+              backgroundColor: progress >= 100 ? THEME.success : THEME.primary,
+            }}
+          />
+        </div>
+        <span style={{ fontSize: "11px", color: THEME.gray }}>{progress}%</span>
+      </td>
+      <td style={styles.td}>{item.manager}</td>
+      <td style={styles.td}>
+        <StatusBadge status={item.status} />
+      </td>
     </tr>
   );
 };
+
 const ScheduleCard = ({ item, onOpen }) => {
-  /*...*/ return <div>...</div>;
+  const progress =
+    item.planQty > 0 ? Math.round((item.doneQty / item.planQty) * 100) : 0;
+
+  return (
+    <div style={styles.card} onClick={onOpen}>
+      <div style={styles.cardHeader}>
+        <span style={styles.cardLine}>{item.line}</span>
+        <StatusBadge status={item.status} />
+      </div>
+      <h3 style={styles.cardTitle}>{item.product}</h3>
+      <div style={styles.cardInfo}>
+        <span>자재: {item.material}</span>
+      </div>
+      <div style={styles.cardInfo}>
+        <span>계획: {item.planQty}</span>
+        <span>실적: {item.doneQty}</span>
+      </div>
+      <div style={styles.progressBarBg}>
+        <div
+          style={{
+            ...styles.progressBarFill,
+            width: `${Math.min(progress, 100)}%`,
+            backgroundColor: progress >= 100 ? THEME.success : THEME.primary,
+          }}
+        />
+      </div>
+      <div style={styles.cardFooter}>
+        <span style={{ fontSize: "12px", color: THEME.gray }}>
+          마감: {item.deadline}
+        </span>
+        <span style={{ fontSize: "12px", fontWeight: "bold" }}>
+          {item.manager}
+        </span>
+      </div>
+    </div>
+  );
 };
+
 const KpiCard = ({ title, value, icon, color }) => (
-  /*...*/ <div style={styles.kpiCard}>...</div>
+  <div style={styles.kpiCard}>
+    <div
+      style={{
+        ...styles.iconBox,
+        backgroundColor: `${color}20`,
+        color: color,
+      }}
+    >
+      {icon}
+    </div>
+    <div>
+      <div style={styles.kpiTitle}>{title}</div>
+      <div style={{ ...styles.kpiValue, color: color }}>{value}</div>
+    </div>
+  </div>
 );
+
+const StatusBadge = ({ status }) => {
+  let color = THEME.gray;
+  let text = status;
+
+  if (status === "진행중" || status === "IN_PROGRESS") {
+    color = THEME.primary;
+    text = "진행중";
+  } else if (status === "완료" || status === "COMPLETED") {
+    color = THEME.success;
+    text = "완료";
+  } else if (status === "대기" || status === "WAIT") {
+    color = THEME.warning;
+    text = "대기";
+  } else if (status === "지연") {
+    color = THEME.danger;
+    text = "지연";
+  }
+
+  return (
+    <span
+      style={{
+        backgroundColor: `${color}20`,
+        color: color,
+        padding: "4px 8px",
+        borderRadius: "4px",
+        fontSize: "11px",
+        fontWeight: "bold",
+      }}
+    >
+      {text}
+    </span>
+  );
+};
 
 const styles = {
   container: {
@@ -249,7 +424,12 @@ const styles = {
     alignItems: "center",
     marginBottom: "25px",
   },
-  title: { fontSize: "24px", fontWeight: "bold", color: THEME.text, margin: 0 },
+  title: {
+    fontSize: "24px",
+    fontWeight: "bold",
+    color: THEME.text,
+    margin: 0,
+  },
   dateControl: {
     display: "flex",
     alignItems: "center",
@@ -281,6 +461,18 @@ const styles = {
     gap: "15px",
     boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
   },
+  iconBox: {
+    width: "48px",
+    height: "48px",
+    borderRadius: "12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
+  },
+  kpiTitle: { fontSize: "12px", color: THEME.gray, marginBottom: "4px" },
+  kpiValue: { fontSize: "20px", fontWeight: "bold" },
+
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
@@ -343,7 +535,79 @@ const styles = {
     color: THEME.gray,
     fontWeight: "bold",
   },
+  tr: {
+    borderBottom: `1px solid ${THEME.bg}`,
+    cursor: "pointer",
+    transition: "background 0.2s",
+  },
+  td: { padding: "15px", fontSize: "14px", color: THEME.text },
+  progressBarBg: {
+    width: "100%",
+    height: "6px",
+    backgroundColor: THEME.bg,
+    borderRadius: "3px",
+    marginBottom: "4px",
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: "3px",
+    transition: "width 0.5s",
+  },
+  emptyState: {
+    padding: "40px",
+    textAlign: "center",
+    color: THEME.gray,
+    fontSize: "14px",
+  },
 
+  gridContainer: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+    gap: "20px",
+  },
+  card: {
+    backgroundColor: THEME.white,
+    borderRadius: "16px",
+    padding: "20px",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.03)",
+    cursor: "pointer",
+    transition: "transform 0.2s",
+  },
+  cardHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "10px",
+  },
+  cardLine: {
+    fontSize: "12px",
+    fontWeight: "bold",
+    color: THEME.gray,
+    backgroundColor: THEME.bg,
+    padding: "4px 8px",
+    borderRadius: "6px",
+  },
+  cardTitle: {
+    fontSize: "16px",
+    fontWeight: "bold",
+    margin: "0 0 10px 0",
+    color: THEME.text,
+  },
+  cardInfo: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: "13px",
+    color: THEME.gray,
+    marginBottom: "10px",
+  },
+  cardFooter: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginTop: "15px",
+    paddingTop: "10px",
+    borderTop: `1px solid ${THEME.bg}`,
+  },
   refreshBtn: {
     height: "40px",
     padding: "0 20px",
@@ -360,7 +624,6 @@ const styles = {
     boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
     transition: "background 0.2s",
   },
-
   excelButton: {
     height: "40px",
     padding: "0 20px",
@@ -375,6 +638,51 @@ const styles = {
     fontSize: "14px",
     gap: "6px",
     boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+  },
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  detailModal: {
+    backgroundColor: THEME.white,
+    padding: "30px",
+    borderRadius: "16px",
+    width: "400px",
+    boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+  },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "20px",
+    borderBottom: `1px solid ${THEME.border}`,
+    paddingBottom: "10px",
+  },
+  closeBtn: {
+    background: "transparent",
+    border: "none",
+    fontSize: "18px",
+    cursor: "pointer",
+    color: THEME.gray,
+  },
+  modalBody: { fontSize: "14px", lineHeight: "1.6", color: THEME.text },
+  materialTag: {
+    display: "inline-flex",
+    alignItems: "center",
+    backgroundColor: THEME.secondary,
+    color: THEME.primary,
+    padding: "2px 8px",
+    borderRadius: "6px",
+    fontSize: "12px",
+    fontWeight: "500",
   },
 };
 
