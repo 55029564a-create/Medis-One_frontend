@@ -47,7 +47,7 @@ const WorkOrder = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // [수정] isSilent: true면 로딩바 안 띄움 (자동갱신용)
+  // isSilent: true면 로딩바 안 띄움 (자동갱신용)
   const fetchData = async (isSilent = false) => {
     if (!isSilent) setIsLoading(true);
     try {
@@ -123,7 +123,7 @@ const WorkOrder = () => {
 
   return (
     <div style={styles.container}>
-      {/* [수정] 헤더를 flex로 바꿔서 버튼 배치 */}
+      {/* 헤더 */}
       <div style={styles.header}>
         <div>
           <h2 style={{ margin: 0, color: COLORS.text }}>📑 작업 지시서</h2>
@@ -138,7 +138,6 @@ const WorkOrder = () => {
           </p>
         </div>
 
-        {/* [추가] 새로고침 버튼 */}
         <button
           style={styles.refreshBtn}
           onClick={handleManualRefresh}
@@ -250,7 +249,6 @@ const WorkOrder = () => {
               />
               월간 작업 지시 이력 (Monthly)
             </h3>
-            {/* 🛑 검색바 제거됨 */}
           </div>
 
           <div style={styles.listHeader}>
@@ -423,7 +421,6 @@ const styles = {
     backgroundColor: COLORS.bg,
     minHeight: "100vh",
   },
-  // [수정] 헤더를 flex로 변경
   header: {
     marginBottom: "30px",
     display: "flex",
@@ -479,22 +476,6 @@ const styles = {
     borderRadius: "20px",
     fontSize: "12px",
     fontWeight: "bold",
-  },
-  searchBox: {
-    display: "flex",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-    borderRadius: "20px",
-    padding: "8px 15px",
-    width: "200px",
-  },
-  searchInput: {
-    border: "none",
-    backgroundColor: "transparent",
-    outline: "none",
-    marginLeft: "10px",
-    fontSize: "13px",
-    width: "100%",
   },
   modalOverlay: {
     position: "fixed",
@@ -569,21 +550,22 @@ const styles = {
     fontWeight: "bold",
     cursor: "pointer",
   },
-  // [추가] 새로고침 버튼 스타일
+
   refreshBtn: {
-    backgroundColor: COLORS.primary,
-    color: "#fff",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "8px",
+    height: "40px",
+    padding: "0 20px", // 좌우 여백
+    borderRadius: "12px", // 둥근 모서리 통일
+    backgroundColor: "#fff", // 배경 흰색
+    color: COLORS.primary, // 글씨 보라색
+    border: `1px solid ${COLORS.primary}`, // 테두리 보라색
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
-    gap: "8px",
+    gap: "6px",
     fontWeight: "bold",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+    fontSize: "14px",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
     transition: "background 0.2s",
-    height: "40px",
   },
 };
 

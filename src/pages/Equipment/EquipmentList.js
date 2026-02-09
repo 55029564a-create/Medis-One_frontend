@@ -45,19 +45,6 @@ const COLORS = {
 const EquipmentList = () => {
   const navigate = useNavigate();
 
-  /* 🚨 [수정] 아래 machines 배열 선언이 하단의 useState와 충돌하여 에러를 발생시켰습니다.
-    이미 아래에서 API 데이터를 담을 machines 상태를 선언했으므로, 이 정적 배열은 주석 처리합니다.
-  
-  const machines = [
-    // {
-    //   id: "EQ-10",
-    //   process: "전처리 공정",
-    //   name: "플라즈마 세정기 #01",
-    //   ...
-    // },
-  ]; 
-  */
-
   // 1. 상태 관리
   const [machines, setMachines] = useState([]); // 전체 데이터
   const [filteredMachines, setFilteredMachines] = useState([]); // 필터링된 데이터
@@ -154,10 +141,7 @@ const EquipmentList = () => {
     const metrics = getMetricsByType(type, dto.eqData);
 
     return {
-      // 1. 백엔드 통신용 (Long 타입 ID)
       id: dto.eqId,
-
-      // 2. 화면 표시 및 식별용 (String 타입 코드)
       eqCode: dto.eqCode,
       lineCode: dto.lineCode,
       process: dto.processName,
@@ -401,9 +385,6 @@ const EquipmentList = () => {
   );
 };
 
-// ... (EquipmentCard, StatusLegend, styles 코드는 동일하므로 생략하거나 필요시 추가)
-// 아래에 컴포넌트와 스타일이 계속 이어집니다.
-
 const EquipmentCard = ({ data, onClick }) => {
   const getStatusColor = (s) => {
     if (s === "RUN") return COLORS.success;
@@ -559,20 +540,24 @@ const styles = {
   },
   subTitle: { fontSize: "13px", color: COLORS.subText, marginTop: "2px" },
   headerControls: { display: "flex", alignItems: "center", gap: "15px" },
+
   refreshBtn: {
     display: "flex",
     alignItems: "center",
     gap: "6px",
-    padding: "8px 16px",
+    padding: "0 20px", // 20px 패딩
     backgroundColor: "white",
-    border: `1px solid ${COLORS.border}`,
-    borderRadius: "8px",
+    border: `1px solid ${COLORS.primary}`, // 보라색 테두리
+    borderRadius: "12px", // 둥근 모서리 12px
     cursor: "pointer",
     fontWeight: "bold",
-    color: "#555",
-    fontSize: "13px",
-    height: "40px",
+    color: COLORS.primary, // 보라색 글씨
+    fontSize: "14px",
+    height: "40px", // 높이 40px
+    boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+    transition: "background 0.2s",
   },
+
   legend: {
     display: "flex",
     gap: "15px",

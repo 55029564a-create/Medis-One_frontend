@@ -9,7 +9,7 @@ import {
   FaBox,
   FaFileSignature,
   FaBarcode,
-  FaSyncAlt, // [추가]
+  FaSyncAlt,
 } from "react-icons/fa";
 
 // 🎨 스타일 상수
@@ -50,7 +50,7 @@ const DeviceHistory = () => {
     }
   };
 
-  // [신규] 수동 새로고침 함수
+  // 수동 새로고침 함수
   const handleManualRefresh = () => {
     if (serialNo) {
       handleSearch();
@@ -71,13 +71,12 @@ const DeviceHistory = () => {
           </p>
         </div>
         <div style={styles.btnGroup}>
-          {/* [추가] 새로고침 버튼 */}
           <button style={styles.refreshBtn} onClick={handleManualRefresh}>
-            <FaSyncAlt /> Refresh
+            <FaSyncAlt /> 새로고침
           </button>
 
           <button style={styles.printBtn} onClick={() => window.print()}>
-            <FaPrint /> Print Report
+            <FaPrint /> 프린트
           </button>
         </div>
       </div>
@@ -294,32 +293,39 @@ const styles = {
   subtitle: { fontSize: "14px", color: COLORS.gray, marginTop: "5px" },
   btnGroup: { display: "flex", gap: "10px" },
 
-  // [추가] 새로고침 버튼 스타일
   refreshBtn: {
+    height: "40px", // 높이 통일
+    padding: "0 20px", // 좌우 여백 통일
+    borderRadius: "12px", // 둥근 모서리 통일
     display: "flex",
     alignItems: "center",
     gap: "8px",
     backgroundColor: "white",
-    color: "#555",
-    border: `1px solid ${COLORS.border}`,
-    padding: "10px 16px",
-    borderRadius: "6px",
+    color: COLORS.primary, // 보라색 글씨
+    border: `1px solid ${COLORS.primary}`, // 보라색 테두리
     cursor: "pointer",
     fontWeight: "bold",
+    fontSize: "14px",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+    transition: "background 0.2s",
   },
 
   printBtn: {
+    height: "40px", // 높이 통일
+    padding: "0 20px", // 좌우 여백 통일
+    borderRadius: "12px", // 둥근 모서리 통일
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    backgroundColor: "#333",
+    backgroundColor: "#333", // 기존 검은색 유지
     color: "white",
     border: "none",
-    padding: "10px 16px",
-    borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "bold",
+    fontSize: "14px",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
   },
+
   searchSection: {
     marginBottom: "30px",
     display: "flex",

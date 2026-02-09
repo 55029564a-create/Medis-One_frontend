@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import client from "../../api/client"; // client.js 경로에 맞게
+import client from "../../api/client";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   FaArrowLeft,

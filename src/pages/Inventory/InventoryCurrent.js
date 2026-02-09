@@ -56,7 +56,6 @@ const InventoryCurrent = () => {
       const response = await client.get("/inventory/state", {
         params: {
           category: backendCategory,
-          // ❌ searchTerm 제거: 서버 필터링 대신 프론트에서 필터링
         },
       });
 
@@ -68,7 +67,6 @@ const InventoryCurrent = () => {
     }
   };
 
-  // ✅ 검색어(searchTerm)가 바뀔 때는 서버 요청 안 하고, 카테고리가 바뀔 때만 요청
   useEffect(() => {
     fetchInventoryData();
   }, [selectedCategory]);
@@ -85,10 +83,8 @@ const InventoryCurrent = () => {
 
   const { categoryStats, itemList } = dashboardData;
 
-  // ✅ [핵심 기능] 대소문자 구분 없는 필터링 로직
-  // toLowerCase()를 사용하여 영문 대소문자 상관없이, 이름이나 코드로 검색
   const filteredItems = (itemList || []).filter((item) => {
-    if (!searchTerm) return true; // 검색어 없으면 다 보여줌
+    if (!searchTerm) return true;
 
     const lowerTerm = searchTerm.toLowerCase();
     const itemName = item.name ? item.name.toLowerCase() : "";
@@ -101,20 +97,19 @@ const InventoryCurrent = () => {
     name,
     value,
   }));
-  // 차트 데이터도 필터링된 결과 반영하려면 filteredItems를 써도 되지만,
-  // 보통 차트는 전체 현황을 보여주는 게 맞으므로 itemList 유지
   const barData = (itemList || []).slice(0, 5);
 
   return (
     <>
       <style>{`
-        /* ... 기존 스타일 그대로 유지 ... */
+        /* ... 기존 스타일 유지 ... */
         .inventory-page-container {
-          padding: 2rem;
+          padding: 30px; /* 다른 페이지와 패딩 통일 (2rem -> 30px) */
           background-color: #f5f7fa;
           min-height: 100vh;
           font-family: "Pretendard", sans-serif;
           color: #333;
+          box-sizing: border-box;
         }
 
         .page-header-wrapper {
@@ -146,23 +141,25 @@ const InventoryCurrent = () => {
           margin-left: 2.4rem;
         }
 
+        /* ★ [수정됨] 새로고침 버튼 (Admin/Production/Material과 디자인 100% 통일) */
         .refresh-btn {
+          height: 40px;          /* 높이 40px 고정 */
+          padding: 0 20px;       /* 좌우 패딩 20px */
+          border-radius: 12px;   /* 둥근 모서리 12px */
+          background-color: #fff;
+          color: #8C85FF;        /* 보라색 글씨 */
+          border: 1px solid #8C85FF; /* 보라색 테두리 */
+          cursor: pointer;
+          font-weight: bold;
+          font-size: 14px;
           display: flex;
           align-items: center;
-          gap: 6px;
-          padding: 8px 16px;
-          background-color: white;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          cursor: pointer;
-          font-weight: 600;
-          color: #555;
-          font-size: 0.9rem;
-          transition: all 0.2s;
+          gap: 8px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+          transition: background 0.2s;
         }
         .refresh-btn:hover {
-          background-color: #f9f9f9;
-          border-color: #ccc;
+          background-color: #f3f1ff; /* 호버 시 연한 보라색 배경 */
         }
 
         .chart-row {
@@ -356,6 +353,7 @@ const InventoryCurrent = () => {
               <FaWarehouse className="title-icon" />
               실시간 재고 현황 (Real-time Inventory)
             </div>
+
             <button className="refresh-btn" onClick={handleManualRefresh}>
               <FaSyncAlt /> 새로고침
             </button>
@@ -472,7 +470,6 @@ const InventoryCurrent = () => {
                   <th>보관위치</th>
                 </tr>
               </thead>
-              {/* ✅ [수정] filteredItems로 맵핑 */}
               <tbody>
                 {filteredItems && filteredItems.length > 0 ? (
                   filteredItems.map((item) => {
