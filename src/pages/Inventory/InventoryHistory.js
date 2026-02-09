@@ -12,23 +12,22 @@ import {
   FaBarcode,
   FaIndustry,
   FaBoxOpen,
-  FaTruckLoading,
   FaSyncAlt,
   FaCopy,
   FaEye,
   FaTimes,
   FaHistory,
+  FaCheckCircle,
 } from "react-icons/fa";
 
 // 🎨 디자인 테마
 const COLORS = {
   primary: "#8C85FF",
   secondary: "#F3F1FF",
-  success: "#00C851",
-  warning: "#FFBB33",
-  info: "#33b5e5",
-  danger: "#FF4444",
-  dark: "#2E2E2E",
+  success: "#00C851", // 자재입고
+  warning: "#FFBB33", // 라인투입
+  info: "#33b5e5", // 출하대기 (완제품)
+  danger: "#FF4444", // 자재출하
   text: "#333",
   subText: "#888",
   border: "#E0E0E0",
@@ -36,7 +35,7 @@ const COLORS = {
   white: "#FFFFFF",
 };
 
-// ⚡️ [필수] QR 연결용 IP
+// ⚡️ [필수] QR 연결용 IP 고정
 const FIXED_IP = "192.168.0.85";
 
 const InventoryHistory = () => {
@@ -56,23 +55,76 @@ const InventoryHistory = () => {
 
   const searchInputRef = useRef(null);
 
+  // 🛠 [핵심] 서버 데이터 상태 분류 함수 (완제품 자동 판별)
+  const mapServerData = (data) => {
+    return data.map((dto) => {
+      let typeCode = "ETC";
+      const rawType = dto.type || "";
+      const category = dto.category || ""; // 카테고리 정보 (PRODUCT, KIT 등)
+
+      // 1. 🔥 [완제품 판별 로직]
+      // 카테고리가 PRODUCT이거나, 타입이 생산완료면 -> "출하대기"
+      if (
+        category === "PRODUCT" ||
+        category === "완제품" ||
+        ["생산완료", "PRODUCED", "완제품입고", "출하대기"].includes(rawType)
+      ) {
+        // 단, 출고(OUT)인 경우는 제외 (이미 출하된 경우 등)
+        if (!["출고", "OUT", "OUTBOUND"].includes(rawType)) {
+          typeCode = "PRODUCED"; // -> "출하대기"로 표시
+        } else {
+          typeCode = "OUT"; // -> "출하완료/출고"
+        }
+      }
+      // 2. [자재 - 공정 투입]
+      else if (
+        [
+          "생산투입",
+          "공정투입",
+          "라인투입",
+          "PRODUCTION_IN",
+          "PROCESS",
+        ].includes(rawType)
+      ) {
+        typeCode = "PROCESS";
+      }
+      // 3. [자재 - 입고]
+      else if (["입고", "INBOUND", "IN", "구매입고"].includes(rawType)) {
+        typeCode = "IN";
+      }
+      // 4. [자재 - 출하/반출]
+      else if (["출고", "OUTBOUND", "OUT", "자재출하"].includes(rawType)) {
+        typeCode = "OUT";
+      }
+
+      return {
+        ...dto,
+        mappedType: typeCode, // 분류된 타입 저장
+      };
+    });
+  };
+
   // --- 메인 목록 조회 ---
   const fetchHistory = async () => {
     try {
       const response = await client.get("/inventory/history", {
         params: {
-          startDate: startDate,
-          endDate: endDate,
-          type: filterType,
+          startDate,
+          endDate,
+          type: filterType === "ALL" ? undefined : filterType,
         },
       });
-      setHistoryData(response.data);
+      const mapped = mapServerData(response.data);
+
+      // 최신순 정렬
+      mapped.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setHistoryData(mapped);
     } catch (error) {
       console.error("데이터 로드 실패:", error);
     }
   };
 
-  // --- [핵심 수정] 상세 이력(타임라인) 조회 ---
+  // --- 상세 이력(타임라인) 조회 ---
   const fetchLotTimeline = async (lotNum) => {
     if (!lotNum || lotNum === "-") {
       setLotHistory([]);
@@ -80,9 +132,6 @@ const InventoryHistory = () => {
     }
     setLoadingDetail(true);
     try {
-      console.log("🔍 상세 조회 시작 LOT:", lotNum);
-
-      // 1. 전체 기간으로 해당 LOT 검색
       const response = await client.get("/inventory/history", {
         params: {
           startDate: "2020-01-01",
@@ -91,14 +140,12 @@ const InventoryHistory = () => {
         },
       });
 
-      console.log("📡 서버 응답 (상세):", response.data);
-
-      // 2. LOT 번호가 포함된 데이터만 필터링
-      const timeline = response.data
-        .filter((item) => item.lotNum && item.lotNum.includes(lotNum)) // 정확히 일치보다는 포함으로 변경 (안전하게)
+      const mapped = mapServerData(response.data);
+      // LOT 번호 포함 여부로 필터링
+      const timeline = mapped
+        .filter((item) => item.lotNum && item.lotNum.includes(lotNum))
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-      console.log("✅ 필터링된 타임라인:", timeline);
       setLotHistory(timeline);
     } catch (error) {
       console.error("상세 이력 조회 실패:", error);
@@ -116,11 +163,6 @@ const InventoryHistory = () => {
   useEffect(() => {
     let result = Array.isArray(historyData) ? historyData : [];
 
-    if (result.length === 0) {
-      setFilteredData([]);
-      return;
-    }
-
     if (startDate && endDate) {
       result = result.filter((item) => {
         const itemDate = item.date ? item.date.split("T")[0] : "";
@@ -129,19 +171,7 @@ const InventoryHistory = () => {
     }
 
     if (filterType !== "ALL") {
-      result = result.filter((item) => {
-        const t = item.type || "";
-        if (filterType === "IN") return ["INBOUND", "입고", "IN"].includes(t);
-        if (filterType === "OUT")
-          return ["OUTBOUND", "출고", "OUT", "자재출하"].includes(t);
-        if (filterType === "PROCESS")
-          return ["PRODUCTION_IN", "생산투입", "공정", "라인투입"].includes(t);
-        if (filterType === "PRODUCED")
-          return ["PRODUCED", "생산완료", "완제품"].includes(t);
-        if (filterType === "SHIPMENT")
-          return ["SHIPMENT", "제품출하", "선적"].includes(t);
-        return true;
-      });
+      result = result.filter((item) => item.mappedType === filterType);
     }
 
     if (searchTerm) {
@@ -154,7 +184,6 @@ const InventoryHistory = () => {
       );
     }
 
-    result.sort((a, b) => new Date(b.date) - new Date(a.date));
     setFilteredData(result);
   }, [startDate, endDate, filterType, searchTerm, historyData]);
 
@@ -170,8 +199,7 @@ const InventoryHistory = () => {
     if (!lotNum || lotNum === "-") return;
     navigator.clipboard
       .writeText(lotNum)
-      .then(() => alert(`복사되었습니다: ${lotNum}`))
-      .catch((err) => console.error("복사 실패:", err));
+      .then(() => alert(`복사되었습니다: ${lotNum}`));
   };
 
   const handleOpenDetail = (item) => {
@@ -190,8 +218,16 @@ const InventoryHistory = () => {
     const headers = ["일자,시간,구분,품목명,LOT번호,수량,작업자,위치(업체)"];
     const rows = filteredData.map((item) => {
       const dateParts = item.date ? item.date.split("T") : ["", ""];
+      let typeText = item.type;
+
+      // 엑셀에도 "출하대기"로 표시
+      if (item.mappedType === "PRODUCED") typeText = "출하대기";
+      else if (item.mappedType === "PROCESS") typeText = "라인투입";
+      else if (item.mappedType === "IN") typeText = "자재입고";
+      else if (item.mappedType === "OUT") typeText = "자재출하";
+
       const location = item.company || "-";
-      return `${dateParts[0]},${dateParts[1].substring(0, 5)},${item.type},${item.matName},${item.lotNum},${item.changeQty},${item.empName},${location}`;
+      return `${dateParts[0]},${dateParts[1].substring(0, 5)},${typeText},${item.matName},${item.lotNum},${item.changeQty},${item.empName},${location}`;
     });
 
     const csvContent =
@@ -201,16 +237,16 @@ const InventoryHistory = () => {
     link.setAttribute("href", encodedUri);
     link.setAttribute(
       "download",
-      `이력조회_${new Date().toISOString().slice(0, 10)}.csv`,
+      `통합이력_${new Date().toISOString().slice(0, 10)}.csv`,
     );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const renderTypeBadge = (typeRaw) => {
-    const type = typeRaw || "";
-    if (["INBOUND", "입고", "IN"].includes(type))
+  // ✅ [배지 렌더링]
+  const renderTypeBadge = (mappedType, rawType) => {
+    if (mappedType === "IN")
       return (
         <Badge
           color={COLORS.success}
@@ -218,7 +254,7 @@ const InventoryHistory = () => {
           text="자재입고"
         />
       );
-    if (["OUTBOUND", "출고", "OUT", "자재출하"].includes(type))
+    if (mappedType === "OUT")
       return (
         <Badge
           color={COLORS.danger}
@@ -226,7 +262,7 @@ const InventoryHistory = () => {
           text="자재출하"
         />
       );
-    if (["PRODUCTION_IN", "생산투입", "공정투입", "라인투입"].includes(type))
+    if (mappedType === "PROCESS")
       return (
         <Badge
           color={COLORS.warning}
@@ -234,28 +270,25 @@ const InventoryHistory = () => {
           text="라인투입"
         />
       );
-    if (["PRODUCED", "생산완료", "완제품입고"].includes(type))
+    if (mappedType === "PRODUCED")
       return (
         <Badge
           color={COLORS.info}
           icon={<FaBoxOpen size={10} />}
-          text="생산완료"
+          text="출하대기"
         />
-      );
-    if (["SHIPMENT", "제품출하", "선적"].includes(type))
-      return (
-        <Badge
-          color={COLORS.dark}
-          icon={<FaTruckLoading size={10} />}
-          text="제품출하"
-        />
-      );
-    return <Badge color="#999" text={type} />;
+      ); // 🔥 완제품
+    return <Badge color="#999" text={rawType} />;
   };
 
   const Badge = ({ color, icon, text }) => (
     <span
-      style={{ ...styles.badge, backgroundColor: `${color}15`, color: color }}
+      style={{
+        ...styles.badge,
+        backgroundColor: `${color}15`,
+        color: color,
+        border: `1px solid ${color}30`,
+      }}
     >
       {icon} {text}
     </span>
@@ -263,6 +296,7 @@ const InventoryHistory = () => {
 
   return (
     <div style={styles.container}>
+      {/* 헤더 */}
       <div style={styles.header}>
         <div>
           <h2 style={{ margin: 0, color: COLORS.text }}>📊 통합 이력 조회</h2>
@@ -273,7 +307,7 @@ const InventoryHistory = () => {
               fontSize: "14px",
             }}
           >
-            자재 입고부터 생산, 완제품 출하까지의 모든 흐름을 추적합니다.
+            자재 입고부터 생산, 완제품 출하대기까지의 전체 흐름을 추적합니다.
           </p>
         </div>
         <button onClick={fetchHistory} style={styles.refreshBtn}>
@@ -281,6 +315,7 @@ const InventoryHistory = () => {
         </button>
       </div>
 
+      {/* 툴바 */}
       <div style={styles.toolbar}>
         <div style={styles.leftControls}>
           <div style={styles.datePicker}>
@@ -300,49 +335,78 @@ const InventoryHistory = () => {
             />
           </div>
 
+          <div
+            style={styles.selectWrapper}
+            style={{
+              position: "relative",
+              minWidth: "120px",
+              marginLeft: "10px",
+            }}
+          >
+            <select
+              style={styles.selectReal}
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+            >
+              <option value="ALL">전체 유형</option>
+              <option value="IN">자재입고 (IN)</option>
+              <option value="OUT">자재출하 (OUT)</option>
+              <option value="PROCESS">라인투입 (Process)</option>
+              <option value="PRODUCED">출하대기 (Finished)</option>{" "}
+              {/* ✅ 필터 옵션 */}
+            </select>
+          </div>
+
           <div style={styles.searchBox}>
-            <FaBarcode color={COLORS.subText} size={18} />
+            <FaBarcode
+              color={COLORS.subText}
+              size={18}
+              style={{ marginRight: 8 }}
+            />
             <input
               ref={searchInputRef}
-              placeholder="바코드 스캔 / 검색"
+              type="text"
               style={styles.searchInput}
+              placeholder="바코드 / 품목명 / LOT..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={handleKeyDown}
             />
-            <button
-              onClick={handleBarcodeMode}
-              style={{
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                color: COLORS.primary,
-              }}
-            >
-              <FaSearch />
-            </button>
           </div>
+          <button
+            onClick={handleBarcodeMode}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              color: COLORS.primary,
+              marginLeft: "-35px",
+            }}
+          >
+            <FaSearch />
+          </button>
         </div>
         <button style={styles.excelButton} onClick={handleDownloadExcel}>
           <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀
         </button>
       </div>
 
+      {/* 리스트 헤더 */}
       <div style={styles.listHeader}>
         <div style={{ flex: 1.2 }}>일자/시간</div>
         <div style={{ flex: 1, textAlign: "center" }}>상태</div>
-        <div style={{ flex: 2.5 }}>품목 정보 (LOT 포함)</div>
+        <div style={{ flex: 2.5 }}>품목 정보 (LOT)</div>
         <div style={{ flex: 0.8, textAlign: "right" }}>수량</div>
-        <div style={{ flex: 1.2, paddingLeft: "15px" }}>위치/업체</div>
+        <div style={{ flex: 1.2, paddingLeft: "15px" }}>위치/공정</div>
         <div style={{ flex: 0.8, textAlign: "center" }}>담당자</div>
         <div style={{ flex: 0.7, textAlign: "center" }}>상세</div>
       </div>
 
+      {/* 리스트 */}
       <div style={styles.listContainer}>
         {filteredData.length > 0 ? (
           filteredData.map((row, index) => {
             const dateParts = row.date ? row.date.split("T") : ["-", "-"];
-            // 메인 화면 위치 매핑
             const locationText = row.company || "-";
 
             return (
@@ -369,7 +433,7 @@ const InventoryHistory = () => {
                   </span>
                 </div>
                 <div style={{ flex: 1, textAlign: "center" }}>
-                  {renderTypeBadge(row.type)}
+                  {renderTypeBadge(row.mappedType, row.type)}
                 </div>
                 <div
                   style={{
@@ -393,7 +457,7 @@ const InventoryHistory = () => {
                       e.stopPropagation();
                       handleCopyLot(row.lotNum);
                     }}
-                    title="클릭하여 LOT 번호 복사"
+                    title="클릭하여 복사"
                   >
                     <span
                       style={{ fontFamily: "monospace", marginRight: "4px" }}
@@ -436,12 +500,11 @@ const InventoryHistory = () => {
                 >
                   {row.empName || "-"}
                 </div>
-
                 <div style={{ flex: 0.7, textAlign: "center" }}>
                   <button
                     onClick={() => handleOpenDetail(row)}
                     style={styles.detailBtn}
-                    title="상세 이력 및 QR 보기"
+                    title="상세보기"
                   >
                     <FaEye size={14} />
                   </button>
@@ -452,15 +515,12 @@ const InventoryHistory = () => {
         ) : (
           <div style={styles.emptyState}>
             <FaFilter size={40} color="#ddd" style={{ marginBottom: 10 }} />
-            <p>
-              오늘 조건에 맞는 이력이 없습니다.
-              <br />
-              (날짜를 변경하여 과거 이력을 조회하세요)
-            </p>
+            <p>조회된 이력이 없습니다.</p>
           </div>
         )}
       </div>
 
+      {/* ✅ 상세 모달 */}
       {modalOpen && selectedLot && (
         <div style={styles.modalOverlay} onClick={handleCloseModal}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -525,7 +585,9 @@ const InventoryHistory = () => {
                 </div>
               </div>
 
-              <div style={styles.timelineTitle}>📜 이동 경로 (Timeline)</div>
+              <div style={styles.timelineTitle}>
+                📜 공정 및 이동 경로 (Timeline)
+              </div>
               <div style={styles.timelineContainer}>
                 {loadingDetail ? (
                   <div
@@ -554,7 +616,7 @@ const InventoryHistory = () => {
                             marginBottom: "4px",
                           }}
                         >
-                          {renderTypeBadge(hist.type)}
+                          {renderTypeBadge(hist.mappedType, hist.type)}
                           <span style={{ fontSize: "11px", color: "#999" }}>
                             {hist.date
                               ? hist.date.replace("T", " ").substring(0, 16)
@@ -562,7 +624,6 @@ const InventoryHistory = () => {
                           </span>
                         </div>
                         <div style={{ fontSize: "13px", color: "#333" }}>
-                          {/* 🔥 [여기 수정] company를 우선으로 표시 */}
                           {hist.company || hist.lineName || "위치 정보 없음"}
                         </div>
                         <div
@@ -575,6 +636,24 @@ const InventoryHistory = () => {
                           담당: {hist.empName || "-"} | 수량:{" "}
                           {hist.changeQty ? hist.changeQty.toLocaleString() : 0}
                         </div>
+                        {/* 완료 상태인 경우 강조 메시지 */}
+                        {hist.mappedType === "PRODUCED" && (
+                          <div
+                            style={{
+                              marginTop: "8px",
+                              padding: "4px 8px",
+                              backgroundColor: "#e3f2fd",
+                              borderRadius: "4px",
+                              color: "#1976d2",
+                              fontSize: "11px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            <FaCheckCircle /> 완제품 생산 완료 (출하 대기중)
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
@@ -591,7 +670,6 @@ const InventoryHistory = () => {
                 )}
               </div>
             </div>
-
             <button style={styles.closeBtn} onClick={handleCloseModal}>
               닫기
             </button>
@@ -602,7 +680,7 @@ const InventoryHistory = () => {
   );
 };
 
-// --- 스타일 (동일) ---
+// --- 스타일 ---
 const styles = {
   container: {
     padding: "30px",
@@ -660,6 +738,16 @@ const styles = {
     color: "#555",
     fontFamily: "inherit",
     width: "110px",
+  },
+  selectReal: {
+    width: "100%",
+    height: "36px",
+    border: "1px solid #E0E0E0",
+    backgroundColor: "white",
+    padding: "0 10px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "13px",
   },
   searchBox: {
     display: "flex",
@@ -764,7 +852,6 @@ const styles = {
     margin: "0 auto",
   },
 
-  // 모달 스타일
   modalOverlay: {
     position: "fixed",
     top: 0,
