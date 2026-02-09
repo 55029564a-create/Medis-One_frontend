@@ -25,8 +25,8 @@ const COLORS = {
   primary: "#8C85FF",
   secondary: "#F3F1FF",
   success: "#00C851", // 자재입고
-  warning: "#FFBB33", // 라인투입
-  info: "#33b5e5", // 출하대기 (완제품)
+  warning: "#FFBB33", // 라인투입 (공정진행)
+  info: "#33b5e5", // 출하대기 (공정완료/완제품)
   danger: "#FF4444", // 자재출하
   text: "#333",
   subText: "#888",
@@ -55,28 +55,28 @@ const InventoryHistory = () => {
 
   const searchInputRef = useRef(null);
 
-  // 🛠 [핵심] 서버 데이터 상태 분류 함수 (완제품 자동 판별)
+  // 🛠 [핵심] 서버 데이터 상태 분류 함수
   const mapServerData = (data) => {
     return data.map((dto) => {
       let typeCode = "ETC";
       const rawType = dto.type || "";
-      const category = dto.category || ""; // 카테고리 정보 (PRODUCT, KIT 등)
 
-      // 1. 🔥 [완제품 판별 로직]
-      // 카테고리가 PRODUCT이거나, 타입이 생산완료면 -> "출하대기"
+      // 1. 완제품/공정완료 -> "출하대기"로 판단
       if (
-        category === "PRODUCT" ||
-        category === "완제품" ||
-        ["생산완료", "PRODUCED", "완제품입고", "출하대기"].includes(rawType)
+        [
+          "생산완료",
+          "공정완료",
+          "작업완료",
+          "완제품",
+          "PRODUCED",
+          "COMPLETE",
+          "FINISHED",
+          "출하대기",
+        ].includes(rawType)
       ) {
-        // 단, 출고(OUT)인 경우는 제외 (이미 출하된 경우 등)
-        if (!["출고", "OUT", "OUTBOUND"].includes(rawType)) {
-          typeCode = "PRODUCED"; // -> "출하대기"로 표시
-        } else {
-          typeCode = "OUT"; // -> "출하완료/출고"
-        }
+        typeCode = "PRODUCED";
       }
-      // 2. [자재 - 공정 투입]
+      // 2. 공정 투입 -> "라인투입"
       else if (
         [
           "생산투입",
@@ -84,15 +84,16 @@ const InventoryHistory = () => {
           "라인투입",
           "PRODUCTION_IN",
           "PROCESS",
+          "투입",
         ].includes(rawType)
       ) {
         typeCode = "PROCESS";
       }
-      // 3. [자재 - 입고]
+      // 3. 자재 입고
       else if (["입고", "INBOUND", "IN", "구매입고"].includes(rawType)) {
         typeCode = "IN";
       }
-      // 4. [자재 - 출하/반출]
+      // 4. 자재 출하 (창고 불출)
       else if (["출고", "OUTBOUND", "OUT", "자재출하"].includes(rawType)) {
         typeCode = "OUT";
       }
@@ -115,9 +116,6 @@ const InventoryHistory = () => {
         },
       });
       const mapped = mapServerData(response.data);
-
-      // 최신순 정렬
-      mapped.sort((a, b) => new Date(b.date) - new Date(a.date));
       setHistoryData(mapped);
     } catch (error) {
       console.error("데이터 로드 실패:", error);
@@ -132,6 +130,7 @@ const InventoryHistory = () => {
     }
     setLoadingDetail(true);
     try {
+      // 전체 기간으로 조회해서 해당 LOT의 전체 흐름 파악
       const response = await client.get("/inventory/history", {
         params: {
           startDate: "2020-01-01",
@@ -141,7 +140,6 @@ const InventoryHistory = () => {
       });
 
       const mapped = mapServerData(response.data);
-      // LOT 번호 포함 여부로 필터링
       const timeline = mapped
         .filter((item) => item.lotNum && item.lotNum.includes(lotNum))
         .sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -184,6 +182,7 @@ const InventoryHistory = () => {
       );
     }
 
+    result.sort((a, b) => new Date(b.date) - new Date(a.date));
     setFilteredData(result);
   }, [startDate, endDate, filterType, searchTerm, historyData]);
 
@@ -192,8 +191,6 @@ const InventoryHistory = () => {
     searchInputRef.current?.focus();
     alert("바코드 스캐너로 스캔하세요.");
   };
-
-  const handleKeyDown = (e) => {};
 
   const handleCopyLot = (lotNum) => {
     if (!lotNum || lotNum === "-") return;
@@ -219,12 +216,8 @@ const InventoryHistory = () => {
     const rows = filteredData.map((item) => {
       const dateParts = item.date ? item.date.split("T") : ["", ""];
       let typeText = item.type;
-
-      // 엑셀에도 "출하대기"로 표시
       if (item.mappedType === "PRODUCED") typeText = "출하대기";
       else if (item.mappedType === "PROCESS") typeText = "라인투입";
-      else if (item.mappedType === "IN") typeText = "자재입고";
-      else if (item.mappedType === "OUT") typeText = "자재출하";
 
       const location = item.company || "-";
       return `${dateParts[0]},${dateParts[1].substring(0, 5)},${typeText},${item.matName},${item.lotNum},${item.changeQty},${item.empName},${location}`;
@@ -237,14 +230,14 @@ const InventoryHistory = () => {
     link.setAttribute("href", encodedUri);
     link.setAttribute(
       "download",
-      `통합이력_${new Date().toISOString().slice(0, 10)}.csv`,
+      `이력조회_${new Date().toISOString().slice(0, 10)}.csv`,
     );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // ✅ [배지 렌더링]
+  // ✅ [배지 렌더링] 공정완료/생산완료 -> "출하대기" 표시
   const renderTypeBadge = (mappedType, rawType) => {
     if (mappedType === "IN")
       return (
@@ -277,7 +270,7 @@ const InventoryHistory = () => {
           icon={<FaBoxOpen size={10} />}
           text="출하대기"
         />
-      ); // 🔥 완제품
+      ); // 🔥 완료된 롯트는 출하대기
     return <Badge color="#999" text={rawType} />;
   };
 
@@ -296,7 +289,6 @@ const InventoryHistory = () => {
 
   return (
     <div style={styles.container}>
-      {/* 헤더 */}
       <div style={styles.header}>
         <div>
           <h2 style={{ margin: 0, color: COLORS.text }}>📊 통합 이력 조회</h2>
@@ -307,7 +299,7 @@ const InventoryHistory = () => {
               fontSize: "14px",
             }}
           >
-            자재 입고부터 생산, 완제품 출하대기까지의 전체 흐름을 추적합니다.
+            자재 입고부터 생산 완료(출하대기)까지의 흐름을 추적합니다.
           </p>
         </div>
         <button onClick={fetchHistory} style={styles.refreshBtn}>
@@ -315,7 +307,6 @@ const InventoryHistory = () => {
         </button>
       </div>
 
-      {/* 툴바 */}
       <div style={styles.toolbar}>
         <div style={styles.leftControls}>
           <div style={styles.datePicker}>
@@ -335,63 +326,33 @@ const InventoryHistory = () => {
             />
           </div>
 
-          <div
-            style={styles.selectWrapper}
-            style={{
-              position: "relative",
-              minWidth: "120px",
-              marginLeft: "10px",
-            }}
-          >
-            <select
-              style={styles.selectReal}
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-            >
-              <option value="ALL">전체 유형</option>
-              <option value="IN">자재입고 (IN)</option>
-              <option value="OUT">자재출하 (OUT)</option>
-              <option value="PROCESS">라인투입 (Process)</option>
-              <option value="PRODUCED">출하대기 (Finished)</option>{" "}
-              {/* ✅ 필터 옵션 */}
-            </select>
-          </div>
-
           <div style={styles.searchBox}>
-            <FaBarcode
-              color={COLORS.subText}
-              size={18}
-              style={{ marginRight: 8 }}
-            />
+            <FaBarcode color={COLORS.subText} size={18} />
             <input
               ref={searchInputRef}
-              type="text"
+              placeholder="바코드 / 품목명 / LOT"
               style={styles.searchInput}
-              placeholder="바코드 / 품목명 / LOT..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleKeyDown}
             />
+            <button
+              onClick={handleBarcodeMode}
+              style={{
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                color: COLORS.primary,
+              }}
+            >
+              <FaSearch />
+            </button>
           </div>
-          <button
-            onClick={handleBarcodeMode}
-            style={{
-              border: "none",
-              background: "transparent",
-              cursor: "pointer",
-              color: COLORS.primary,
-              marginLeft: "-35px",
-            }}
-          >
-            <FaSearch />
-          </button>
         </div>
         <button style={styles.excelButton} onClick={handleDownloadExcel}>
           <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀
         </button>
       </div>
 
-      {/* 리스트 헤더 */}
       <div style={styles.listHeader}>
         <div style={{ flex: 1.2 }}>일자/시간</div>
         <div style={{ flex: 1, textAlign: "center" }}>상태</div>
@@ -402,7 +363,6 @@ const InventoryHistory = () => {
         <div style={{ flex: 0.7, textAlign: "center" }}>상세</div>
       </div>
 
-      {/* 리스트 */}
       <div style={styles.listContainer}>
         {filteredData.length > 0 ? (
           filteredData.map((row, index) => {
@@ -520,7 +480,6 @@ const InventoryHistory = () => {
         )}
       </div>
 
-      {/* ✅ 상세 모달 */}
       {modalOpen && selectedLot && (
         <div style={styles.modalOverlay} onClick={handleCloseModal}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -651,7 +610,7 @@ const InventoryHistory = () => {
                               gap: "4px",
                             }}
                           >
-                            <FaCheckCircle /> 완제품 생산 완료 (출하 대기중)
+                            <FaCheckCircle /> 공정 완료! 출하 가능한 상태입니다.
                           </div>
                         )}
                       </div>
@@ -738,16 +697,6 @@ const styles = {
     color: "#555",
     fontFamily: "inherit",
     width: "110px",
-  },
-  selectReal: {
-    width: "100%",
-    height: "36px",
-    border: "1px solid #E0E0E0",
-    backgroundColor: "white",
-    padding: "0 10px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontSize: "13px",
   },
   searchBox: {
     display: "flex",
