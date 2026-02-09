@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import client from "../../api/client"; // ⭕ 우리가 만든 만능 client 가져오기!
+import client from "../../api/client";
 
 import {
   FaBoxes,
@@ -7,7 +7,6 @@ import {
   FaSearch,
   FaChartPie,
   FaWarehouse,
-  FaShoppingCart,
   FaSyncAlt,
 } from "react-icons/fa";
 import {
@@ -39,18 +38,25 @@ const InventoryCurrent = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const categories = ["All", "원자재", "부자재", "화학", "반제품", "완제품"];
+  const categories = ["All", "원자재", "반제품", "완제품"];
+
+  const CATEGORY_MAP = {
+    All: "",
+    원자재: "KIT",
+    반제품: "SEMI_PRODUCT",
+    완제품: "PRODUCT",
+  };
 
   const fetchInventoryData = async () => {
     try {
       setLoading(true);
 
-      // 🔥 [핵심 수정] axios -> client 로 변경
-      // 주소도 http://... 다 지우고 뒷부분만 남김 (client가 알아서 붙여줌)
+      const backendCategory = CATEGORY_MAP[selectedCategory];
+
       const response = await client.get("/inventory/state", {
         params: {
-          category: selectedCategory === "All" ? "" : selectedCategory,
-          searchTerm: searchTerm,
+          category: backendCategory,
+          // ❌ searchTerm 제거: 서버 필터링 대신 프론트에서 필터링
         },
       });
 
@@ -62,11 +68,11 @@ const InventoryCurrent = () => {
     }
   };
 
+  // ✅ 검색어(searchTerm)가 바뀔 때는 서버 요청 안 하고, 카테고리가 바뀔 때만 요청
   useEffect(() => {
     fetchInventoryData();
-  }, [selectedCategory, searchTerm]);
+  }, [selectedCategory]);
 
-  // 수동 새로고침 함수
   const handleManualRefresh = () => {
     fetchInventoryData();
     alert("최신 재고 현황으로 갱신되었습니다.");
@@ -79,16 +85,30 @@ const InventoryCurrent = () => {
 
   const { categoryStats, itemList } = dashboardData;
 
+  // ✅ [핵심 기능] 대소문자 구분 없는 필터링 로직
+  // toLowerCase()를 사용하여 영문 대소문자 상관없이, 이름이나 코드로 검색
+  const filteredItems = (itemList || []).filter((item) => {
+    if (!searchTerm) return true; // 검색어 없으면 다 보여줌
+
+    const lowerTerm = searchTerm.toLowerCase();
+    const itemName = item.name ? item.name.toLowerCase() : "";
+    const itemCode = item.code ? item.code.toLowerCase() : "";
+
+    return itemName.includes(lowerTerm) || itemCode.includes(lowerTerm);
+  });
+
   const pieData = Object.entries(categoryStats).map(([name, value]) => ({
     name,
     value,
   }));
+  // 차트 데이터도 필터링된 결과 반영하려면 filteredItems를 써도 되지만,
+  // 보통 차트는 전체 현황을 보여주는 게 맞으므로 itemList 유지
   const barData = (itemList || []).slice(0, 5);
 
   return (
     <>
       <style>{`
-        /* 전체 컨테이너 */
+        /* ... 기존 스타일 그대로 유지 ... */
         .inventory-page-container {
           padding: 2rem;
           background-color: #f5f7fa;
@@ -97,7 +117,6 @@ const InventoryCurrent = () => {
           color: #333;
         }
 
-        /* 헤더 */
         .page-header-wrapper {
           margin-bottom: 2rem;
         }
@@ -146,7 +165,6 @@ const InventoryCurrent = () => {
           border-color: #ccc;
         }
 
-        /* 차트 영역 (Flex) */
         .chart-row {
           display: flex;
           gap: 20px;
@@ -175,7 +193,6 @@ const InventoryCurrent = () => {
           gap: 8px;
         }
 
-        /* 메인 리스트 카드 */
         .content-card {
           background-color: #ffffff;
           border-radius: 12px;
@@ -184,7 +201,6 @@ const InventoryCurrent = () => {
           border: 1px solid #eaecf0;
         }
 
-        /* 필터 헤더 */
         .filter-header {
           display: flex;
           justify-content: space-between;
@@ -194,7 +210,6 @@ const InventoryCurrent = () => {
           gap: 10px;
         }
 
-        /* 탭 그룹 */
         .tab-group {
           display: flex;
           gap: 8px;
@@ -220,7 +235,6 @@ const InventoryCurrent = () => {
           box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
 
-        /* 검색창 */
         .search-box-wrapper {
           width: 240px;
           display: flex;
@@ -247,7 +261,6 @@ const InventoryCurrent = () => {
           color: #9ca3af;
         }
 
-        /* 테이블 */
         .table-responsive {
           overflow-x: auto;
           width: 100%;
@@ -277,7 +290,6 @@ const InventoryCurrent = () => {
           background-color: #fcfcfd;
         }
 
-        /* 텍스트 및 뱃지 스타일 */
         .category-tag {
           display: inline-block;
           padding: 4px 8px;
@@ -304,17 +316,13 @@ const InventoryCurrent = () => {
           border-radius: 50%;
         }
 
-        /* 상태별 색상 */
         .badge-normal { background-color: #ecfdf5; color: #027a48; }
         .dot-normal { background-color: #027a48; }
-
         .badge-low { background-color: #fffaeb; color: #b54708; }
         .dot-low { background-color: #b54708; }
-
         .badge-danger { background-color: #fef3f2; color: #b42318; }
         .dot-danger { background-color: #b42318; }
 
-        /* 수량 및 프로그레스 바 */
         .qty-wrapper {
           display: flex;
           align-items: baseline;
@@ -333,25 +341,6 @@ const InventoryCurrent = () => {
           border-radius: 3px;
         }
 
-        /* 버튼 */
-        .order-btn {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          background-color: #FF5252;
-          color: white;
-          border: none;
-          padding: 6px 12px;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 0.85rem;
-          font-weight: 600;
-          transition: background 0.2s;
-        }
-        .order-btn:hover {
-          background-color: #ff3b3b;
-        }
-
         .empty-state {
           padding: 40px;
           text-align: center;
@@ -361,14 +350,12 @@ const InventoryCurrent = () => {
       `}</style>
 
       <div className="inventory-page-container">
-        {/* 페이지 헤더 */}
         <div className="page-header-wrapper">
           <div className="header-top-row">
             <div className="page-title">
               <FaWarehouse className="title-icon" />
               실시간 재고 현황 (Real-time Inventory)
             </div>
-            {/* 새로고침 버튼 */}
             <button className="refresh-btn" onClick={handleManualRefresh}>
               <FaSyncAlt /> 새로고침
             </button>
@@ -378,9 +365,7 @@ const InventoryCurrent = () => {
           </div>
         </div>
 
-        {/* 1. 상단 차트 영역 */}
         <div className="chart-row">
-          {/* 파이 차트 */}
           <div className="chart-card">
             <div className="card-header-row">
               <div className="card-sub-title">
@@ -411,7 +396,6 @@ const InventoryCurrent = () => {
             </ResponsiveContainer>
           </div>
 
-          {/* 바 차트 */}
           <div className="chart-card">
             <div className="card-header-row">
               <div className="card-sub-title">
@@ -420,7 +404,6 @@ const InventoryCurrent = () => {
             </div>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={barData} barSize={20}>
-                {" "}
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
@@ -452,7 +435,6 @@ const InventoryCurrent = () => {
           </div>
         </div>
 
-        {/* 2. 하단 리스트 영역 */}
         <div className="content-card">
           <div className="filter-header">
             <div className="tab-group">
@@ -488,12 +470,12 @@ const InventoryCurrent = () => {
                   <th>카테고리</th>
                   <th>현재고 / 안전재고</th>
                   <th>보관위치</th>
-                  <th>관리</th>
                 </tr>
               </thead>
+              {/* ✅ [수정] filteredItems로 맵핑 */}
               <tbody>
-                {itemList && itemList.length > 0 ? (
-                  itemList.map((item) => {
+                {filteredItems && filteredItems.length > 0 ? (
+                  filteredItems.map((item) => {
                     const percent = (item.qty / item.safeQty) * 100;
                     let statusClass = "badge-normal";
                     let dotClass = "dot-normal";
@@ -510,6 +492,17 @@ const InventoryCurrent = () => {
                       dotClass = "dot-low";
                       statusText = "관심";
                       barColor = CHART_COLORS.warning;
+                    }
+
+                    let displayLocation = "현장 라인";
+                    const cat = item.category
+                      ? item.category.toUpperCase()
+                      : "";
+
+                    if (cat.includes("KIT") || cat === "원자재") {
+                      displayLocation = "자재과";
+                    } else if (cat.includes("PRODUCT") || cat === "완제품") {
+                      displayLocation = "제품 창고";
                     }
 
                     return (
@@ -555,20 +548,13 @@ const InventoryCurrent = () => {
                             />
                           </div>
                         </td>
-                        <td>{item.loc}</td>
-                        <td>
-                          {statusText !== "정상" && (
-                            <button className="order-btn">
-                              <FaShoppingCart /> 발주
-                            </button>
-                          )}
-                        </td>
+                        <td>{displayLocation}</td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan="7" className="empty-state">
+                    <td colSpan="6" className="empty-state">
                       검색된 자재가 없습니다.
                     </td>
                   </tr>
