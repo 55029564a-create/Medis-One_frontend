@@ -1,10 +1,5 @@
 import client from "./client";
 
-// ==========================================
-// 1. [상위] 생산 계획 (ProductOrder) API
-// URL: http://localhost:8111/api/product-orders
-// ==========================================
-
 // 생산 계획 목록 조회
 export const getProductOrders = async () => {
   const response = await client.get("/product-orders");
