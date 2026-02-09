@@ -25,6 +25,7 @@ import {
   FaQrcode,
   FaMobileAlt,
 } from "react-icons/fa";
+const FIXED_IP = "192.168.0.85";
 
 // 🎨 테마 컬러
 const COLORS = {
@@ -727,7 +728,7 @@ const MaterialHistory = () => {
                 }}
               >
                 <QRCodeSVG
-                  value={`http://${MY_IP_ADDRESS}:3000/mobile/tracking/${selectedItem.lot}`}
+                  value={`http://${FIXED_IP}:3000/mobile/tracking/${selectedItem.lot}`}
                   size={140}
                   bgColor={"#F3F1FF"}
                   fgColor={"#333"}

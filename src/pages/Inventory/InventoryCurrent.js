@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import client from "../../api/client"; // ⭕ 우리가 만든 만능 client 가져오기!
+
 import {
   FaBoxes,
   FaExclamationTriangle,
@@ -7,8 +8,7 @@ import {
   FaChartPie,
   FaWarehouse,
   FaShoppingCart,
-  FaFilter,
-  FaSyncAlt, // [추가] 새로고침 아이콘
+  FaSyncAlt,
 } from "react-icons/fa";
 import {
   PieChart,
@@ -44,15 +44,16 @@ const InventoryCurrent = () => {
   const fetchInventoryData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(
-        "http://localhost:8111/api/inventory/state",
-        {
-          params: {
-            category: selectedCategory === "All" ? "" : selectedCategory,
-            searchTerm: searchTerm,
-          },
+
+      // 🔥 [핵심 수정] axios -> client 로 변경
+      // 주소도 http://... 다 지우고 뒷부분만 남김 (client가 알아서 붙여줌)
+      const response = await client.get("/inventory/state", {
+        params: {
+          category: selectedCategory === "All" ? "" : selectedCategory,
+          searchTerm: searchTerm,
         },
-      );
+      });
+
       setDashboardData(response.data);
     } catch (error) {
       console.error("데이터 로드 실패:", error);
@@ -65,7 +66,7 @@ const InventoryCurrent = () => {
     fetchInventoryData();
   }, [selectedCategory, searchTerm]);
 
-  // [신규] 수동 새로고침 함수
+  // 수동 새로고침 함수
   const handleManualRefresh = () => {
     fetchInventoryData();
     alert("최신 재고 현황으로 갱신되었습니다.");
@@ -101,7 +102,6 @@ const InventoryCurrent = () => {
           margin-bottom: 2rem;
         }
         
-        /* [수정] 헤더를 flex로 변경하여 버튼 배치 */
         .header-top-row {
           display: flex;
           justify-content: space-between;
@@ -127,7 +127,6 @@ const InventoryCurrent = () => {
           margin-left: 2.4rem;
         }
 
-        /* [추가] 새로고침 버튼 스타일 */
         .refresh-btn {
           display: flex;
           align-items: center;
@@ -369,7 +368,7 @@ const InventoryCurrent = () => {
               <FaWarehouse className="title-icon" />
               실시간 재고 현황 (Real-time Inventory)
             </div>
-            {/* [추가] 새로고침 버튼 */}
+            {/* 새로고침 버튼 */}
             <button className="refresh-btn" onClick={handleManualRefresh}>
               <FaSyncAlt /> 새로고침
             </button>

@@ -1,9 +1,20 @@
 import axios from "axios";
 
-// 1. 기본 설정
+// ============================================================
+// 1. [핵심] 주소 자동 감지 로직
+// ============================================================
+// 현재 브라우저 주소창의 도메인(localhost 또는 192.168.0.85 등)을 가져옵니다.
+const hostname = window.location.hostname;
+const BACKEND_PORT = "8111"; // 백엔드 포트
+
+// 이렇게 하면 상황에 따라 주소가 자동으로 바뀝니다!
+// 예: http://localhost:8111/api 또는 http://192.168.0.85:8111/api
+const BASE_URL = `http://${hostname}:${BACKEND_PORT}/api`;
+
+console.log("🚀 API Base URL:", BASE_URL); // 콘솔에서 확인 가능
+
 const client = axios.create({
-  // 🔥 [중요] 포트 번호를 8111로 꼭 맞춰주세요!
-  baseURL: "http://192.168.0.85:8111/api",
+  baseURL: BASE_URL, // 🔥 하드코딩된 IP 대신 변수 사용
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
@@ -11,13 +22,16 @@ const client = axios.create({
 
 // ----------------------------------------------------------------------
 
-// 2. [요청 인터셉터] 모든 API 요청이 날아가기 직전에 실행
+// 2. [Request Interceptor] 토큰 실어 보내기
 client.interceptors.request.use(
   (config) => {
-    // 로컬 스토리지에서 토큰 꺼내기
-    const token = localStorage.getItem("accessToken");
+    const token =
+      localStorage.getItem("accessToken") || localStorage.getItem("token");
 
-    // 토큰이 있으면 헤더에 'Bearer 토큰' 형태로 추가
+    if (!config.headers) {
+      config.headers = {};
+    }
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -31,74 +45,66 @@ client.interceptors.request.use(
 
 // ----------------------------------------------------------------------
 
-// 3. [Response Interceptor] 401 에러 핸들링 (토큰 재발급 로직)
+// 3. [Response Interceptor] 401 에러 핸들링 (토큰 재발급)
 client.interceptors.response.use(
   (response) => {
-    return response; // 성공 시 그대로 반환
+    return response;
   },
   async (error) => {
     const { config, response } = error;
 
-    // A. 서버 연결 실패 등 응답 자체가 없는 경우
+    // A. 서버 연결 불가
     if (!response) {
-      alert("서버와 연결할 수 없습니다. 네트워크를 확인해주세요.");
       return Promise.reject(error);
     }
 
-    // B. [핵심] 401 에러 처리 (토큰 만료 시)
+    // B. [핵심] 401 에러 (토큰 만료) -> 재발급 시도
     if (response.status === 401 && !config._retry) {
-      config._retry = true; // 무한 루프 방지 플래그
+      config._retry = true;
 
       try {
-        const accessToken = localStorage.getItem("accessToken");
+        const accessToken =
+          localStorage.getItem("accessToken") || localStorage.getItem("token");
         const refreshToken = localStorage.getItem("refreshToken");
 
         if (!accessToken || !refreshToken) {
-          throw new Error("No tokens found");
+          throw new Error("토큰이 없습니다.");
         }
 
-        // 2. 백엔드에 토큰 재발급 요청
-        // [수정 완료] 포트 번호를 3000 -> 8111 (백엔드 포트)로 변경
+        // 1. 재발급 요청 (🔥 여기도 동적 주소 BASE_URL 사용!)
         const res = await axios.post(
-          "http://192.168.0.85:8111/api/auth/refresh",
+          `${BASE_URL}/auth/refresh`, // 하드코딩된 IP 제거
           {
             accessToken: accessToken,
             refreshToken: refreshToken,
           },
         );
 
-        // 3. 새로운 토큰 저장
-        const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
-          res.data;
-        localStorage.setItem("accessToken", newAccessToken);
-        localStorage.setItem("refreshToken", newRefreshToken);
+        // 2. 새로운 토큰 저장
+        const newAccessToken = res.data.accessToken || res.data.token;
+        const newRefreshToken = res.data.refreshToken;
 
-        // 4. 실패했던 요청의 헤더 업데이트
+        if (newAccessToken) {
+          localStorage.setItem("accessToken", newAccessToken);
+        }
+        if (newRefreshToken) {
+          localStorage.setItem("refreshToken", newRefreshToken);
+        }
+
+        // 3. 실패했던 요청의 헤더 교체
         config.headers.Authorization = `Bearer ${newAccessToken}`;
 
-        // 5. 실패했던 요청 재실행
+        // 4. 재요청 (기존 client 설정 그대로 사용)
         return client(config);
       } catch (refreshError) {
-        // 재발급 실패 시 로그아웃 처리
         console.error("토큰 재발급 실패:", refreshError);
 
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("isLoggedIn");
-        localStorage.removeItem("userInfo");
-
+        localStorage.clear();
         alert("로그인 세션이 만료되었습니다. 다시 로그인해주세요.");
         window.location.href = "/";
 
         return Promise.reject(refreshError);
       }
-    }
-
-    // C. 그 외 에러 처리
-    if (response.status === 403) {
-      alert("이 작업을 수행할 권한이 없습니다.");
-    } else if (response.status === 500) {
-      console.error("서버 내부 오류:", response.data);
     }
 
     return Promise.reject(error);

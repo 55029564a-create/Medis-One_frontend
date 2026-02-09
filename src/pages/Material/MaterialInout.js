@@ -6,7 +6,7 @@ import {
   getRecentHistory,
   getEmployeeList,
   getTodayStats,
-  getVendorList, // ✨ [추가] API 함수 임포트
+  getVendorList,
 } from "../../api/materialApi";
 import {
   FaBox,
@@ -40,9 +40,6 @@ const COLORS = {
   inputBg: "#FFFFFF",
 };
 
-// ❌ [삭제] 기존 하드코딩된 VENDOR_LIST 제거
-// const VENDOR_LIST = [ ... ];
-
 const MaterialInout = () => {
   const navigate = useNavigate();
   const lotInputRef = useRef(null);
@@ -73,9 +70,9 @@ const MaterialInout = () => {
   const [selectedProcess, setSelectedProcess] = useState("");
   const [availableProcesses, setAvailableProcesses] = useState([]);
 
-  // ✨ [수정] 업체 목록 상태 관리 (DB에서 받아옴)
-  const [vendorList, setVendorList] = useState([]); // 전체 목록
-  const [filteredVendors, setFilteredVendors] = useState([]); // 검색 필터된 목록
+  // 업체 검색
+  const [vendorList, setVendorList] = useState([]);
+  const [filteredVendors, setFilteredVendors] = useState([]);
   const [showVendorList, setShowVendorList] = useState(false);
 
   // 초기 로드
@@ -105,13 +102,11 @@ const MaterialInout = () => {
         setFilteredManagers(empData);
       }
 
-      // 4. ✨ [추가] 업체 목록 조회 (DB material_lot 테이블에서)
+      // 4. 업체 목록 조회 (DB)
       const vendorsData = await getVendorList();
       if (vendorsData && Array.isArray(vendorsData)) {
-        // DB에서 문자열 배열(["Samsung", "LG"])로 온다고 가정하고 객체로 변환
-        // 만약 DB에서 이미 객체({id, name})로 온다면 map 불필요
         const mappedVendors = vendorsData.map((v, idx) => ({
-          name: typeof v === "string" ? v : v.company, // DB 컬럼명에 맞게 조정
+          name: typeof v === "string" ? v : v.company,
           id: `V-${idx}`,
         }));
 
@@ -170,19 +165,13 @@ const MaterialInout = () => {
   };
 
   const handleScan = async (e) => {
-    // 1. 엔터키가 눌렸고, 내용이 있을 때만 실행
     if (e.key === "Enter" && inputs.lot) {
       try {
-        console.log("📡 조회 요청 LOT:", inputs.lot); // [디버깅] 요청 확인
         const dataList = await getMaterialInfo(inputs.lot);
 
-        console.log("🔥 서버 응답 데이터:", dataList); // [중요] F12 콘솔에서 이 내용을 확인해야 함
-
         if (dataList && dataList.length > 0) {
-          // 가장 최신 데이터(0번 인덱스) 사용
           const target = dataList[0];
 
-          // 2. [자재명 찾기] 서버가 어떤 이름으로 줄지 몰라서 다 찾아봄
           const foundItemName =
             target.matName ||
             target.materialName ||
@@ -190,7 +179,6 @@ const MaterialInout = () => {
             target.item ||
             "";
 
-          // 3. [업체명 찾기] 역시 여러 이름으로 찾아봄
           const foundVendorName =
             target.company ||
             target.vendorName ||
@@ -198,20 +186,14 @@ const MaterialInout = () => {
             target.client ||
             "";
 
-          console.log(
-            `✅ 찾은 결과 -> 자재명: ${foundItemName}, 업체명: ${foundVendorName}`,
-          );
-
-          // 4. 상태 업데이트 (자동 기입)
           setInputs((prev) => ({
             ...prev,
-            item: foundItemName, // 자재명 자동입력
-            vendor: foundVendorName, // 업체명 자동입력 (IN일 때만 유효하지만 값은 넣어둠)
-            qty: "", // 수량은 직접 입력하도록 비움
-            currentQty: target.currentQty || 0, // 현재고
+            item: foundItemName,
+            vendor: foundVendorName,
+            qty: "",
+            currentQty: target.currentQty || 0,
           }));
 
-          // 5. 편의성: 수량 입력창으로 포커스 이동
           document.getElementById("qtyInput")?.focus();
         } else {
           alert("❌ 해당 LOT 번호의 정보가 없습니다.");
@@ -250,7 +232,6 @@ const MaterialInout = () => {
     setShowManagerList(false);
   };
 
-  // ✨ [수정] 업체 검색 로직 (state 기반)
   const handleVendorChange = (e) => {
     const text = e.target.value;
     setInputs({ ...inputs, vendor: text });
@@ -323,14 +304,17 @@ const MaterialInout = () => {
         currentQty: 0,
       }));
 
-      // 목록 갱신 및 업체 목록 재조회 (신규 업체가 생겼을 수도 있으므로)
       fetchInitialData();
-
       lotInputRef.current.focus();
     } catch (error) {
       console.error(error);
       alert("처리 실패: " + (error.response?.data?.message || "서버 오류"));
     }
+  };
+
+  // ✅ [수정] 전체 내역 버튼 클릭 시, 히스토리 페이지가 새로고침 되도록 설정
+  const handleGoToHistory = () => {
+    navigate("/material/history", { state: { refresh: true } });
   };
 
   const styles = {
@@ -533,7 +517,7 @@ const MaterialInout = () => {
             </button>
 
             <button
-              onClick={() => navigate("/material/history")}
+              onClick={handleGoToHistory}
               style={{
                 padding: "8px 16px",
                 backgroundColor: "#fff",

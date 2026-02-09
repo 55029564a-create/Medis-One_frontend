@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from "react";
+// 🔥 [핵심] fetch 대신 우리가 만든 client 가져오기
+import client from "../../api/client";
+
 import {
   FaSearch,
   FaCalendarAlt,
@@ -21,65 +24,6 @@ const COLORS = {
   white: "#FFFFFF",
 };
 
-// // Mock Data
-// const initialHistory = [
-//   {
-//     id: "HIS-260120-01",
-//     date: "2026-01-20",
-//     time: "14:30",
-//     type: "IN",
-//     item: "27인치 LCD 패널",
-//     code: "M-001",
-//     qty: 500,
-//     worker: "김자재",
-//     location: "A-01",
-//   },
-//   {
-//     id: "HIS-260120-02",
-//     date: "2026-01-20",
-//     time: "11:15",
-//     type: "OUT",
-//     item: "나사 (M4)",
-//     code: "M-005",
-//     qty: 2000,
-//     worker: "박생산",
-//     location: "Line-A",
-//   },
-//   {
-//     id: "HIS-260119-01",
-//     date: "2026-01-19",
-//     time: "09:20",
-//     type: "IN",
-//     item: "전원 케이블",
-//     code: "M-002",
-//     qty: 300,
-//     worker: "이물류",
-//     location: "B-02",
-//   },
-//   {
-//     id: "HIS-260118-03",
-//     date: "2026-01-18",
-//     time: "16:45",
-//     type: "OUT",
-//     item: "27인치 LCD 패널",
-//     code: "M-001",
-//     qty: 100,
-//     worker: "최조립",
-//     location: "Line-B",
-//   },
-//   {
-//     id: "HIS-260118-02",
-//     date: "2026-01-18",
-//     time: "13:00",
-//     type: "IN",
-//     item: "메인보드 A타입",
-//     code: "M-003",
-//     qty: 50,
-//     worker: "김자재",
-//     location: "A-03",
-//   },
-// ];
-
 const InventoryHistory = () => {
   // --- 상태 관리 ---
   const [historyData, setHistoryData] = useState([]);
@@ -94,38 +38,44 @@ const InventoryHistory = () => {
   const [startDate, setStartDate] = useState("2026-01-01");
   const [endDate, setEndDate] = useState(today);
 
-  // --- 백엔드 데이터 호출 (추가) ---
+  // --- 백엔드 데이터 호출 (수정됨) ---
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const response = await fetch(
-          `http://localhost:8111/api/inventory/history?startDate=${startDate}&endDate=${endDate}&type=${filterType}`,
-        );
-        if (!response.ok) throw new Error("서버 응답 에러");
-        const data = await response.json();
-        setHistoryData(data);
+        // 🔥 [수정] fetch -> client.get 으로 변경
+        // 1. 주소 앞에 http://... 제거 (client가 알아서 붙임)
+        // 2. 토큰 자동 첨부됨 (401 에러 해결)
+        const response = await client.get("/inventory/history", {
+          params: {
+            startDate: startDate,
+            endDate: endDate,
+            type: filterType,
+          },
+        });
+
+        // axios는 .json() 필요 없음. .data에 바로 들어있음
+        setHistoryData(response.data);
       } catch (error) {
         console.error("데이터 로드 실패:", error);
       }
     };
     fetchHistory();
-  }, []);
+  }, []); // 빈 배열(처음 한 번만 실행) -> 필요하다면 [startDate, endDate, filterType] 넣어서 자동 재조회 가능
 
   // --- 필터링 로직 ---
   useEffect(() => {
-    // historyData가 진짜 배열인지 확인하고, 아니면 빈 배열을 기본값으로 씁니다.
+    // historyData가 진짜 배열인지 확인
     let result = Array.isArray(historyData) ? historyData : [];
 
-    // 데이터가 없으면 필터링을 진행하지 않고 종료
     if (result.length === 0) {
       setFilteredData([]);
       return;
     }
 
-    // 1. 날짜 필터 (백엔드의 "2026-02-01T10:00:00" 형식을 잘라서 비교)
+    // 1. 날짜 필터
     if (startDate && endDate) {
       result = result.filter((item) => {
-        const itemDate = item.date.split("T")[0];
+        const itemDate = item.date ? item.date.split("T")[0] : "";
         return itemDate >= startDate && itemDate <= endDate;
       });
     }
@@ -133,19 +83,21 @@ const InventoryHistory = () => {
     // 2. 유형 필터
     if (filterType !== "ALL") {
       result = result.filter((item) => {
-        const isIN = item.type === "입고";
+        // 입고인지 확인 (백엔드 데이터에 따라 조건 수정 필요할 수 있음)
+        const isIN =
+          item.type === "입고" || item.type === "INBOUND" || item.type === "IN";
         return filterType === "IN" ? isIN : !isIN;
       });
     }
 
-    // 3. 검색어 필터 (품목명: matName, 로트번호: lotNum, 담당자: empName)
+    // 3. 검색어 필터
     if (searchTerm) {
       const lowerTerm = searchTerm.toLowerCase();
       result = result.filter(
         (item) =>
-          item.matName.toLowerCase().includes(lowerTerm) ||
-          item.lotNum.toLowerCase().includes(lowerTerm) ||
-          item.empName.toLowerCase().includes(lowerTerm),
+          (item.matName && item.matName.toLowerCase().includes(lowerTerm)) ||
+          (item.lotNum && item.lotNum.toLowerCase().includes(lowerTerm)) ||
+          (item.empName && item.empName.toLowerCase().includes(lowerTerm)),
       );
     }
 
@@ -154,21 +106,24 @@ const InventoryHistory = () => {
 
   // 엑셀 다운로드 핸들러
   const handleDownloadExcel = () => {
-    // 1. CSV 헤더 생성
     const headers = ["이력ID,일자,시간,구분,품목명,품목코드,수량,작업자,위치"];
 
-    // 2. 데이터 매핑 (화면에 보이는 filteredData 기준)
     const rows = filteredData.map((item) => {
-      const typeText = item.type === "IN" ? "입고" : "출고";
-      // 쉼표가 데이터에 있을 경우를 대비해 필요시 처리 가능하나, 현재 데이터는 안전함
-      return `${item.id},${item.date},${item.time},${typeText},${item.item},${item.code},${item.qty},${item.worker},${item.location}`;
+      const isIN =
+        item.type === "입고" || item.type === "INBOUND" || item.type === "IN";
+      const typeText = isIN ? "입고" : "출고";
+
+      // 날짜/시간 분리 안전하게 처리
+      const dateParts = item.date ? item.date.split("T") : ["", ""];
+      const dateVal = dateParts[0];
+      const timeVal = dateParts[1] ? dateParts[1].substring(0, 5) : "";
+
+      return `${item.id || ""},${dateVal},${timeVal},${typeText},${item.matName || ""},${item.itemCode || ""},${item.changeQty || 0},${item.empName || ""},${item.lineName || ""}`;
     });
 
-    // 3. CSV 내용 조합 (\uFEFF는 한글 깨짐 방지용 BOM)
     const csvContent =
       "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
 
-    // 4. 가상의 링크 생성 및 클릭하여 다운로드 실행
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -201,9 +156,8 @@ const InventoryHistory = () => {
         </div>
       </div>
 
-      {/* 필터 바 - space-between으로 양 끝 배치 */}
+      {/* 필터 바 */}
       <div style={styles.toolbar}>
-        {/* [왼쪽 그룹] 날짜, 타입, 검색창 */}
         <div style={styles.leftControls}>
           {/* 날짜 선택 */}
           <div style={styles.datePicker}>
@@ -223,7 +177,7 @@ const InventoryHistory = () => {
             />
           </div>
 
-          {/* 유형 선택 (탭 스타일) */}
+          {/* 유형 선택 */}
           <div style={styles.typeToggle}>
             <button
               style={
@@ -270,9 +224,9 @@ const InventoryHistory = () => {
         </div>
       </div>
 
-      {/* 리스트 (카드형 테이블) */}
+      {/* 리스트 */}
       <div style={styles.listContainer}>
-        {/* 헤더 */}
+        {/* 리스트 헤더 */}
         <div style={styles.listHeader}>
           <div style={{ width: "15%" }}>일자/시간</div>
           <div style={{ width: "10%", textAlign: "center" }}>구분</div>
@@ -284,17 +238,17 @@ const InventoryHistory = () => {
           </div>
           <div style={{ width: "15%" }}>위치/라인</div>
           <div style={{ width: "10%" }}>담당자</div>
-          <div style={{ width: "10%", textAlign: "right" }}>이력 ID</div>
+          <div style={{ width: "10%", textAlign: "right" }}>LOT 번호</div>
         </div>
 
         {/* 데이터 행 */}
         {filteredData.length > 0 ? (
           filteredData.map((row, index) => {
-            // (row) => ( 에서 (row, index) => { 로 변경
-            // 1. 데이터 가공 (변수 선언은 반드시 { } 안에서 수행)
-            const isIncoming = row.type === "입고";
+            const isIncoming =
+              row.type === "입고" ||
+              row.type === "INBOUND" ||
+              row.type === "IN";
 
-            // 날짜 데이터가 없을 경우를 대비한 방어 코드 포함
             const dateParts = row.date ? row.date.split("T") : ["-", "-"];
             const dateVal = dateParts[0];
             const timeVal = dateParts[1] ? dateParts[1].substring(0, 5) : "";
@@ -329,17 +283,17 @@ const InventoryHistory = () => {
                   </span>
                 </div>
 
-                {/* 품목 정보 (matName, lotNum 매칭) */}
+                {/* 품목 정보 */}
                 <div style={{ width: "25%" }}>
                   <div style={{ fontWeight: "600", color: COLORS.text }}>
                     {row.matName}
                   </div>
-                  <div style={{ fontSize: "12px", color: COLORS.primary }}>
-                    {row.lotNum}
+                  <div style={{ fontSize: "12px", color: "#999" }}>
+                    {row.itemCode || "-"}
                   </div>
                 </div>
 
-                {/* 수량 (changeQty 매칭) */}
+                {/* 수량 */}
                 <div
                   style={{
                     width: "15%",
@@ -353,30 +307,30 @@ const InventoryHistory = () => {
                   {(row.changeQty || 0).toLocaleString()}
                 </div>
 
-                {/* 위치 (lineName 매칭) */}
+                {/* 위치 */}
                 <div style={{ width: "15%", fontSize: "14px", color: "#666" }}>
-                  {row.lineName || "-"}
+                  {row.lineName || row.location || "-"}
                 </div>
 
-                {/* 담당자 (empName 매칭) */}
+                {/* 담당자 */}
                 <div style={{ width: "10%", fontSize: "14px", color: "#555" }}>
-                  {row.empName}
+                  {row.empName || "-"}
                 </div>
 
-                {/* 이력 ID (원래 디자인 유지) */}
+                {/* LOT 번호 */}
                 <div
                   style={{
                     width: "10%",
                     textAlign: "right",
                     fontSize: "12px",
-                    color: "#ccc",
+                    color: COLORS.primary,
                   }}
                 >
                   {row.lotNum}
                 </div>
               </div>
-            ); // return 끝
-          }) // map 끝
+            );
+          })
         ) : (
           <div style={styles.emptyState}>
             <FaFilter size={40} color="#ddd" style={{ marginBottom: 10 }} />
@@ -388,7 +342,7 @@ const InventoryHistory = () => {
   );
 };
 
-// --- 스타일 ---
+// --- 스타일 (기존과 동일) ---
 const styles = {
   container: {
     padding: "30px",
@@ -402,8 +356,6 @@ const styles = {
     alignItems: "center",
     marginBottom: "25px",
   },
-
-  // 엑셀 버튼 스타일
   excelButton: {
     backgroundColor: "#217346",
     color: "#fff",
@@ -418,8 +370,6 @@ const styles = {
     fontSize: "14px",
     whiteSpace: "nowrap",
   },
-
-  // 툴바
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
@@ -428,14 +378,12 @@ const styles = {
     flexWrap: "wrap",
     gap: "15px",
   },
-
   leftControls: {
     display: "flex",
     gap: "15px",
     alignItems: "center",
     flexWrap: "wrap",
   },
-
   datePicker: {
     display: "flex",
     alignItems: "center",
@@ -496,13 +444,7 @@ const styles = {
     width: "100%",
     fontSize: "14px",
   },
-
-  // 리스트 스타일
-  listContainer: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "15px",
-  },
+  listContainer: { display: "flex", flexDirection: "column", gap: "15px" },
   listHeader: {
     display: "flex",
     padding: "0 25px",
@@ -520,10 +462,6 @@ const styles = {
     boxShadow: "0 4px 15px rgba(0,0,0,0.03)",
     transition: "transform 0.2s",
     border: "1px solid transparent",
-    // ":hover": {
-    //   transform: "translateY(-2px)",
-    //   borderColor: COLORS.primary,
-    // },
   },
   badgeIn: {
     display: "inline-flex",
