@@ -39,20 +39,32 @@ const InventoryCurrent = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const categories = ["All", "원자재", "부자재", "화학", "반제품", "완제품"];
+  const categories = ["All", "원자재", "반제품", "완제품"];
+
+  const CATEGORY_MAP = {
+    All: "",
+    원자재: "KIT",
+    반제품: "SEMI_PRODUCT",
+    완제품: "PRODUCT", // 또는 "FINISHED_PRODUCT" (백엔드 확인 필요!)
+  };
 
   const fetchInventoryData = async () => {
     try {
       setLoading(true);
 
+      const backendCategory = CATEGORY_MAP[selectedCategory];
+      console.log("백엔드 카테고리: ", backendCategory);
+
       // 🔥 [핵심 수정] axios -> client 로 변경
       // 주소도 http://... 다 지우고 뒷부분만 남김 (client가 알아서 붙여줌)
       const response = await client.get("/inventory/state", {
         params: {
-          category: selectedCategory === "All" ? "" : selectedCategory,
+          category: backendCategory,
           searchTerm: searchTerm,
         },
       });
+
+      console.log("서치 카테고리: ", selectedCategory);
 
       setDashboardData(response.data);
     } catch (error) {
