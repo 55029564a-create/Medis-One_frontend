@@ -2,241 +2,220 @@ import React, { useState } from "react";
 import client from "../../api/client";
 import {
   FaSearch,
-  FaPrint,
-  FaCheckCircle,
-  FaClipboardList,
-  FaMicrochip,
-  FaBox,
-  FaFileSignature,
   FaBarcode,
-  FaSyncAlt,
+  FaSitemap,
+  FaBoxOpen,
+  FaThermometerHalf,
+  FaCalendarAlt,
+  FaTruckLoading,
+  FaCheckCircle, // 충돌 해결: 아이콘 유지
+  FaSyncAlt, // 충돌 해결: 아이콘 유지
 } from "react-icons/fa";
 
-// 🎨 스타일 상수
 const COLORS = {
   primary: "#8C85FF",
   bg: "#F5F6FA",
   white: "#FFFFFF",
-  success: "#00C851",
   text: "#333",
   gray: "#666",
   border: "#E0E0E0",
+  success: "#4CAF50",
+  warning: "#FF9800",
+  danger: "#FF5252",
+  info: "#2196F3",
+  dark: "#2c3e50",
 };
 
-const DeviceHistory = () => {
-  const [serialNo, setSerialNo] = useState("");
-  const [dhrData, setDhrData] = useState(null);
+const LotTracking = () => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [lotData, setLotData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // 📡 서버 통신 함수
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
-    if (!serialNo) return;
-
+    if (!searchTerm) return;
     setLoading(true);
-    setDhrData(null);
-
+    setLotData(null);
     try {
-      const response = await client.get(`/trace/sn/${serialNo}`);
-      console.log("✅ 서버 응답 데이터:", response.data);
-      setDhrData(response.data);
+      const response = await client.get(`/trace/mat-lot/${searchTerm}`);
+      console.log("Trace Data:", response.data);
+      setLotData(response.data);
     } catch (error) {
-      console.error("❌ 조회 에러:", error);
-      alert(
-        "데이터 조회 중 오류가 발생했습니다. (시리얼 번호 또는 서버 상태 확인)",
-      );
+      console.error("Trace Error:", error);
+      alert("데이터를 찾을 수 없습니다. LOT 번호를 확인해주세요.");
     } finally {
       setLoading(false);
     }
   };
 
-  // 수동 새로고침 함수
+  // [신규] 수동 새로고침 함수
   const handleManualRefresh = () => {
-    if (serialNo) {
+    if (searchTerm) {
       handleSearch();
-      alert("최신 DHR 데이터로 갱신되었습니다.");
+      alert("최신 LOT 이력 정보로 갱신되었습니다.");
     } else {
-      alert("조회할 시리얼 번호를 먼저 입력해주세요.");
+      alert("추적할 LOT 번호를 먼저 입력해주세요.");
     }
   };
 
   return (
     <div style={styles.container}>
-      {/* 1. 헤더 */}
       <div style={styles.header}>
-        <div>
-          <h2 style={styles.title}>📂 DHR (Device History Record)</h2>
-          <p style={styles.subtitle}>
-            FDA 21 CFR Part 820 준수 | 의료기기 제조 및 품질 관리 기록 조회
+        <div style={styles.headerLeft}>
+          <h2 style={styles.pageTitle}>🔍 LOT 통합 추적 (Genealogy)</h2>
+          <p style={styles.pageSubtitle}>
+            원자재의 입고부터 공정 이동, 제품 생산까지의 전체 이력을 조회합니다.
           </p>
         </div>
-        <div style={styles.btnGroup}>
+        {/* [추가] 새로고침 버튼 */}
+        <div style={styles.headerRight}>
           <button style={styles.refreshBtn} onClick={handleManualRefresh}>
             <FaSyncAlt /> 새로고침
-          </button>
-
-          <button style={styles.printBtn} onClick={() => window.print()}>
-            <FaPrint /> 프린트
           </button>
         </div>
       </div>
 
-      {/* 2. 검색 바 */}
       <div style={styles.searchSection}>
         <form onSubmit={handleSearch} style={styles.searchBar}>
           <FaBarcode size={20} color={COLORS.gray} />
           <input
             type="text"
-            placeholder="Scan Serial No. (e.g. SN-260205-01-A-02)"
+            placeholder="Scan LOT ID (e.g., LOT-KITB-260125-001)"
             style={styles.searchInput}
-            value={serialNo}
-            onChange={(e) => setSerialNo(e.target.value)}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
           <button type="submit" style={styles.searchBtn}>
-            <FaSearch /> Search
+            <FaSearch /> 조회
           </button>
         </form>
       </div>
 
-      {/* 3. 리포트 영역 */}
       {loading ? (
-        <div style={styles.loading}>데이터 조회 중...</div>
-      ) : dhrData ? (
-        <div style={styles.reportContainer}>
-          {/* (A) 마스터 정보 */}
-          <div style={styles.masterCard}>
-            <div style={styles.cardHeader}>
-              <h3 style={styles.cardTitle}>📦 Device Information</h3>
-              <span style={styles.approvedBadge}>
-                <FaCheckCircle /> QA RELEASED
-              </span>
-            </div>
-
-            <div style={styles.infoGrid}>
-              <InfoItem label="Product Name" value={dhrData.productName} bold />
-              <InfoItem
-                label="Serial Number"
-                value={dhrData.serialCode}
-                bold
-                color={COLORS.primary}
-              />
-              <InfoItem label="Product Code" value={dhrData.productCode} />
-              <InfoItem label="Work Order" value={dhrData.workOrderCode} />
-              <InfoItem
-                label="Finished Date"
-                value={dhrData.finishedAt || "진행 중 (In Progress)"}
-              />
-            </div>
-
-            <div style={styles.signatureBox}>
-              <FaFileSignature size={24} color={COLORS.primary} />
-              <div>
-                <div style={{ fontSize: "12px", color: "#888" }}>
-                  Electronically Signed by System
+        <div style={styles.loadingArea}>데이터 추적 중...</div>
+      ) : lotData ? (
+        <div style={styles.resultContainer}>
+          {/* [좌측] LOT 기본 정보 */}
+          <div style={styles.leftPanel}>
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>📦 LOT Information</h3>
+                <StatusBadge status={lotData.status} />
+              </div>
+              <div style={styles.lotIdBox}>
+                <span style={{ fontSize: "12px", color: "#888" }}>LOT No.</span>
+                <div style={styles.lotIdText}>{lotData.lotCode}</div>
+              </div>
+              <div style={styles.infoGrid}>
+                <InfoRow label="품목명(Kit)" value={lotData.matName} />
+                <InfoRow label="품목코드" value={lotData.matCode} />
+                <InfoRow label="공급/제조사" value={lotData.company} />
+                <InfoRow label="초기수량" value={`${lotData.initialQty} ea`} />
+                <InfoRow
+                  label="현재재고"
+                  value={`${lotData.currentQty} ea`}
+                  highlight
+                />
+                <InfoRow label="생성일(입고)" value={lotData.createdAt} />
+              </div>
+              <div style={styles.specialInfo}>
+                <div style={styles.iconRow}>
+                  <FaThermometerHalf color={COLORS.info} />
+                  <span>보관: 실온(Room Temp)</span>
                 </div>
-                <div style={{ fontWeight: "bold" }}>MedisOne MES</div>
+                <div style={styles.iconRow}>
+                  <FaCalendarAlt color={COLORS.warning} />
+                  <span>유효기간: 정상</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div style={styles.contentRow}>
-            {/* (B) 자재 투입 이력 */}
-            <div style={styles.bomCard}>
+          {/* [우측] 이력 타임라인 */}
+          <div style={styles.rightPanel}>
+            <div style={styles.card}>
               <h3 style={styles.cardTitle}>
-                <FaBox /> Material Traceability (BOM)
-              </h3>
-
-              <table style={styles.table}>
-                <thead>
-                  <tr style={styles.thRow}>
-                    <th style={styles.th}>Material / Kit</th>
-                    <th style={styles.th}>Lot ID</th>
-                    <th style={styles.th}>Supplier</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(dhrData.matLots || []).map((lot, idx) => (
-                    <tr key={idx} style={styles.tr}>
-                      <td style={{ ...styles.td, fontWeight: "bold" }}>
-                        {lot.materialName}
-                      </td>
-                      <td
-                        style={{
-                          ...styles.td,
-                          color: COLORS.primary,
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        {lot.logCode}
-                      </td>
-                      <td style={{ ...styles.td, color: "#666" }}>
-                        {lot.company}
-                      </td>
-                    </tr>
-                  ))}
-                  {(!dhrData.matLots || dhrData.matLots.length === 0) && (
-                    <tr>
-                      <td
-                        colSpan="3"
-                        style={{
-                          padding: "20px",
-                          textAlign: "center",
-                          color: "#ccc",
-                        }}
-                      >
-                        - 투입 자재 없음 -
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* (C) 공정 기록 */}
-            <div style={styles.historyCard}>
-              <h3 style={styles.cardTitle}>
-                <FaClipboardList /> Process Traveler
+                <FaSitemap /> Process History (이력 추적)
               </h3>
               <div style={styles.timeline}>
-                {(dhrData.prodLogs || []).map((log, idx) => (
-                  <div key={idx} style={styles.timelineItem}>
-                    <div style={styles.stepBadge}>{idx + 1}</div>
-                    <div style={styles.stepContent}>
-                      <div style={styles.stepHeader}>
-                        <span style={styles.stepName}>{log.processName}</span>
-                        <span style={styles.stepTime}>{log.createdAt}</span>
-                      </div>
-                      <div style={styles.stepData}>
-                        <span>
-                          Result:{" "}
-                          <strong
-                            style={{
-                              color:
-                                log.result === "PASS" ? COLORS.success : "#333",
-                            }}
-                          >
-                            {log.result}
-                          </strong>
-                        </span>
-                        <span style={styles.divider}>|</span>
-                        <span>Op: {log.operatorName}</span>
-                        <br />
-                        <span style={{ color: "#555", fontSize: "12px" }}>
-                          Data: {log.data || "-"}
-                        </span>
-                      </div>
+                {/* 1. 입고 로그 */}
+                <div style={styles.timelineItem}>
+                  <div style={styles.timelineDotStart} />
+                  <div style={styles.timelineContent}>
+                    <div style={styles.stepTitle}>LOT Created (입고/생성)</div>
+                    <div style={styles.stepDesc}>
+                      <FaCalendarAlt
+                        style={{ marginRight: 5, flexShrink: 0 }}
+                      />
+                      {lotData.createdAt}
+                    </div>
+                    <div style={styles.stepDesc}>
+                      최초 수량: {lotData.initialQty} ea
                     </div>
                   </div>
-                ))}
-                {(!dhrData.prodLogs || dhrData.prodLogs.length === 0) && (
-                  <div
-                    style={{
-                      padding: "20px",
-                      textAlign: "center",
-                      color: "#ccc",
-                    }}
-                  >
-                    - 공정 이력 없음 -
+                </div>
+
+                {/* 2. 공정 로그 */}
+                {(lotData.logs || []).map((log, idx) => {
+                  const isProductMade = log.serial && log.serial !== "null";
+                  return (
+                    <div key={idx} style={styles.timelineItem}>
+                      <div style={styles.timelineLine} />
+                      <div
+                        style={{
+                          ...styles.timelineDot,
+                          backgroundColor: isProductMade
+                            ? COLORS.primary
+                            : COLORS.gray,
+                        }}
+                      >
+                        {isProductMade ? (
+                          <FaBoxOpen color="white" size={10} />
+                        ) : (
+                          <FaTruckLoading color="white" size={10} />
+                        )}
+                      </div>
+
+                      <div style={styles.timelineContent}>
+                        <div style={styles.stepTitle}>
+                          Step {idx + 1}: {log.procName}
+                        </div>
+                        <div style={styles.stepDesc}>
+                          <FaCalendarAlt
+                            style={{ marginRight: 5, flexShrink: 0 }}
+                          />
+                          {log.prodAt}
+                          <span style={{ marginLeft: 10 }}>
+                            수량 변동: {log.qty}
+                          </span>
+                        </div>
+
+                        {/* 충돌 해결: 데이터 박스 표시 로직 유지 */}
+                        {log.processData && (
+                          <div style={styles.logDataBox}>{log.processData}</div>
+                        )}
+
+                        {isProductMade ? (
+                          <div style={styles.productBadge}>
+                            <span style={{ color: "#666" }}>
+                              Output Product:
+                            </span>
+                            <span style={styles.productSerial}>
+                              {log.serial}
+                            </span>
+                          </div>
+                        ) : (
+                          <div style={styles.infoText}>
+                            * 공정 이동 / 자재 소모 단계
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {(!lotData.logs || lotData.logs.length === 0) && (
+                  <div style={styles.noHistory}>
+                    - 추가 이동/가공 이력이 없습니다 -
                   </div>
                 )}
               </div>
@@ -245,241 +224,353 @@ const DeviceHistory = () => {
         </div>
       ) : (
         <div style={styles.emptyState}>
-          <FaMicrochip
-            size={40}
-            style={{ marginBottom: "15px", color: "#ddd" }}
-          />
-          <p>시리얼 번호를 스캔하거나 입력하세요.</p>
+          추적할 LOT 번호를 입력해주세요.
+          <br />
+          (예: 원자재 LOT, 공정 LOT 등)
         </div>
       )}
     </div>
   );
 };
 
-// --- 서브 컴포넌트 & 스타일 ---
-const InfoItem = ({ label, value, bold, color }) => (
-  <div style={styles.infoItem}>
-    <div style={styles.infoLabel}>{label}</div>
-    <div
+// --- 서브 컴포넌트 ---
+const InfoRow = ({ label, value, highlight }) => (
+  <div style={styles.row}>
+    <span style={{ fontSize: "13px", color: "#888" }}>{label}</span>
+    <span
       style={{
-        ...styles.infoValue,
-        fontWeight: bold ? "bold" : "normal",
-        color: color || "#333",
+        fontSize: "13px",
+        fontWeight: "bold",
+        color: highlight ? COLORS.primary : "#333",
+        wordBreak: "break-all",
       }}
     >
       {value || "-"}
-    </div>
+    </span>
   </div>
 );
 
+const StatusBadge = ({ status }) => {
+  const isOk = status === "AVAILABLE" || status === "IN_USE" || status === "OK";
+  const color = isOk ? COLORS.success : COLORS.gray;
+  return (
+    <span
+      style={{ ...styles.badge, color: color, backgroundColor: `${color}15` }}
+    >
+      {status}
+    </span>
+  );
+};
+
+// --- 스타일 ---
 const styles = {
   container: {
-    padding: "30px",
+    padding: "20px",
     backgroundColor: COLORS.bg,
-    minHeight: "100%",
+    minHeight: "100vh",
+    boxSizing: "border-box",
+    width: "100%",
+    maxWidth: "100%",
+    overflowX: "hidden",
   },
+
+  // [충돌 해결] 헤더 Flex 스타일 적용 (새로고침 버튼 배치용)
   header: {
+    marginBottom: "15px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "20px",
   },
-  title: {
-    fontSize: "24px",
+  headerLeft: {
+    flex: 1,
+  },
+  headerRight: {
+    flexShrink: 0,
+  },
+
+  pageTitle: {
+    fontSize: "20px",
     fontWeight: "bold",
     color: COLORS.text,
     margin: 0,
   },
-  subtitle: { fontSize: "14px", color: COLORS.gray, marginTop: "5px" },
-  btnGroup: { display: "flex", gap: "10px" },
+  pageSubtitle: { fontSize: "13px", color: COLORS.gray, marginTop: "4px" },
 
+  // [추가] 새로고침 버튼 스타일
   refreshBtn: {
-    height: "40px", // 높이 통일
-    padding: "0 20px", // 좌우 여백 통일
-    borderRadius: "12px", // 둥근 모서리 통일
     display: "flex",
     alignItems: "center",
-    gap: "8px",
+    gap: "6px",
     backgroundColor: "white",
-    color: COLORS.primary, // 보라색 글씨
-    border: `1px solid ${COLORS.primary}`, // 보라색 테두리
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: "8px",
+    padding: "8px 16px",
     cursor: "pointer",
     fontWeight: "bold",
-    fontSize: "14px",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-    transition: "background 0.2s",
+    color: "#555",
+    fontSize: "13px",
   },
 
-  printBtn: {
-    height: "40px", // 높이 통일
-    padding: "0 20px", // 좌우 여백 통일
-    borderRadius: "12px", // 둥근 모서리 통일
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    backgroundColor: "#333", // 기존 검은색 유지
-    color: "white",
-    border: "none",
-    cursor: "pointer",
-    fontWeight: "bold",
-    fontSize: "14px",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-  },
+  searchSection: { marginBottom: "20px" },
 
-  searchSection: {
-    marginBottom: "30px",
-    display: "flex",
-    justifyContent: "center",
-  },
+  // [충돌 해결] 스타일 통합
   searchBar: {
     display: "flex",
     alignItems: "center",
     backgroundColor: "white",
-    padding: "10px 20px",
-    borderRadius: "50px",
-    boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
+    padding: "8px 15px",
+    borderRadius: "8px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)", // 그림자 추가
+    border: `1px solid ${COLORS.border}`,
+    maxWidth: "500px",
     width: "100%",
-    maxWidth: "600px",
   },
   searchInput: {
     flex: 1,
     border: "none",
     outline: "none",
-    fontSize: "16px",
+    fontSize: "14px",
     marginLeft: "10px",
   },
   searchBtn: {
     backgroundColor: COLORS.primary,
     color: "white",
     border: "none",
-    padding: "10px 25px",
-    borderRadius: "20px",
+    padding: "6px 16px",
+    borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "bold",
     display: "flex",
-    alignItems: "center",
     gap: "5px",
+    fontSize: "13px",
   },
-  loading: { textAlign: "center", padding: "50px", color: "#888" },
-  reportContainer: {
-    maxWidth: "1000px",
-    margin: "0 auto",
+
+  loadingArea: {
+    textAlign: "center",
+    padding: "40px",
+    color: "#999",
+    fontSize: "14px",
+  },
+
+  resultContainer: {
     display: "flex",
-    flexDirection: "column",
-    gap: "20px",
+    gap: "15px",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    width: "100%",
   },
-  masterCard: {
+
+  leftPanel: {
+    flex: "1 1 280px",
+    minWidth: "250px",
+    maxWidth: "350px",
+    position: "sticky",
+    top: "20px",
+  },
+
+  // [충돌 해결] 텍스트 흘러넘침 방지 스타일 적용
+  rightPanel: {
+    flex: "999 1 300px",
+    minWidth: "0", // 줄어들기 허용 (중요)
+    width: "100%", // 가로 꽉 채우기
+    overflow: "hidden", // 자식이 커져도 부모 크기를 유지하도록 강제
+  },
+
+  card: {
     backgroundColor: "white",
-    borderRadius: "12px",
-    padding: "25px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-    borderTop: `4px solid ${COLORS.primary}`,
+    borderRadius: "10px",
+    padding: "20px",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+    border: `1px solid ${COLORS.border}`,
   },
   cardHeader: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "20px",
-    borderBottom: "1px solid #eee",
-    paddingBottom: "15px",
+    marginBottom: "15px",
+    paddingBottom: "10px",
+    borderBottom: "1px solid #f0f0f0",
   },
   cardTitle: {
+    fontSize: "15px",
+    fontWeight: "bold",
+    color: "#333",
+    display: "flex",
+    gap: "6px",
+    margin: 0,
+  },
+
+  lotIdBox: {
+    backgroundColor: "#F8F9FA",
+    padding: "12px",
+    borderRadius: "6px",
+    textAlign: "center",
+    marginBottom: "15px",
+    border: `1px solid ${COLORS.border}`,
+  },
+  lotIdText: {
     fontSize: "18px",
     fontWeight: "bold",
-    margin: 0,
+    color: COLORS.dark,
+    wordBreak: "break-all",
+  },
+
+  infoGrid: { display: "flex", flexDirection: "column", gap: "2px" },
+  specialInfo: {
+    marginTop: "15px",
+    padding: "12px",
+    backgroundColor: "#FFF8E1",
+    borderRadius: "6px",
+    border: `1px solid ${COLORS.warning}30`,
+  },
+  iconRow: {
     display: "flex",
-    alignItems: "center",
     gap: "8px",
-    color: "#333",
-  },
-  approvedBadge: {
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    backgroundColor: "#E8F5E9",
-    color: COLORS.success,
-    padding: "6px 12px",
-    borderRadius: "20px",
+    marginBottom: "4px",
     fontSize: "12px",
-    fontWeight: "bold",
+    fontWeight: "600",
+    color: "#555",
   },
-  infoGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" },
-  infoItem: { borderBottom: "1px solid #f9f9f9", paddingBottom: "8px" },
-  infoLabel: { fontSize: "12px", color: "#888", marginBottom: "4px" },
-  infoValue: { fontSize: "15px" },
-  signatureBox: {
-    marginTop: "20px",
-    backgroundColor: "#F9FAFB",
-    padding: "15px",
-    borderRadius: "8px",
-    display: "flex",
-    alignItems: "center",
-    gap: "15px",
-    border: "1px dashed #ccc",
+
+  timeline: { padding: "5px 0 0 5px" },
+  timelineItem: {
+    position: "relative",
+    paddingBottom: "25px",
+    paddingLeft: "25px",
   },
-  contentRow: { display: "flex", gap: "20px", flexWrap: "wrap" },
-  bomCard: {
-    flex: "1",
-    minWidth: "300px",
-    backgroundColor: "white",
-    borderRadius: "12px",
-    padding: "25px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+  timelineLine: {
+    position: "absolute",
+    left: "7px",
+    top: "5px",
+    bottom: "-5px",
+    width: "2px",
+    backgroundColor: "#e0e0e0",
   },
-  historyCard: {
-    flex: "1.5",
-    minWidth: "400px",
-    backgroundColor: "white",
-    borderRadius: "12px",
-    padding: "25px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+  timelineDotStart: {
+    position: "absolute",
+    left: "0",
+    top: "4px",
+    width: "14px",
+    height: "14px",
+    borderRadius: "50%",
+    backgroundColor: COLORS.success,
+    border: "2px solid white",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+    zIndex: 2,
   },
-  table: { width: "100%", borderCollapse: "collapse" },
-  thRow: { backgroundColor: "#f9f9f9", borderBottom: "1px solid #eee" },
-  th: {
-    padding: "10px",
-    textAlign: "left",
-    fontSize: "12px",
-    color: "#666",
-  },
-  tr: { borderBottom: "1px solid #f5f5f5" },
-  td: { padding: "10px", fontSize: "13px", color: "#333" },
-  timeline: { display: "flex", flexDirection: "column", gap: "15px" },
-  timelineItem: { display: "flex", gap: "15px" },
-  stepBadge: {
-    minWidth: "40px",
-    height: "24px",
-    backgroundColor: "#E3F2FD",
-    color: "#1976D2",
-    borderRadius: "4px",
+  timelineDot: {
+    position: "absolute",
+    left: "0",
+    top: "4px",
+    width: "16px",
+    height: "16px",
+    borderRadius: "50%",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "11px",
-    fontWeight: "bold",
-  },
-  stepContent: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-    padding: "10px 15px",
-    borderRadius: "8px",
+    zIndex: 2,
+    backgroundColor: "white",
     border: "1px solid #eee",
   },
-  stepHeader: {
+
+  // [충돌 해결] 타임라인 컨텐츠 박스 강제 크기 조절
+  timelineContent: {
+    backgroundColor: "#fff",
+    padding: "12px",
+    borderRadius: "6px",
+    border: "1px solid #eee",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+    fontSize: "13px",
+    width: "100%",
+    boxSizing: "border-box",
+    wordBreak: "break-all",
+    overflowWrap: "anywhere",
+  },
+
+  stepTitle: {
+    fontWeight: "bold",
+    fontSize: "13px",
+    color: "#333",
+    marginBottom: "3px",
+    wordBreak: "break-all",
+    lineHeight: "1.4",
+  },
+  stepDesc: {
+    fontSize: "11px",
+    color: "#666",
+    display: "flex",
+    alignItems: "flex-start",
+    marginBottom: "2px",
+    flexWrap: "wrap",
+    lineHeight: "1.4",
+    wordBreak: "break-all",
+  },
+
+  // [충돌 해결] 데이터 로그 박스 스타일 유지
+  logDataBox: {
+    marginTop: "8px",
+    padding: "10px",
+    backgroundColor: "#f8f9fa",
+    borderRadius: "4px",
+    border: "1px solid #eee",
+    fontSize: "11px",
+    color: "#333",
+    fontFamily: "monospace",
+    display: "block",
+    width: "100%",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-all",
+    overflowWrap: "anywhere",
+    boxSizing: "border-box",
+  },
+
+  productBadge: {
+    marginTop: "6px",
+    padding: "4px 8px",
+    backgroundColor: "#F3F1FF",
+    borderRadius: "4px",
+    fontSize: "11px",
+    display: "inline-flex",
+    alignItems: "center",
+    border: `1px solid ${COLORS.primary}30`,
+    maxWidth: "100%",
+    flexWrap: "wrap",
+  },
+  productSerial: {
+    fontWeight: "bold",
+    color: COLORS.primary,
+    marginLeft: 5,
+    wordBreak: "break-all",
+  },
+  infoText: {
+    marginTop: "4px",
+    fontSize: "10px",
+    color: "#bbb",
+    fontStyle: "italic",
+  },
+
+  row: {
     display: "flex",
     justifyContent: "space-between",
-    marginBottom: "5px",
+    padding: "6px 0",
+    borderBottom: "1px solid #f9f9f9",
   },
-  stepName: { fontWeight: "bold", fontSize: "14px", color: "#333" },
-  stepTime: { fontSize: "11px", color: "#999" },
-  stepData: { fontSize: "13px", color: "#555" },
-  divider: { margin: "0 8px", color: "#ddd" },
+  badge: {
+    fontSize: "10px",
+    fontWeight: "bold",
+    padding: "3px 8px",
+    borderRadius: "4px",
+  },
   emptyState: {
     textAlign: "center",
-    padding: "80px",
+    padding: "60px",
     color: "#ccc",
-    fontSize: "18px",
+    fontSize: "16px",
+    border: "2px dashed #e0e0e0",
+    borderRadius: "12px",
+    width: "100%",
+    boxSizing: "border-box",
   },
+  noHistory: { padding: "20px", textAlign: "center", color: "#999" },
 };
 
-export default DeviceHistory;
+export default LotTracking;
