@@ -55,6 +55,7 @@ const WorkOrder = () => {
         getTodayWorkOrders(),
         getMonthlyWorkOrders(),
       ]);
+      console.log(today);
       setTodayData(today || []);
       setMonthData(monthly || []);
     } catch (error) {

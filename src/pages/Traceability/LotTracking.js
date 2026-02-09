@@ -1,701 +1,576 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { getEquipmentList } from "../../api/productionApi";
+import React, { useState } from "react";
+import client from "../../api/client";
 import {
-  FaThermometerHalf,
-  FaWind,
-  FaBolt,
-  FaCheckCircle,
-  FaExclamationTriangle,
-  FaStopCircle,
-  FaPlayCircle,
-  FaTools,
-  FaHistory,
-  FaMicroscope,
-  FaLayerGroup,
-  FaCompressArrowsAlt,
   FaSearch,
-  FaFilter,
-  FaRobot,
-  FaWeightHanging,
-  FaRulerHorizontal,
-  FaSlidersH,
-  FaEye,
-  FaWaveSquare,
-  FaTachometerAlt,
-  FaSyncAlt, // 새로고침 아이콘
+  FaBarcode,
+  FaSitemap,
+  FaBoxOpen,
+  FaThermometerHalf,
+  FaCalendarAlt,
+  FaTruckLoading,
+  FaCheckCircle, // 충돌 해결: 아이콘 유지
+  FaSyncAlt, // 충돌 해결: 아이콘 유지
 } from "react-icons/fa";
-import { MdCleaningServices, MdOutlineViewInAr } from "react-icons/md";
 
-// 🎨 MedisOne Soft Theme
 const COLORS = {
   primary: "#8C85FF",
-  success: "#00C851",
-  warning: "#FFBB33",
-  danger: "#FF4444",
-  stop: "#9E9E9E",
   bg: "#F5F6FA",
+  white: "#FFFFFF",
   text: "#333",
-  subText: "#888",
-  cardBg: "#FFF",
+  gray: "#666",
   border: "#E0E0E0",
-  inputBg: "#F0F2F5",
+  success: "#4CAF50",
+  warning: "#FF9800",
+  danger: "#FF5252",
+  info: "#2196F3",
+  dark: "#2c3e50",
 };
 
-const EquipmentList = () => {
-  const navigate = useNavigate();
+const LotTracking = () => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [lotData, setLotData] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // 1. 상태 관리
-  const [machines, setMachines] = useState([]); // 전체 데이터
-  const [filteredMachines, setFilteredMachines] = useState([]); // 필터링된 데이터
-  const [loading, setLoading] = useState(true);
-
-  // 2. 필터 상태
-  const [selectedLine, setSelectedLine] = useState("ALL");
-  const [selectedProcess, setSelectedProcess] = useState("ALL");
-  const [searchText, setSearchText] = useState("");
-
-  // 필터 옵션 목록
-  const [processOptions, setProcessOptions] = useState([]);
-  const [lineOptions, setLineOptions] = useState([]);
-
-  // 3. API 호출
-  useEffect(() => {
-    fetchEquipmentList();
-  }, []);
-
-  const fetchEquipmentList = async () => {
+  const handleSearch = async (e) => {
+    if (e) e.preventDefault();
+    if (!searchTerm) return;
+    setLoading(true);
+    setLotData(null);
     try {
-      setLoading(true);
-      const serverData = await getEquipmentList();
-
-      const formattedData = serverData.map((item) => transformData(item));
-      setMachines(formattedData);
-      setFilteredMachines(formattedData);
-
-      const processes = [
-        "ALL",
-        ...new Set(formattedData.map((m) => m.process)),
-      ];
-      const lines = ["ALL", ...new Set(serverData.map((m) => m.lineCode))];
-
-      setProcessOptions(processes);
-      setLineOptions(lines);
+      const response = await client.get(`/trace/mat-lot/${searchTerm}`);
+      console.log("Trace Data:", response.data);
+      setLotData(response.data);
     } catch (error) {
-      console.error("설비 목록 조회 실패:", error);
+      console.error("Trace Error:", error);
+      alert("데이터를 찾을 수 없습니다. LOT 번호를 확인해주세요.");
     } finally {
       setLoading(false);
     }
   };
 
-  // [수동 새로고침 핸들러]
+  // [신규] 수동 새로고침 함수
   const handleManualRefresh = () => {
-    fetchEquipmentList();
-    alert("최신 설비 현황으로 갱신되었습니다.");
-  };
-
-  // 4. 필터링 로직
-  useEffect(() => {
-    let result = machines;
-
-    if (selectedLine !== "ALL") {
-      result = result.filter((m) => m.lineCode === selectedLine);
-    }
-
-    if (selectedProcess !== "ALL") {
-      result = result.filter((m) => m.process === selectedProcess);
-    }
-
-    if (searchText) {
-      result = result.filter(
-        (m) =>
-          m.name.toLowerCase().includes(searchText.toLowerCase()) ||
-          m.id.toLowerCase().includes(searchText.toLowerCase()),
-      );
-    }
-
-    setFilteredMachines(result);
-  }, [selectedLine, selectedProcess, searchText, machines]);
-
-  // 🛠️ 데이터 변환 함수
-  const transformData = (dto) => {
-    let type = "TOOLS";
-    if (dto.eqName.includes("세정")) type = "CLEANER";
-    else if (dto.eqName.includes("합착")) type = "BONDER";
-    else if (dto.eqName.includes("탈포") || dto.eqName.includes("오토클레이브"))
-      type = "AUTOCLAVE";
-    else if (dto.eqName.includes("에이징")) type = "AGING";
-    else if (dto.eqName.includes("검사") || dto.eqName.includes("비전"))
-      type = "VISION";
-    else if (dto.eqName.includes("마운터")) type = "MOUNTER";
-    else if (dto.eqName.includes("로봇")) type = "ROBOT";
-    else if (dto.eqName.includes("화질") || dto.eqName.includes("보정"))
-      type = "CALIBRATOR";
-    else if (dto.eqName.includes("신뢰성") || dto.eqName.includes("진동"))
-      type = "VIBRATION";
-
-    let status = "STOP";
-    if (dto.eqStatus === "IN_PROGRESS" || dto.eqStatus === "RUN")
-      status = "RUN";
-    else if (dto.eqStatus === "ERROR") status = "ERROR";
-
-    const metrics = getMetricsByType(type, dto.eqData);
-
-    return {
-      id: dto.eqId,
-      eqCode: dto.eqCode,
-      lineCode: dto.lineCode,
-      process: dto.processName,
-      name: dto.eqName,
-      type: type,
-      status: status,
-      metrics: metrics,
-      operator: dto.empName || "미지정",
-      uptime: dto.opTime || "00:00",
-    };
-  };
-
-  const getMetricsByType = (type, rawData) => {
-    let val1 = "-";
-    let val2 = "-";
-
-    if (rawData) {
-      try {
-        const parsed = JSON.parse(rawData);
-        const values = Object.values(parsed);
-        if (values.length > 0) val1 = values[0];
-        if (values.length > 1) val2 = values[1];
-      } catch (e) {
-        const regex = /:\s*"?([^",}\]\s]+)"?/g;
-        const matches = [];
-        let match;
-        while ((match = regex.exec(rawData)) !== null) {
-          matches.push(match[1]);
-        }
-        if (matches.length > 0) val1 = matches[0];
-        if (matches.length > 1) val2 = matches[1];
-      }
-    }
-
-    const fmt = (v) => {
-      if (v === "-" || v === null || v === undefined) return "-";
-      const cleanV = String(v).replace(/["']/g, "");
-      const num = Number(cleanV);
-      return isNaN(num) ? cleanV : Number.isInteger(num) ? num : num.toFixed(1);
-    };
-
-    switch (type) {
-      case "CLEANER":
-        return [
-          { label: "가스 유량", value: `${fmt(val1)} sccm`, icon: <FaWind /> },
-          { label: "RF 파워", value: `${fmt(val2)} kW`, icon: <FaBolt /> },
-        ];
-      case "BONDER":
-        return [
-          { label: "진공도", value: `${fmt(val1)} kPa`, icon: <FaWind /> },
-          {
-            label: "갭 두께",
-            value: `${fmt(val2)} mm`,
-            icon: <FaLayerGroup />,
-          },
-        ];
-      case "AUTOCLAVE":
-        return [
-          {
-            label: "가압력",
-            value: `${fmt(val1)} bar`,
-            icon: <FaCompressArrowsAlt />,
-          },
-          {
-            label: "챔버 온도",
-            value: `${fmt(val2)} °C`,
-            icon: <FaThermometerHalf />,
-          },
-        ];
-      case "AGING":
-        return [
-          {
-            label: "내부 온도",
-            value: `${fmt(val1)} °C`,
-            icon: <FaThermometerHalf />,
-          },
-          {
-            label: "진행 시간",
-            value: val2 !== "-" ? `${fmt(val2)} 분` : "-",
-            icon: <FaHistory />,
-          },
-        ];
-      case "VISION":
-        return [
-          { label: "수율", value: `${fmt(val1)} %`, icon: <FaCheckCircle /> },
-          {
-            label: "검사량",
-            value: `${fmt(val2)} EA`,
-            icon: <MdOutlineViewInAr />,
-          },
-        ];
-      case "MOUNTER":
-        return [
-          {
-            label: "노즐 진공",
-            value: `${fmt(val1)} kPa`,
-            icon: <FaCompressArrowsAlt />,
-          },
-          { label: "헤드 속도", value: `${fmt(val2)} m/s`, icon: <FaBolt /> },
-        ];
-      case "ROBOT":
-        return [
-          {
-            label: "가반 하중",
-            value: `${fmt(val1)} kg`,
-            icon: <FaWeightHanging />,
-          },
-          {
-            label: "작업 반경",
-            value: `${fmt(val2)} mm`,
-            icon: <FaRulerHorizontal />,
-          },
-        ];
-      case "CALIBRATOR":
-        return [
-          { label: "센서 타입", value: fmt(val1), icon: <FaEye /> },
-          { label: "교정 표준", value: fmt(val2), icon: <FaCheckCircle /> },
-        ];
-      case "VIBRATION":
-        return [
-          { label: "주파수 범위", value: fmt(val1), icon: <FaWaveSquare /> },
-          { label: "가속도", value: fmt(val2), icon: <FaTachometerAlt /> },
-        ];
-      default:
-        return [
-          { label: "센서 1", value: fmt(val1), icon: <FaTools /> },
-          { label: "센서 2", value: fmt(val2), icon: <FaTools /> },
-        ];
+    if (searchTerm) {
+      handleSearch();
+      alert("최신 LOT 이력 정보로 갱신되었습니다.");
+    } else {
+      alert("추적할 LOT 번호를 먼저 입력해주세요.");
     }
   };
 
   return (
     <div style={styles.container}>
-      {/* 1. Header Section */}
       <div style={styles.header}>
-        <div style={styles.titleGroup}>
-          <div style={styles.titleIcon}>
-            <FaLayerGroup size={22} color="#fff" />
-          </div>
-          <div>
-            <h2 style={styles.pageTitle}>라인 설비 모니터링</h2>
-            <p style={styles.subTitle}>실시간 제조 라인 현황판</p>
-          </div>
+        <div style={styles.headerLeft}>
+          <h2 style={styles.pageTitle}>🔍 LOT 통합 추적 (Genealogy)</h2>
+          <p style={styles.pageSubtitle}>
+            원자재의 입고부터 공정 이동, 제품 생산까지의 전체 이력을 조회합니다.
+          </p>
         </div>
-
-        {/* 우측 컨트롤 그룹 */}
-        <div style={styles.headerControls}>
+        {/* [추가] 새로고침 버튼 */}
+        <div style={styles.headerRight}>
           <button style={styles.refreshBtn} onClick={handleManualRefresh}>
             <FaSyncAlt /> 새로고침
           </button>
-
-          <div style={styles.legend}>
-            <StatusLegend color={COLORS.success} label="가동중" />
-            <StatusLegend color={COLORS.danger} label="점검필요" />
-            <StatusLegend color={COLORS.stop} label="비가동" />
-          </div>
         </div>
       </div>
 
-      {/* 2. Filter Bar */}
-      <div style={styles.filterBar}>
-        <div style={styles.filterGroup}>
-          <FaFilter color={COLORS.subText} />
-          <span style={styles.filterLabel}>Filter By:</span>
-          <select
-            style={styles.select}
-            value={selectedLine}
-            onChange={(e) => setSelectedLine(e.target.value)}
-          >
-            <option value="ALL">전체 라인</option>
-            {lineOptions.map(
-              (line) =>
-                line !== "ALL" && (
-                  <option key={line} value={line}>
-                    {line} 라인
-                  </option>
-                ),
-            )}
-          </select>
-
-          <select
-            style={styles.select}
-            value={selectedProcess}
-            onChange={(e) => setSelectedProcess(e.target.value)}
-          >
-            <option value="ALL">전체 공정</option>
-            {processOptions.map(
-              (proc) =>
-                proc !== "ALL" && (
-                  <option key={proc} value={proc}>
-                    {proc}
-                  </option>
-                ),
-            )}
-          </select>
-        </div>
-
-        <div style={styles.searchWrapper}>
-          <FaSearch color={COLORS.subText} style={{ marginRight: "8px" }} />
+      <div style={styles.searchSection}>
+        <form onSubmit={handleSearch} style={styles.searchBar}>
+          <FaBarcode size={20} color={COLORS.gray} />
           <input
             type="text"
+            placeholder="Scan LOT ID (e.g., LOT-KITB-260125-001)"
             style={styles.searchInput}
-            placeholder="설비명 또는 코드 검색..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
-        </div>
+          <button type="submit" style={styles.searchBtn}>
+            <FaSearch /> 조회
+          </button>
+        </form>
       </div>
 
-      {/* 3. Equipment Grid */}
       {loading ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "40px",
-            color: COLORS.subText,
-          }}
-        >
-          데이터를 불러오는 중입니다...
+        <div style={styles.loadingArea}>데이터 추적 중...</div>
+      ) : lotData ? (
+        <div style={styles.resultContainer}>
+          {/* [좌측] LOT 기본 정보 */}
+          <div style={styles.leftPanel}>
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>📦 LOT Information</h3>
+                <StatusBadge status={lotData.status} />
+              </div>
+              <div style={styles.lotIdBox}>
+                <span style={{ fontSize: "12px", color: "#888" }}>LOT No.</span>
+                <div style={styles.lotIdText}>{lotData.lotCode}</div>
+              </div>
+              <div style={styles.infoGrid}>
+                <InfoRow label="품목명(Kit)" value={lotData.matName} />
+                <InfoRow label="품목코드" value={lotData.matCode} />
+                <InfoRow label="공급/제조사" value={lotData.company} />
+                <InfoRow label="초기수량" value={`${lotData.initialQty} ea`} />
+                <InfoRow
+                  label="현재재고"
+                  value={`${lotData.currentQty} ea`}
+                  highlight
+                />
+                <InfoRow label="생성일(입고)" value={lotData.createdAt} />
+              </div>
+              <div style={styles.specialInfo}>
+                <div style={styles.iconRow}>
+                  <FaThermometerHalf color={COLORS.info} />
+                  <span>보관: 실온(Room Temp)</span>
+                </div>
+                <div style={styles.iconRow}>
+                  <FaCalendarAlt color={COLORS.warning} />
+                  <span>유효기간: 정상</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* [우측] 이력 타임라인 */}
+          <div style={styles.rightPanel}>
+            <div style={styles.card}>
+              <h3 style={styles.cardTitle}>
+                <FaSitemap /> Process History (이력 추적)
+              </h3>
+              <div style={styles.timeline}>
+                {/* 1. 입고 로그 */}
+                <div style={styles.timelineItem}>
+                  <div style={styles.timelineDotStart} />
+                  <div style={styles.timelineContent}>
+                    <div style={styles.stepTitle}>LOT Created (입고/생성)</div>
+                    <div style={styles.stepDesc}>
+                      <FaCalendarAlt
+                        style={{ marginRight: 5, flexShrink: 0 }}
+                      />
+                      {lotData.createdAt}
+                    </div>
+                    <div style={styles.stepDesc}>
+                      최초 수량: {lotData.initialQty} ea
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. 공정 로그 */}
+                {(lotData.logs || []).map((log, idx) => {
+                  const isProductMade = log.serial && log.serial !== "null";
+                  return (
+                    <div key={idx} style={styles.timelineItem}>
+                      <div style={styles.timelineLine} />
+                      <div
+                        style={{
+                          ...styles.timelineDot,
+                          backgroundColor: isProductMade
+                            ? COLORS.primary
+                            : COLORS.gray,
+                        }}
+                      >
+                        {isProductMade ? (
+                          <FaBoxOpen color="white" size={10} />
+                        ) : (
+                          <FaTruckLoading color="white" size={10} />
+                        )}
+                      </div>
+
+                      <div style={styles.timelineContent}>
+                        <div style={styles.stepTitle}>
+                          Step {idx + 1}: {log.procName}
+                        </div>
+                        <div style={styles.stepDesc}>
+                          <FaCalendarAlt
+                            style={{ marginRight: 5, flexShrink: 0 }}
+                          />
+                          {log.prodAt}
+                          <span style={{ marginLeft: 10 }}>
+                            수량 변동: {log.qty}
+                          </span>
+                        </div>
+
+                        {/* 충돌 해결: 데이터 박스 표시 로직 유지 */}
+                        {log.processData && (
+                          <div style={styles.logDataBox}>{log.processData}</div>
+                        )}
+
+                        {isProductMade ? (
+                          <div style={styles.productBadge}>
+                            <span style={{ color: "#666" }}>
+                              Output Product:
+                            </span>
+                            <span style={styles.productSerial}>
+                              {log.serial}
+                            </span>
+                          </div>
+                        ) : (
+                          <div style={styles.infoText}>
+                            * 공정 이동 / 자재 소모 단계
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {(!lotData.logs || lotData.logs.length === 0) && (
+                  <div style={styles.noHistory}>
+                    - 추가 이동/가공 이력이 없습니다 -
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
-        <div style={styles.grid}>
-          {filteredMachines.length > 0 ? (
-            filteredMachines.map((machine) => (
-              <EquipmentCard
-                key={machine.id}
-                data={machine}
-                onClick={() => navigate(`/equipment/detail/${machine.eqCode}`)}
-              />
-            ))
-          ) : (
-            <div
-              style={{
-                gridColumn: "1 / -1",
-                textAlign: "center",
-                padding: "40px",
-                color: COLORS.subText,
-              }}
-            >
-              검색 결과가 없습니다.
-            </div>
-          )}
+        <div style={styles.emptyState}>
+          추적할 LOT 번호를 입력해주세요.
+          <br />
+          (예: 원자재 LOT, 공정 LOT 등)
         </div>
       )}
     </div>
   );
 };
 
-// --- Sub Components ---
-
-const EquipmentCard = ({ data, onClick }) => {
-  const getStatusColor = (s) => {
-    if (s === "RUN") return COLORS.success;
-    if (s === "ERROR") return COLORS.danger;
-    return COLORS.stop;
-  };
-  const statusColor = getStatusColor(data.status);
-
-  const getStatusText = (s) => {
-    if (s === "RUN") return "가동중";
-    if (s === "ERROR") return "점검필요";
-    return "비가동";
-  };
-
-  const getIcon = (type) => {
-    switch (type) {
-      case "CLEANER":
-        return <MdCleaningServices />;
-      case "BONDER":
-        return <FaLayerGroup />;
-      case "AUTOCLAVE":
-        return <FaCompressArrowsAlt />;
-      case "AGING":
-        return <FaHistory />;
-      case "VISION":
-        return <FaMicroscope />;
-      case "MOUNTER":
-        return <FaLayerGroup />;
-      case "ROBOT":
-        return <FaRobot />;
-      case "CALIBRATOR":
-        return <FaSlidersH />;
-      case "VIBRATION":
-        return <FaWaveSquare />;
-      default:
-        return <FaTools />;
-    }
-  };
-
-  return (
-    <div
-      style={{ ...styles.card, borderTop: `4px solid ${statusColor}` }}
-      onClick={onClick}
-    >
-      <div style={styles.cardHeader}>
-        <span style={styles.processBadge}>{data.process}</span>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            fontWeight: "bold",
-            fontSize: "12px",
-            color: statusColor,
-          }}
-        >
-          {data.status === "RUN" && <FaPlayCircle size={14} />}
-          {data.status === "ERROR" && <FaExclamationTriangle size={14} />}
-          {data.status === "STOP" && <FaStopCircle size={14} />}
-          {getStatusText(data.status)}
-        </div>
-      </div>
-
-      <div style={styles.nameSection}>
-        <div
-          style={{
-            ...styles.iconBox,
-            backgroundColor: `${COLORS.primary}15`,
-            color: COLORS.primary,
-          }}
-        >
-          {getIcon(data.type)}
-        </div>
-        <div>
-          <h3 style={styles.machineName}>{data.name}</h3>
-          <span style={styles.machineId}>{data.eqCode}</span>
-        </div>
-      </div>
-
-      <div style={styles.metricGrid}>
-        {data.metrics.map((m, i) => (
-          <div key={i} style={styles.metricItem}>
-            <span style={styles.metricLabel}>
-              {m.icon} {m.label}
-            </span>
-            <span style={styles.metricValue}>{m.value}</span>
-          </div>
-        ))}
-      </div>
-
-      <div style={styles.cardFooter}>
-        <div style={styles.footerItem}>
-          <span style={styles.footerLabel}>담당자</span>
-          <span style={styles.footerValue}>{data.operator}</span>
-        </div>
-        <div style={{ ...styles.footerItem, textAlign: "right" }}>
-          <span style={styles.footerLabel}>가동 시간</span>
-          <span style={styles.footerValue}>{data.uptime}</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const StatusLegend = ({ color, label }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-    <div
-      style={{
-        width: "10px",
-        height: "10px",
-        borderRadius: "50%",
-        backgroundColor: color,
-      }}
-    ></div>
+// --- 서브 컴포넌트 ---
+const InfoRow = ({ label, value, highlight }) => (
+  <div style={styles.row}>
+    <span style={{ fontSize: "13px", color: "#888" }}>{label}</span>
     <span
-      style={{ fontSize: "12px", color: COLORS.subText, fontWeight: "600" }}
+      style={{
+        fontSize: "13px",
+        fontWeight: "bold",
+        color: highlight ? COLORS.primary : "#333",
+        wordBreak: "break-all",
+      }}
     >
-      {label}
+      {value || "-"}
     </span>
   </div>
 );
 
-// --- Styles ---
+const StatusBadge = ({ status }) => {
+  const isOk = status === "AVAILABLE" || status === "IN_USE" || status === "OK";
+  const color = isOk ? COLORS.success : COLORS.gray;
+  return (
+    <span
+      style={{ ...styles.badge, color: color, backgroundColor: `${color}15` }}
+    >
+      {status}
+    </span>
+  );
+};
+
+// --- 스타일 ---
 const styles = {
   container: {
-    padding: "30px",
+    padding: "20px",
     backgroundColor: COLORS.bg,
     minHeight: "100vh",
-    fontFamily: "'Inter', sans-serif",
+    boxSizing: "border-box",
+    width: "100%",
+    maxWidth: "100%",
+    overflowX: "hidden",
   },
+
+  // [충돌 해결] 헤더 Flex 스타일 적용 (새로고침 버튼 배치용)
   header: {
+    marginBottom: "15px",
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginBottom: "20px",
-  },
-  titleGroup: { display: "flex", alignItems: "center", gap: "12px" },
-  titleIcon: {
-    width: "42px",
-    height: "42px",
-    borderRadius: "10px",
-    backgroundColor: COLORS.primary,
-    color: "white",
-    display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    boxShadow: "0 4px 10px rgba(140,133,255,0.4)",
   },
+  headerLeft: {
+    flex: 1,
+  },
+  headerRight: {
+    flexShrink: 0,
+  },
+
   pageTitle: {
     fontSize: "20px",
-    fontWeight: "700",
+    fontWeight: "bold",
     color: COLORS.text,
     margin: 0,
   },
-  subTitle: { fontSize: "13px", color: COLORS.subText, marginTop: "2px" },
-  headerControls: { display: "flex", alignItems: "center", gap: "15px" },
+  pageSubtitle: { fontSize: "13px", color: COLORS.gray, marginTop: "4px" },
 
+  // [추가] 새로고침 버튼 스타일
   refreshBtn: {
     display: "flex",
     alignItems: "center",
     gap: "6px",
-    padding: "0 20px", // 20px 패딩
     backgroundColor: "white",
-    border: `1px solid ${COLORS.primary}`, // 보라색 테두리
-    borderRadius: "12px", // 둥근 모서리 12px
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: "8px",
+    padding: "8px 16px",
     cursor: "pointer",
     fontWeight: "bold",
-    color: COLORS.primary, // 보라색 글씨
-    fontSize: "14px",
-    height: "40px", // 높이 40px
-    boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-    transition: "background 0.2s",
+    color: "#555",
+    fontSize: "13px",
   },
 
-  legend: {
+  searchSection: { marginBottom: "20px" },
+
+  // [충돌 해결] 스타일 통합
+  searchBar: {
     display: "flex",
-    gap: "15px",
-    backgroundColor: "white",
-    padding: "0 16px",
-    height: "40px",
-    alignItems: "center",
-    borderRadius: "20px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
-  },
-  filterBar: {
-    display: "flex",
-    justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "white",
-    padding: "15px 20px",
-    borderRadius: "16px",
-    marginBottom: "25px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-  },
-  filterGroup: { display: "flex", alignItems: "center", gap: "12px" },
-  filterLabel: {
-    fontSize: "13px",
-    fontWeight: "600",
-    color: COLORS.subText,
-    marginRight: "4px",
-  },
-  select: {
-    padding: "8px 12px",
+    padding: "8px 15px",
     borderRadius: "8px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)", // 그림자 추가
     border: `1px solid ${COLORS.border}`,
-    backgroundColor: COLORS.bg,
-    color: COLORS.text,
-    fontSize: "13px",
-    fontWeight: "500",
-    outline: "none",
-    cursor: "pointer",
-  },
-  searchWrapper: {
-    display: "flex",
-    alignItems: "center",
-    backgroundColor: COLORS.bg,
-    borderRadius: "8px",
-    padding: "8px 12px",
-    border: `1px solid transparent`,
-    width: "250px",
-  },
-  searchInput: {
-    border: "none",
-    background: "transparent",
-    outline: "none",
-    fontSize: "13px",
-    color: COLORS.text,
+    maxWidth: "500px",
     width: "100%",
   },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-    gap: "20px",
+  searchInput: {
+    flex: 1,
+    border: "none",
+    outline: "none",
+    fontSize: "14px",
+    marginLeft: "10px",
   },
-  card: {
-    backgroundColor: COLORS.cardBg,
-    borderRadius: "16px",
-    padding: "20px",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
+  searchBtn: {
+    backgroundColor: COLORS.primary,
+    color: "white",
+    border: "none",
+    padding: "6px 16px",
+    borderRadius: "6px",
     cursor: "pointer",
-    transition: "all 0.2s ease-in-out",
+    fontWeight: "bold",
     display: "flex",
-    flexDirection: "column",
+    gap: "5px",
+    fontSize: "13px",
+  },
+
+  loadingArea: {
+    textAlign: "center",
+    padding: "40px",
+    color: "#999",
+    fontSize: "14px",
+  },
+
+  resultContainer: {
+    display: "flex",
     gap: "15px",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    width: "100%",
+  },
+
+  leftPanel: {
+    flex: "1 1 280px",
+    minWidth: "250px",
+    maxWidth: "350px",
+    position: "sticky",
+    top: "20px",
+  },
+
+  // [충돌 해결] 텍스트 흘러넘침 방지 스타일 적용
+  rightPanel: {
+    flex: "999 1 300px",
+    minWidth: "0", // 줄어들기 허용 (중요)
+    width: "100%", // 가로 꽉 채우기
+    overflow: "hidden", // 자식이 커져도 부모 크기를 유지하도록 강제
+  },
+
+  card: {
+    backgroundColor: "white",
+    borderRadius: "10px",
+    padding: "20px",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+    border: `1px solid ${COLORS.border}`,
   },
   cardHeader: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
+    marginBottom: "15px",
+    paddingBottom: "10px",
+    borderBottom: "1px solid #f0f0f0",
   },
-  processBadge: {
-    fontSize: "11px",
-    fontWeight: "700",
-    color: COLORS.subText,
-    backgroundColor: "#F5F5F5",
-    padding: "4px 8px",
+  cardTitle: {
+    fontSize: "15px",
+    fontWeight: "bold",
+    color: "#333",
+    display: "flex",
+    gap: "6px",
+    margin: 0,
+  },
+
+  lotIdBox: {
+    backgroundColor: "#F8F9FA",
+    padding: "12px",
     borderRadius: "6px",
+    textAlign: "center",
+    marginBottom: "15px",
+    border: `1px solid ${COLORS.border}`,
   },
-  nameSection: { display: "flex", alignItems: "center", gap: "12px" },
-  iconBox: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "10px",
+  lotIdText: {
+    fontSize: "18px",
+    fontWeight: "bold",
+    color: COLORS.dark,
+    wordBreak: "break-all",
+  },
+
+  infoGrid: { display: "flex", flexDirection: "column", gap: "2px" },
+  specialInfo: {
+    marginTop: "15px",
+    padding: "12px",
+    backgroundColor: "#FFF8E1",
+    borderRadius: "6px",
+    border: `1px solid ${COLORS.warning}30`,
+  },
+  iconRow: {
+    display: "flex",
+    gap: "8px",
+    marginBottom: "4px",
+    fontSize: "12px",
+    fontWeight: "600",
+    color: "#555",
+  },
+
+  timeline: { padding: "5px 0 0 5px" },
+  timelineItem: {
+    position: "relative",
+    paddingBottom: "25px",
+    paddingLeft: "25px",
+  },
+  timelineLine: {
+    position: "absolute",
+    left: "7px",
+    top: "5px",
+    bottom: "-5px",
+    width: "2px",
+    backgroundColor: "#e0e0e0",
+  },
+  timelineDotStart: {
+    position: "absolute",
+    left: "0",
+    top: "4px",
+    width: "14px",
+    height: "14px",
+    borderRadius: "50%",
+    backgroundColor: COLORS.success,
+    border: "2px solid white",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+    zIndex: 2,
+  },
+  timelineDot: {
+    position: "absolute",
+    left: "0",
+    top: "4px",
+    width: "16px",
+    height: "16px",
+    borderRadius: "50%",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "20px",
+    zIndex: 2,
+    backgroundColor: "white",
+    border: "1px solid #eee",
   },
-  machineName: {
-    margin: 0,
-    fontSize: "16px",
-    fontWeight: "700",
-    color: COLORS.text,
-  },
-  machineId: { fontSize: "12px", color: COLORS.subText },
-  metricGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "10px",
-    backgroundColor: "#F8F9FA",
+
+  // [충돌 해결] 타임라인 컨텐츠 박스 강제 크기 조절
+  timelineContent: {
+    backgroundColor: "#fff",
     padding: "12px",
-    borderRadius: "10px",
+    borderRadius: "6px",
+    border: "1px solid #eee",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+    fontSize: "13px",
+    width: "100%",
+    boxSizing: "border-box",
+    wordBreak: "break-all",
+    overflowWrap: "anywhere",
   },
-  metricItem: { display: "flex", flexDirection: "column", gap: "2px" },
-  metricLabel: {
+
+  stepTitle: {
+    fontWeight: "bold",
+    fontSize: "13px",
+    color: "#333",
+    marginBottom: "3px",
+    wordBreak: "break-all",
+    lineHeight: "1.4",
+  },
+  stepDesc: {
     fontSize: "11px",
-    color: COLORS.subText,
+    color: "#666",
     display: "flex",
-    alignItems: "center",
-    gap: "4px",
+    alignItems: "flex-start",
+    marginBottom: "2px",
+    flexWrap: "wrap",
+    lineHeight: "1.4",
+    wordBreak: "break-all",
   },
-  metricValue: { fontSize: "14px", fontWeight: "700", color: COLORS.text },
-  cardFooter: {
+
+  // [충돌 해결] 데이터 로그 박스 스타일 유지
+  logDataBox: {
+    marginTop: "8px",
+    padding: "10px",
+    backgroundColor: "#f8f9fa",
+    borderRadius: "4px",
+    border: "1px solid #eee",
+    fontSize: "11px",
+    color: "#333",
+    fontFamily: "monospace",
+    display: "block",
+    width: "100%",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-all",
+    overflowWrap: "anywhere",
+    boxSizing: "border-box",
+  },
+
+  productBadge: {
+    marginTop: "6px",
+    padding: "4px 8px",
+    backgroundColor: "#F3F1FF",
+    borderRadius: "4px",
+    fontSize: "11px",
+    display: "inline-flex",
+    alignItems: "center",
+    border: `1px solid ${COLORS.primary}30`,
+    maxWidth: "100%",
+    flexWrap: "wrap",
+  },
+  productSerial: {
+    fontWeight: "bold",
+    color: COLORS.primary,
+    marginLeft: 5,
+    wordBreak: "break-all",
+  },
+  infoText: {
+    marginTop: "4px",
+    fontSize: "10px",
+    color: "#bbb",
+    fontStyle: "italic",
+  },
+
+  row: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    borderTop: `1px solid ${COLORS.border}`,
-    paddingTop: "12px",
-    marginTop: "auto",
+    padding: "6px 0",
+    borderBottom: "1px solid #f9f9f9",
   },
-  footerItem: { display: "flex", flexDirection: "column" },
-  footerLabel: { fontSize: "10px", color: COLORS.subText, marginBottom: "2px" },
-  footerValue: { fontSize: "12px", fontWeight: "600", color: COLORS.text },
+  badge: {
+    fontSize: "10px",
+    fontWeight: "bold",
+    padding: "3px 8px",
+    borderRadius: "4px",
+  },
+  emptyState: {
+    textAlign: "center",
+    padding: "60px",
+    color: "#ccc",
+    fontSize: "16px",
+    border: "2px dashed #e0e0e0",
+    borderRadius: "12px",
+    width: "100%",
+    boxSizing: "border-box",
+  },
+  noHistory: { padding: "20px", textAlign: "center", color: "#999" },
 };
 
-export default EquipmentList;
+export default LotTracking;
