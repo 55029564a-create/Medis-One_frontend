@@ -63,6 +63,27 @@ const WorkReport = () => {
     qty: "",
   });
 
+  // [추가] 불량 유형 데이터 가져오기
+  useEffect(() => {
+    const fetchDefectTypes = async () => {
+      setIsDefectLoading(true);
+      try {
+        // API 호출
+        const data = await getDefectTypes();
+        // 데이터가 있으면 State에 저장
+        if (data && Array.isArray(data)) {
+          setDefectTypes(data);
+        }
+      } catch (error) {
+        console.error("불량 유형 조회 실패", error);
+      } finally {
+        setIsDefectLoading(false);
+      }
+    };
+
+    fetchDefectTypes();
+  }, []);
+
   useEffect(() => {
     fetchData();
     fetchHistory();
