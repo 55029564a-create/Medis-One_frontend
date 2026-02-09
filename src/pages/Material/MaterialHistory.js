@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { getMaterialHistory } from "../../api/materialApi";
-import { QRCodeSVG } from "qrcode.react"; // [필수] npm install qrcode.react
+import { QRCodeSVG } from "qrcode.react";
 
 import {
   FaFileExcel,
@@ -9,7 +9,7 @@ import {
   FaArrowUp,
   FaArrowDown,
   FaExchangeAlt,
-  FaEye, // ✅ 눈 모양 아이콘
+  FaEye,
   FaTimes,
   FaCheckCircle,
   FaExclamationCircle,
@@ -246,6 +246,43 @@ const MaterialHistory = () => {
     setLotTimeline([]);
   };
 
+  // --- 버튼 스타일 정의 (다른 페이지와 통일) ---
+  const btnStyles = {
+    // [새로고침] 흰색 배경 + 보라색 테두리
+    refresh: {
+      height: "40px",
+      padding: "0 20px",
+      borderRadius: "12px",
+      backgroundColor: "#fff",
+      color: COLORS.primary,
+      border: `1px solid ${COLORS.primary}`,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+      fontWeight: "bold",
+      fontSize: "14px",
+      boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+      transition: "background 0.2s",
+    },
+
+    excel: {
+      height: "40px",
+      padding: "0 20px",
+      borderRadius: "12px",
+      backgroundColor: "#217346",
+      color: "#fff",
+      border: "none",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+      fontWeight: "bold",
+      fontSize: "14px",
+      boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+    },
+  };
+
   return (
     <>
       <style>{`
@@ -290,7 +327,7 @@ const MaterialHistory = () => {
       `}</style>
 
       <div className="history-container">
-        {/* 헤더 및 툴바 생략 (기존 유지) */}
+        {/* 헤더 */}
         <div className="page-header">
           <div>
             <h2
@@ -308,30 +345,11 @@ const MaterialHistory = () => {
             </p>
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
-            <button
-              className="btn-action"
-              onClick={handleManualRefresh}
-              style={{
-                backgroundColor: "white",
-                color: "#555",
-                border: "1px solid #E0E0E0",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
+            <button onClick={handleManualRefresh} style={btnStyles.refresh}>
               <FaSyncAlt /> 새로고침
             </button>
-            <button
-              className="btn-action"
-              onClick={handleDownloadExcel}
-              style={{
-                backgroundColor: "#217346",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
+
+            <button onClick={handleDownloadExcel} style={btnStyles.excel}>
               <FaFileExcel /> 엑셀 다운로드
             </button>
           </div>
@@ -455,7 +473,6 @@ const MaterialHistory = () => {
                 >
                   상세
                 </th>
-                {/* ✅ "상세" 텍스트 적용 */}
               </tr>
             </thead>
             <tbody>
@@ -522,7 +539,7 @@ const MaterialHistory = () => {
                           justifyContent: "center",
                         }}
                       >
-                        <FaEye /> {/* ✅ 눈 모양 아이콘 */}
+                        <FaEye />
                       </button>
                     </td>
                   </tr>
@@ -544,7 +561,7 @@ const MaterialHistory = () => {
               )}
             </tbody>
           </table>
-          {/* 페이지네이션 생략 (기존과 동일) */}
+          {/* 페이지네이션 */}
           {totalPages > 0 && (
             <div
               style={{
@@ -613,7 +630,7 @@ const MaterialHistory = () => {
         </div>
       </div>
 
-      {/* ✅ [모달] 인벤토리와 디자인 통일 (QR + 타임라인) */}
+      {/* 모달 */}
       {isModalOpen && selectedItem && (
         <div
           style={{

@@ -312,7 +312,7 @@ const MaterialInout = () => {
     }
   };
 
-  // ✅ [수정] 전체 내역 버튼 클릭 시, 히스토리 페이지가 새로고침 되도록 설정
+  // ✅ 전체 내역 버튼 클릭 시, 히스토리 페이지가 새로고침 되도록 설정
   const handleGoToHistory = () => {
     navigate("/material/history", { state: { refresh: true } });
   };
@@ -329,6 +329,45 @@ const MaterialInout = () => {
       justifyContent: "space-between",
       alignItems: "center",
     },
+
+    refreshBtn: {
+      height: "40px", // 높이 40px
+      padding: "0 20px", // 좌우 여백 20px
+      borderRadius: "12px", // 둥근 모서리 12px
+      backgroundColor: "#fff",
+      color: COLORS.primary,
+      border: `1px solid ${COLORS.primary}`,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "6px",
+      fontWeight: "bold",
+      fontSize: "14px", // 폰트 크기 14px
+      boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+      transition: "background 0.2s",
+      boxSizing: "border-box", // 테두리 포함 크기 계산
+    },
+
+    historyBtn: {
+      height: "40px", // 높이 40px
+      padding: "0 20px", // 좌우 여백 20px
+      borderRadius: "12px", // 둥근 모서리 12px
+      backgroundColor: "#fff",
+      color: "#555",
+      border: `1px solid ${COLORS.border}`,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "6px",
+      fontWeight: "bold",
+      fontSize: "14px", // 폰트 크기 14px
+      boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+      transition: "background 0.2s",
+      boxSizing: "border-box", // 테두리 포함 크기 계산
+    },
+
     statsGrid: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr 1fr",
@@ -497,41 +536,11 @@ const MaterialInout = () => {
             </h2>
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
-            <button
-              onClick={handleManualRefresh}
-              style={{
-                padding: "8px 16px",
-                backgroundColor: "#fff",
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: "8px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                fontWeight: "bold",
-                color: "#555",
-                fontSize: "13px",
-              }}
-            >
+            <button onClick={handleManualRefresh} style={styles.refreshBtn}>
               <FaSyncAlt /> 새로고침
             </button>
 
-            <button
-              onClick={handleGoToHistory}
-              style={{
-                padding: "8px 16px",
-                backgroundColor: "#fff",
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: "8px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                fontWeight: "bold",
-                color: "#555",
-                fontSize: "13px",
-              }}
-            >
+            <button onClick={handleGoToHistory} style={styles.historyBtn}>
               <FaHistory /> 전체 내역
             </button>
           </div>
@@ -562,7 +571,7 @@ const MaterialInout = () => {
           />
         </div>
 
-        {/* 입력 섹션 */}
+        {/* 입력 섹션 (나머지 코드는 동일하게 유지) */}
         <div style={styles.inputSection}>
           <div style={styles.sectionHeader}>
             <div>

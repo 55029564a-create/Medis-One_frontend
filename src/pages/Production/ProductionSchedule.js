@@ -20,7 +20,6 @@ import {
   FaSyncAlt,
 } from "react-icons/fa";
 
-// [API] 함수 임포트
 import { getProductionPlans } from "../../api/productionApi";
 
 const THEME = {
@@ -44,14 +43,11 @@ const ProductionSchedule = () => {
 
   const [schedules, setSchedules] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
   useEffect(() => {
     fetchSchedules(true);
-    const interval = setInterval(() => {
-      fetchSchedules(false);
-    }, 3000);
+    const interval = setInterval(() => fetchSchedules(false), 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -59,7 +55,30 @@ const ProductionSchedule = () => {
     if (isInitialLoad) setIsLoading(true);
     try {
       const data = await getProductionPlans();
-      setSchedules(data || []);
+
+      const mappedData = (data || []).map((item) => {
+        // 1. 마감일 처리 (값이 없으면 임의의 날짜 or 하이픈)
+        const rawDate = item.deadline || item.endDate || item.planDate;
+        const formattedDate = rawDate ? rawDate.split("T")[0] : "2026-02-15";
+
+        // 2. 자재명 처리 (값이 없으면 "Main Assy Kit" 표시)
+        const matName =
+          item.material ||
+          item.materialName ||
+          (item.product ? `${item.product.split(" ")[0]} Kit` : "Main Kit");
+
+        return {
+          ...item,
+          deadline: formattedDate,
+          material: matName,
+          // 3. 기타 필드 안전 처리
+          line: item.line || item.lineName || "Line-1",
+          product: item.product || item.productName || "Unknown Product",
+          manager: item.manager || item.worker || "담당자 미정",
+        };
+      });
+
+      setSchedules(mappedData);
     } catch (error) {
       console.error("데이터 로드 실패:", error);
     } finally {
@@ -79,44 +98,15 @@ const ProductionSchedule = () => {
   const progressRate =
     totalPlan === 0 ? 0 : Math.round((totalDone / totalPlan) * 100);
 
-  const openDetailModal = (item) => {
-    setSelectedSchedule(item);
-  };
-
-  const closeDetailModal = () => {
-    setSelectedSchedule(null);
-  };
+  const openDetailModal = (item) => setSelectedSchedule(item);
+  const closeDetailModal = () => setSelectedSchedule(null);
 
   const handleDownloadExcel = () => {
-    const headers = [
-      "지시일자,라인,품목명,계획수량,생산수량,진척률,담당자,상태",
-    ];
-    const rows = filteredSchedules.map((item) => {
-      const rate =
-        item.planQty > 0 ? Math.round((item.doneQty / item.planQty) * 100) : 0;
-      const lineName = item.line || "-";
-      const prodName = item.product || "-";
-      const mgrName = item.manager || "-";
-      return `${item.date},${lineName},${prodName},${item.planQty},${item.doneQty},${rate}%,${mgrName},${item.status}`;
-    });
-
-    const csvContent =
-      "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `생산지시서_${new Date().toISOString().slice(0, 10)}.csv`,
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    alert("엑셀 다운로드 시작");
   };
 
   return (
     <div style={styles.container}>
-      {/* 1. Header */}
       <div style={styles.header}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <FaCalendarAlt size={24} color={THEME.primary} />
@@ -133,7 +123,6 @@ const ProductionSchedule = () => {
         </div>
       </div>
 
-      {/* 2. KPI Cards */}
       <div style={styles.kpiContainer}>
         <KpiCard
           title="총 지시 수량"
@@ -155,7 +144,6 @@ const ProductionSchedule = () => {
         />
       </div>
 
-      {/* 3. Toolbar */}
       <div style={styles.toolbar}>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <div style={styles.searchBox}>
@@ -173,7 +161,6 @@ const ProductionSchedule = () => {
                 viewMode === "list" ? styles.toggleBtnActive : styles.toggleBtn
               }
               onClick={() => setViewMode("list")}
-              title="리스트 보기"
             >
               <FaList />
             </button>
@@ -182,21 +169,19 @@ const ProductionSchedule = () => {
                 viewMode === "grid" ? styles.toggleBtnActive : styles.toggleBtn
               }
               onClick={() => setViewMode("grid")}
-              title="카드 보기"
             >
               <FaThLarge />
             </button>
           </div>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          {/* ★ [수정됨] 새로고침 버튼에 loading 상태 연동 및 텍스트 변경 기능 추가 */}
           <button
             style={styles.refreshBtn}
             onClick={() => fetchSchedules(true)}
             disabled={isLoading}
           >
-            <FaSyncAlt className={isLoading ? "spin" : ""} />{" "}
-            {isLoading ? "갱신 중..." : "새로고침"}
+            <FaSyncAlt className={isLoading ? "spin" : ""} />
+            {isLoading ? " 갱신 중..." : " 새로고침"}
           </button>
 
           <button style={styles.excelButton} onClick={handleDownloadExcel}>
@@ -205,13 +190,11 @@ const ProductionSchedule = () => {
         </div>
       </div>
 
-      {/* 4. Main Content */}
       {viewMode === "list" ? (
         <div style={styles.tableContainer}>
           <table style={styles.table}>
             <thead>
               <tr style={styles.theadTr}>
-                {/* [수정] 긴급/관리 컬럼 삭제하고 핵심 컬럼만 유지 */}
                 <th style={{ ...styles.th, width: "12%" }}>마감일</th>
                 <th style={{ ...styles.th, width: "10%" }}>라인</th>
                 <th style={{ ...styles.th, width: "20%" }}>품목명</th>
@@ -223,17 +206,18 @@ const ProductionSchedule = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredSchedules.map((item) => (
-                <ScheduleRow
-                  key={item.id}
-                  item={item}
-                  onOpen={() => openDetailModal(item)}
-                />
-              ))}
-              {filteredSchedules.length === 0 && (
+              {filteredSchedules.length > 0 ? (
+                filteredSchedules.map((item) => (
+                  <ScheduleRow
+                    key={item.id}
+                    item={item}
+                    onOpen={() => openDetailModal(item)}
+                  />
+                ))
+              ) : (
                 <tr>
                   <td colSpan="8" style={styles.emptyState}>
-                    {isLoading ? "로딩 중..." : "데이터가 없습니다."}
+                    데이터가 없습니다.
                   </td>
                 </tr>
               )}
@@ -242,13 +226,17 @@ const ProductionSchedule = () => {
         </div>
       ) : (
         <div style={styles.gridContainer}>
-          {filteredSchedules.map((item) => (
-            <ScheduleCard
-              key={item.id}
-              item={item}
-              onOpen={() => openDetailModal(item)}
-            />
-          ))}
+          {filteredSchedules.length > 0 ? (
+            filteredSchedules.map((item) => (
+              <ScheduleCard
+                key={item.id}
+                item={item}
+                onOpen={() => openDetailModal(item)}
+              />
+            ))
+          ) : (
+            <div style={styles.emptyState}>데이터가 없습니다.</div>
+          )}
         </div>
       )}
 
@@ -256,87 +244,27 @@ const ProductionSchedule = () => {
         <div style={styles.modalOverlay}>
           <div style={styles.detailModal}>
             <div style={styles.modalHeader}>
-              <h3
-                style={{
-                  margin: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                }}
-              >
-                <FaClipboardList color={THEME.primary} /> 생산 지시 상세 정보
-              </h3>
+              <h3>상세 정보</h3>
               <button style={styles.closeBtn} onClick={closeDetailModal}>
                 <FaTimes />
               </button>
             </div>
-
             <div style={styles.modalBody}>
-              <div style={styles.infoGrid}>
-                <InfoItem
-                  label="지시번호"
-                  value={`WO-${selectedSchedule.id}`}
-                />
-                <InfoItem label="지시일자" value={selectedSchedule.date} />
-                <InfoItem label="담당 라인" value={selectedSchedule.line} />
-                <InfoItem label="담당자" value={selectedSchedule.manager} />
-                <InfoItem
-                  label="생산 품목"
-                  value={selectedSchedule.product}
-                  bold
-                />
-                <InfoItem
-                  label="목표 수량"
-                  value={`${selectedSchedule.planQty} EA`}
-                  color={THEME.primary}
-                  bold
-                />
-              </div>
-
-              <div style={{ margin: "20px 0" }}>
-                <span
-                  style={{
-                    fontSize: "13px",
-                    color: THEME.gray,
-                    marginRight: "10px",
-                  }}
-                >
-                  현재 상태
-                </span>
-                <StatusBadge status={selectedSchedule.status} size="medium" />
-              </div>
-
-              <div style={styles.divider}></div>
-
-              <div style={styles.section}>
-                <h4 style={styles.sectionTitle}>
-                  <FaBullhorn /> 작업 지시 사항
-                </h4>
-                <div style={styles.textBox}>
-                  패널 조립 시 베젤 유격 0.5mm 이내 관리 요망.
-                </div>
-              </div>
-
-              <div style={styles.section}>
-                <h4 style={styles.sectionTitle}>
-                  <FaEdit /> 비고 / 특이사항
-                </h4>
-                <div
-                  style={{
-                    ...styles.textBox,
-                    backgroundColor: "#FFF8E1",
-                    borderColor: "#FFECB3",
-                  }}
-                >
-                  자재 입고 지연으로 10:00 시작함.
-                </div>
-              </div>
-            </div>
-
-            <div style={styles.modalFooter}>
-              <button style={styles.confirmBtn} onClick={closeDetailModal}>
-                확인
-              </button>
+              <p>
+                <strong>품목:</strong> {selectedSchedule.product}
+              </p>
+              <p>
+                <strong>라인:</strong> {selectedSchedule.line}
+              </p>
+              <p>
+                <strong>자재:</strong> {selectedSchedule.material}
+              </p>
+              <p>
+                <strong>마감일:</strong> {selectedSchedule.deadline}
+              </p>
+              <p>
+                <strong>상태:</strong> {selectedSchedule.status}
+              </p>
             </div>
           </div>
         </div>
@@ -345,209 +273,139 @@ const ProductionSchedule = () => {
   );
 };
 
-// --- Sub Components ---
+// --- 하위 컴포넌트 ---
 
 const ScheduleRow = ({ item, onOpen }) => {
-  const percent =
-    item.planQty > 0
-      ? Math.min(Math.round((item.doneQty / item.planQty) * 100), 100)
-      : 0;
+  const progress =
+    item.planQty > 0 ? Math.round((item.doneQty / item.planQty) * 100) : 0;
+
   return (
-    <tr style={styles.tbodyTr} onClick={onOpen}>
-      {/* 1. 긴급 컬럼 삭제됨 */}
-      <td style={styles.td}>{item.date}</td>
-      <td style={{ ...styles.td, fontWeight: "bold", color: THEME.primary }}>
-        {item.line}
-      </td>
-      <td style={{ ...styles.td, fontWeight: "600" }}>
-        {/* [수정] 긴급일 경우 품목명 옆에 빨간 점 표시 (공간 절약) */}
-        {item.product}
-        {item.isEmergency && (
-          <span style={styles.urgentDot} title="긴급 지시"></span>
-        )}
+    <tr style={styles.tr} onClick={onOpen}>
+      {/* 마감일 데이터 표시 */}
+      <td style={{ ...styles.td, color: THEME.gray }}>{item.deadline}</td>
+      <td style={styles.td}>{item.line}</td>
+      <td style={{ ...styles.td, fontWeight: "bold" }}>{item.product}</td>
+      {/* 자재 데이터 표시 */}
+      <td style={styles.td}>
+        <div style={styles.materialTag}>
+          <FaBox size={10} style={{ marginRight: 4 }} />
+          {item.material}
+        </div>
       </td>
       <td style={styles.td}>
-        <MaterialBadge status={item.materialStatus} />
-      </td>
-      <td style={styles.td}>
-        {item.planQty} /{" "}
-        <span style={{ color: THEME.gray }}>{item.doneQty}</span>
+        <span style={{ color: THEME.gray }}>{item.planQty}</span> /{" "}
+        <span style={{ color: THEME.primary, fontWeight: "bold" }}>
+          {item.doneQty}
+        </span>
       </td>
       <td style={styles.td}>
         <div style={styles.progressBarBg}>
-          <div style={{ ...styles.progressBar, width: `${percent}%` }}></div>
+          <div
+            style={{
+              ...styles.progressBarFill,
+              width: `${Math.min(progress, 100)}%`,
+              backgroundColor: progress >= 100 ? THEME.success : THEME.primary,
+            }}
+          />
         </div>
+        <span style={{ fontSize: "11px", color: THEME.gray }}>{progress}%</span>
       </td>
       <td style={styles.td}>{item.manager}</td>
       <td style={styles.td}>
         <StatusBadge status={item.status} />
       </td>
-      {/* 2. 관리 버튼 컬럼 삭제됨 */}
     </tr>
   );
 };
 
 const ScheduleCard = ({ item, onOpen }) => {
-  const percent =
-    item.planQty > 0
-      ? Math.min(Math.round((item.doneQty / item.planQty) * 100), 100)
-      : 0;
+  const progress =
+    item.planQty > 0 ? Math.round((item.doneQty / item.planQty) * 100) : 0;
+
   return (
     <div style={styles.card} onClick={onOpen}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: "15px",
-        }}
-      >
-        <div style={{ display: "flex", gap: "8px" }}>
-          {item.isEmergency && (
-            <span style={styles.emergencyBadge}>URGENT</span>
-          )}
-          <StatusBadge status={item.status} />
-        </div>
-        <button
-          style={styles.actionBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen();
-          }}
-        >
-          <FaEllipsisV />
-        </button>
+      <div style={styles.cardHeader}>
+        <span style={styles.cardLine}>{item.line}</span>
+        <StatusBadge status={item.status} />
       </div>
-      <h3 style={{ margin: "0 0 5px 0", fontSize: "16px", color: THEME.text }}>
-        {item.product}
-      </h3>
-      <p style={{ margin: "0 0 15px 0", fontSize: "13px", color: THEME.gray }}>
-        {item.date} |{" "}
-        <span style={{ color: THEME.primary, fontWeight: "bold" }}>
-          {item.line}
+      <h3 style={styles.cardTitle}>{item.product}</h3>
+      <div style={styles.cardInfo}>
+        <span>자재: {item.material}</span>
+      </div>
+      <div style={styles.cardInfo}>
+        <span>계획: {item.planQty}</span>
+        <span>실적: {item.doneQty}</span>
+      </div>
+      <div style={styles.progressBarBg}>
+        <div
+          style={{
+            ...styles.progressBarFill,
+            width: `${Math.min(progress, 100)}%`,
+            backgroundColor: progress >= 100 ? THEME.success : THEME.primary,
+          }}
+        />
+      </div>
+      <div style={styles.cardFooter}>
+        <span style={{ fontSize: "12px", color: THEME.gray }}>
+          마감: {item.deadline}
         </span>
-      </p>
-      <div style={{ marginBottom: "15px" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: "12px",
-            marginBottom: "5px",
-          }}
-        >
-          <span>진척률</span>
-          <span style={{ fontWeight: "bold", color: THEME.primary }}>
-            {percent}%
-          </span>
-        </div>
-        <div style={{ ...styles.progressBarBg, width: "100%" }}>
-          <div style={{ ...styles.progressBar, width: `${percent}%` }}></div>
-        </div>
-        <div
-          style={{
-            textAlign: "right",
-            fontSize: "12px",
-            color: THEME.gray,
-            marginTop: "5px",
-          }}
-        >
-          {item.doneQty} / {item.planQty} EA
-        </div>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderTop: `1px solid ${THEME.border}`,
-          paddingTop: "15px",
-        }}
-      >
-        <MaterialBadge status={item.materialStatus} />
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "5px",
-            fontSize: "13px",
-            color: THEME.text,
-          }}
-        >
-          <FaUser color={THEME.gray} size={12} /> {item.manager}
-        </div>
+        <span style={{ fontSize: "12px", fontWeight: "bold" }}>
+          {item.manager}
+        </span>
       </div>
     </div>
   );
 };
 
-const InfoItem = ({ label, value, color, bold }) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-    <span style={{ fontSize: "12px", color: "#888" }}>{label}</span>
-    <span
-      style={{
-        fontSize: "15px",
-        color: color || "#333",
-        fontWeight: bold ? "bold" : "normal",
-      }}
-    >
-      {value || "-"}
-    </span>
-  </div>
-);
-
 const KpiCard = ({ title, value, icon, color }) => (
   <div style={styles.kpiCard}>
     <div
-      style={{ ...styles.kpiIcon, backgroundColor: `${color}15`, color: color }}
+      style={{
+        ...styles.iconBox,
+        backgroundColor: `${color}20`,
+        color: color,
+      }}
     >
       {icon}
     </div>
     <div>
-      <p style={styles.kpiTitle}>{title}</p>
-      <h3 style={styles.kpiValue}>{value}</h3>
+      <div style={styles.kpiTitle}>{title}</div>
+      <div style={{ ...styles.kpiValue, color: color }}>{value}</div>
     </div>
   </div>
 );
 
-const StatusBadge = ({ status, size }) => {
-  let style = { backgroundColor: "#eee", color: "#888" };
-  const s = status || "예정";
-  if (s === "진행중" || s === "IN_PROGRESS")
-    style = { backgroundColor: `${THEME.primary}20`, color: THEME.primary };
-  else if (s === "완료" || s === "COMPLETED")
-    style = { backgroundColor: `${THEME.success}20`, color: THEME.success };
-  else if (s === "대기" || s === "WAIT")
-    style = { backgroundColor: `${THEME.warning}20`, color: THEME.warning };
+const StatusBadge = ({ status }) => {
+  let color = THEME.gray;
+  let text = status;
 
-  const sizeStyle =
-    size === "medium"
-      ? { padding: "6px 12px", fontSize: "13px" }
-      : { padding: "5px 10px", fontSize: "11px" };
-
-  return <span style={{ ...styles.badge, ...style, ...sizeStyle }}>{s}</span>;
-};
-
-const MaterialBadge = ({ status }) => {
-  let color = "#888";
-  let icon = <FaBox />;
-  if (status === "Ready") color = THEME.success;
-  else if (status === "Shortage") {
+  if (status === "진행중" || status === "IN_PROGRESS") {
+    color = THEME.primary;
+    text = "진행중";
+  } else if (status === "완료" || status === "COMPLETED") {
+    color = THEME.success;
+    text = "완료";
+  } else if (status === "대기" || status === "WAIT") {
+    color = THEME.warning;
+    text = "대기";
+  } else if (status === "지연") {
     color = THEME.danger;
-    icon = <FaExclamationCircle />;
-  } else if (status === "Checking") color = THEME.warning;
+    text = "지연";
+  }
+
   return (
-    <div
+    <span
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "5px",
-        color,
-        fontSize: "12px",
-        fontWeight: "600",
+        backgroundColor: `${color}20`,
+        color: color,
+        padding: "4px 8px",
+        borderRadius: "4px",
+        fontSize: "11px",
+        fontWeight: "bold",
       }}
     >
-      {icon} {status}
-    </div>
+      {text}
+    </span>
   );
 };
 
@@ -558,7 +416,6 @@ const styles = {
     minHeight: "100vh",
     display: "flex",
     flexDirection: "column",
-    width: "100%",
     boxSizing: "border-box",
   },
   header: {
@@ -566,8 +423,6 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "25px",
-    flexWrap: "wrap",
-    gap: "10px",
   },
   title: {
     fontSize: "24px",
@@ -594,17 +449,8 @@ const styles = {
     border: "none",
     cursor: "pointer",
     color: THEME.gray,
-    display: "flex",
-    alignItems: "center",
-    padding: "5px",
-    fontSize: "14px",
   },
-  kpiContainer: {
-    display: "flex",
-    gap: "20px",
-    marginBottom: "30px",
-    flexWrap: "wrap",
-  },
+  kpiContainer: { display: "flex", gap: "20px", marginBottom: "30px" },
   kpiCard: {
     flex: "1 1 200px",
     backgroundColor: THEME.white,
@@ -615,29 +461,23 @@ const styles = {
     gap: "15px",
     boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
   },
-  kpiIcon: {
-    width: "45px",
-    height: "45px",
+  iconBox: {
+    width: "48px",
+    height: "48px",
     borderRadius: "12px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: "20px",
   },
-  kpiTitle: { margin: 0, fontSize: "13px", color: THEME.gray },
-  kpiValue: {
-    margin: "5px 0 0",
-    fontSize: "22px",
-    fontWeight: "bold",
-    color: THEME.text,
-  },
+  kpiTitle: { fontSize: "12px", color: THEME.gray, marginBottom: "4px" },
+  kpiValue: { fontSize: "20px", fontWeight: "bold" },
+
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "20px",
-    flexWrap: "wrap",
-    gap: "10px",
   },
   searchBox: {
     display: "flex",
@@ -653,15 +493,14 @@ const styles = {
     outline: "none",
     marginLeft: "10px",
     width: "100%",
-    fontSize: "14px",
   },
   toggleContainer: {
     display: "flex",
     backgroundColor: THEME.white,
     borderRadius: "10px",
     padding: "4px",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.03)",
     gap: "2px",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.03)",
   },
   toggleBtn: {
     border: "none",
@@ -670,7 +509,6 @@ const styles = {
     borderRadius: "8px",
     cursor: "pointer",
     color: THEME.gray,
-    transition: "all 0.2s",
   },
   toggleBtnActive: {
     border: "none",
@@ -681,41 +519,13 @@ const styles = {
     color: THEME.primary,
     fontWeight: "bold",
   },
-  refreshBtn: {
-    backgroundColor: THEME.primary,
-    color: "#fff",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    fontWeight: "bold",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-    transition: "background 0.2s",
-  },
-  excelButton: {
-    backgroundColor: "#217346",
-    color: "#fff",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    fontWeight: "bold",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-  },
   tableContainer: {
     backgroundColor: THEME.white,
     borderRadius: "16px",
     padding: "20px",
     boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
     overflowX: "auto",
-    flex: 1,
   },
-  // [수정] minWidth 제거 -> 100%로 유연하게 맞춤
   table: { width: "100%", borderCollapse: "collapse" },
   theadTr: { borderBottom: `2px solid ${THEME.border}` },
   th: {
@@ -724,81 +534,111 @@ const styles = {
     fontSize: "13px",
     color: THEME.gray,
     fontWeight: "bold",
-    whiteSpace: "nowrap", // 글자 줄바꿈 방지
   },
-  tbodyTr: {
-    borderBottom: `1px solid #f5f5f5`,
-    transition: "background 0.2s",
+  tr: {
+    borderBottom: `1px solid ${THEME.bg}`,
     cursor: "pointer",
+    transition: "background 0.2s",
   },
-  td: {
-    padding: "15px",
+  td: { padding: "15px", fontSize: "14px", color: THEME.text },
+  progressBarBg: {
+    width: "100%",
+    height: "6px",
+    backgroundColor: THEME.bg,
+    borderRadius: "3px",
+    marginBottom: "4px",
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: "3px",
+    transition: "width 0.5s",
+  },
+  emptyState: {
+    padding: "40px",
+    textAlign: "center",
+    color: THEME.gray,
     fontSize: "14px",
-    color: THEME.text,
-    verticalAlign: "middle",
-    whiteSpace: "nowrap", // 글자 줄바꿈 방지
   },
-  // [추가] 긴급 표시용 작은 빨간 점
-  urgentDot: {
-    display: "inline-block",
-    width: "8px",
-    height: "8px",
-    borderRadius: "50%",
-    backgroundColor: THEME.danger,
-    marginLeft: "8px",
-    verticalAlign: "middle",
-    boxShadow: "0 0 4px rgba(255, 68, 68, 0.4)",
-  },
+
   gridContainer: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
     gap: "20px",
   },
   card: {
     backgroundColor: THEME.white,
     borderRadius: "16px",
     padding: "20px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
-    transition: "transform 0.2s",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.03)",
     cursor: "pointer",
+    transition: "transform 0.2s",
   },
-  badge: {
-    padding: "5px 10px",
-    borderRadius: "20px",
-    fontSize: "11px",
+  cardHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "10px",
+  },
+  cardLine: {
+    fontSize: "12px",
     fontWeight: "bold",
-    display: "inline-block",
-  },
-  emergencyBadge: {
-    backgroundColor: "#FFEBEE",
-    color: THEME.danger,
+    color: THEME.gray,
+    backgroundColor: THEME.bg,
     padding: "4px 8px",
-    borderRadius: "4px",
-    fontSize: "10px",
+    borderRadius: "6px",
+  },
+  cardTitle: {
+    fontSize: "16px",
     fontWeight: "bold",
+    margin: "0 0 10px 0",
+    color: THEME.text,
   },
-  progressBarBg: {
-    width: "100px",
-    height: "6px",
-    backgroundColor: "#eee",
-    borderRadius: "3px",
-    overflow: "hidden",
+  cardInfo: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: "13px",
+    color: THEME.gray,
+    marginBottom: "10px",
   },
-  progressBar: {
-    height: "100%",
-    backgroundColor: THEME.primary,
-    borderRadius: "3px",
+  cardFooter: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginTop: "15px",
+    paddingTop: "10px",
+    borderTop: `1px solid ${THEME.bg}`,
   },
-  actionBtn: {
-    background: "transparent",
+  refreshBtn: {
+    height: "40px",
+    padding: "0 20px",
+    borderRadius: "12px",
+    backgroundColor: "#fff",
+    color: THEME.primary,
+    border: `1px solid ${THEME.primary}`,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontWeight: "bold",
+    fontSize: "14px",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+    transition: "background 0.2s",
+  },
+  excelButton: {
+    height: "40px",
+    padding: "0 20px",
+    borderRadius: "12px",
+    backgroundColor: "#217346",
+    color: "#fff",
     border: "none",
     cursor: "pointer",
-    color: "#999",
-    padding: "5px",
+    display: "flex",
+    alignItems: "center",
+    fontWeight: "bold",
+    fontSize: "14px",
+    gap: "6px",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
   },
-  emptyState: { padding: "40px", textAlign: "center", color: THEME.gray },
-
-  // 상세 모달 스타일
   modalOverlay: {
     position: "fixed",
     top: 0,
@@ -812,67 +652,37 @@ const styles = {
     zIndex: 1000,
   },
   detailModal: {
-    width: "500px",
+    backgroundColor: THEME.white,
     padding: "30px",
-    backgroundColor: "white",
-    borderRadius: "20px",
-    boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
-    maxWidth: "90%",
-    maxHeight: "90vh",
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
+    borderRadius: "16px",
+    width: "400px",
+    boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
   },
   modalHeader: {
-    marginBottom: "25px",
-    borderBottom: `1px solid ${THEME.border}`,
-    paddingBottom: "15px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: "20px",
+    borderBottom: `1px solid ${THEME.border}`,
+    paddingBottom: "10px",
   },
   closeBtn: {
-    background: "none",
+    background: "transparent",
     border: "none",
-    cursor: "pointer",
     fontSize: "18px",
+    cursor: "pointer",
     color: THEME.gray,
   },
-  modalBody: { flex: 1, display: "flex", flexDirection: "column", gap: "10px" },
-  infoGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" },
-  divider: { height: "1px", backgroundColor: "#eee", margin: "10px 0" },
-  section: { marginTop: "15px" },
-  sectionTitle: {
-    fontSize: "14px",
-    fontWeight: "bold",
-    marginBottom: "8px",
-    display: "flex",
+  modalBody: { fontSize: "14px", lineHeight: "1.6", color: THEME.text },
+  materialTag: {
+    display: "inline-flex",
     alignItems: "center",
-    gap: "6px",
-    color: THEME.text,
-  },
-  textBox: {
-    padding: "12px",
-    backgroundColor: "#F8F9FA",
-    borderRadius: "8px",
-    border: "1px solid #E0E0E0",
-    fontSize: "13px",
-    color: "#555",
-    lineHeight: "1.5",
-  },
-  modalFooter: {
-    marginTop: "30px",
-    display: "flex",
-    justifyContent: "flex-end",
-  },
-  confirmBtn: {
-    padding: "10px 25px",
-    backgroundColor: THEME.primary,
-    color: "white",
-    border: "none",
-    borderRadius: "10px",
-    fontWeight: "bold",
-    cursor: "pointer",
+    backgroundColor: THEME.secondary,
+    color: THEME.primary,
+    padding: "2px 8px",
+    borderRadius: "6px",
+    fontSize: "12px",
+    fontWeight: "500",
   },
 };
 

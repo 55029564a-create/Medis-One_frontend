@@ -183,17 +183,12 @@ const EmployeeMgmt = () => {
   const handleResign = async () => {
     if (window.confirm(`${currentEmp.name}님을 퇴사 처리하시겠습니까?`)) {
       try {
-        // 1. 서버에 퇴사 요청 전송
         await resignEmployee(currentEmp.realId);
-
-        // 2. [강제 업데이트] 서버에서 데이터를 다시 불러오지 않고(fetchEmployees X),
-        // 현재 화면에 있는 데이터(State)를 직접 수정해서 즉시 반영합니다.
         setEmployees((prevEmployees) =>
           prevEmployees.map((emp) =>
             emp.id === currentEmp.id ? { ...emp, status: "Resigned" } : emp,
           ),
         );
-
         alert("퇴사 처리되었습니다.");
         setIsEditModalOpen(false);
       } catch (error) {
@@ -242,11 +237,7 @@ const EmployeeMgmt = () => {
           </p>
         </div>
         <div style={styles.actions}>
-          {/* 새로고침 버튼 */}
-          <button style={styles.refreshBtn} onClick={handleManualRefresh}>
-            <FaSyncAlt /> 새로고침
-          </button>
-
+          {/* 1. 검색창 (가장 왼쪽) */}
           <div style={styles.searchBox}>
             <FaSearch color="#999" />
             <input
@@ -257,6 +248,13 @@ const EmployeeMgmt = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          {/* 2. 새로고침 (가운데) */}
+          <button style={styles.refreshBtn} onClick={handleManualRefresh}>
+            <FaSyncAlt /> 새로고침
+          </button>
+
+          {/* 3. 신규 등록 (가장 오른쪽) */}
           <button style={styles.addButton} onClick={handleAddNew}>
             <FaPlus style={{ marginRight: "5px" }} /> 신규 등록
           </button>
@@ -307,12 +305,14 @@ const EmployeeMgmt = () => {
                 )}
               </div>
             </div>
+
             <div
               style={{
                 ...styles.cell,
                 width: "10%",
                 fontWeight: "bold",
                 color: "#555",
+                fontSize: "12px",
               }}
             >
               #{emp.id}
@@ -435,8 +435,6 @@ const EmployeeMgmt = () => {
     </div>
   );
 };
-
-// ... (AddEmployeeModal, EditEmployeeModal, InputGroup, SelectGroup, styles 코드는 기존과 동일하므로 생략하지 않고 아래에 그대로 둡니다)
 
 const AddEmployeeModal = ({ currentEmp, onClose, onSave, onChange }) => (
   <div style={styles.modalOverlay}>
@@ -685,48 +683,63 @@ const styles = {
     marginBottom: "30px",
   },
   actions: { display: "flex", gap: "15px" },
+
   searchBox: {
+    height: "40px",
     backgroundColor: "#fff",
-    borderRadius: "20px",
-    padding: "8px 15px",
+    borderRadius: "12px",
+    padding: "0 15px",
     display: "flex",
     alignItems: "center",
     boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
     border: `1px solid ${COLORS.border}`,
+    boxSizing: "border-box",
+    overflow: "hidden",
   },
   searchInput: {
+    flex: 1,
     border: "none",
     outline: "none",
     marginLeft: "10px",
     fontSize: "14px",
-    width: "200px",
+    height: "100%",
+    backgroundColor: "transparent",
+    padding: 0,
   },
+
   refreshBtn: {
-    padding: "8px 16px",
+    height: "40px",
+    padding: "0 20px",
     backgroundColor: "#fff",
-    border: `1px solid ${COLORS.border}`,
-    borderRadius: "20px",
+    border: `1px solid ${COLORS.primary}`,
+    borderRadius: "12px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     gap: "6px",
     fontWeight: "bold",
-    color: "#555",
-    fontSize: "13px",
+    color: COLORS.primary,
+    fontSize: "14px",
     whiteSpace: "nowrap",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+    transition: "background 0.2s",
   },
+
   addButton: {
+    height: "40px",
     backgroundColor: COLORS.primary,
     color: "#fff",
     border: "none",
-    borderRadius: "20px",
-    padding: "8px 20px",
+    borderRadius: "12px",
+    padding: "0 20px",
     fontWeight: "bold",
+    fontSize: "14px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     boxShadow: "0 4px 10px rgba(140, 133, 255, 0.4)",
   },
+
   listContainer: { display: "flex", flexDirection: "column", gap: "15px" },
   cell: {
     display: "flex",

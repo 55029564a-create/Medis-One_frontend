@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import client from "../../api/client";
-import { QRCodeSVG } from "qrcode.react"; // ✅ [필수] QR 라이브러리
+import { QRCodeSVG } from "qrcode.react";
 
 import {
   FaSearch,
@@ -61,7 +61,6 @@ const InventoryHistory = () => {
       let typeCode = "ETC";
       const rawType = dto.type || "";
 
-      // 1. 완제품/공정완료 -> "출하대기"로 판단
       if (
         [
           "생산완료",
@@ -75,9 +74,7 @@ const InventoryHistory = () => {
         ].includes(rawType)
       ) {
         typeCode = "PRODUCED";
-      }
-      // 2. 공정 투입 -> "라인투입"
-      else if (
+      } else if (
         [
           "생산투입",
           "공정투입",
@@ -88,19 +85,15 @@ const InventoryHistory = () => {
         ].includes(rawType)
       ) {
         typeCode = "PROCESS";
-      }
-      // 3. 자재 입고
-      else if (["입고", "INBOUND", "IN", "구매입고"].includes(rawType)) {
+      } else if (["입고", "INBOUND", "IN", "구매입고"].includes(rawType)) {
         typeCode = "IN";
-      }
-      // 4. 자재 출하 (창고 불출)
-      else if (["출고", "OUTBOUND", "OUT", "자재출하"].includes(rawType)) {
+      } else if (["출고", "OUTBOUND", "OUT", "자재출하"].includes(rawType)) {
         typeCode = "OUT";
       }
 
       return {
         ...dto,
-        mappedType: typeCode, // 분류된 타입 저장
+        mappedType: typeCode,
       };
     });
   };
@@ -130,7 +123,6 @@ const InventoryHistory = () => {
     }
     setLoadingDetail(true);
     try {
-      // 전체 기간으로 조회해서 해당 LOT의 전체 흐름 파악
       const response = await client.get("/inventory/history", {
         params: {
           startDate: "2020-01-01",
@@ -237,7 +229,6 @@ const InventoryHistory = () => {
     document.body.removeChild(link);
   };
 
-  // ✅ [배지 렌더링] 공정완료/생산완료 -> "출하대기" 표시
   const renderTypeBadge = (mappedType, rawType) => {
     if (mappedType === "IN")
       return (
@@ -270,7 +261,7 @@ const InventoryHistory = () => {
           icon={<FaBoxOpen size={10} />}
           text="출하대기"
         />
-      ); // 🔥 완료된 롯트는 출하대기
+      );
     return <Badge color="#999" text={rawType} />;
   };
 
@@ -289,6 +280,7 @@ const InventoryHistory = () => {
 
   return (
     <div style={styles.container}>
+      {/* 1. 헤더 */}
       <div style={styles.header}>
         <div>
           <h2 style={{ margin: 0, color: COLORS.text }}>📊 통합 이력 조회</h2>
@@ -302,9 +294,15 @@ const InventoryHistory = () => {
             자재 입고부터 생산 완료(출하대기)까지의 흐름을 추적합니다.
           </p>
         </div>
-        <button onClick={fetchHistory} style={styles.refreshBtn}>
-          <FaSyncAlt /> 새로고침
-        </button>
+
+        <div style={styles.headerBtnGroup}>
+          <button onClick={fetchHistory} style={styles.refreshBtn}>
+            <FaSyncAlt /> 새로고침
+          </button>
+          <button style={styles.excelButton} onClick={handleDownloadExcel}>
+            <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
+          </button>
+        </div>
       </div>
 
       <div style={styles.toolbar}>
@@ -348,9 +346,7 @@ const InventoryHistory = () => {
             </button>
           </div>
         </div>
-        <button style={styles.excelButton} onClick={handleDownloadExcel}>
-          <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀
-        </button>
+        {/* 기존 엑셀 버튼 제거 (헤더로 이동) */}
       </div>
 
       <div style={styles.listHeader}>
@@ -595,7 +591,6 @@ const InventoryHistory = () => {
                           담당: {hist.empName || "-"} | 수량:{" "}
                           {hist.changeQty ? hist.changeQty.toLocaleString() : 0}
                         </div>
-                        {/* 완료 상태인 경우 강조 메시지 */}
                         {hist.mappedType === "PRODUCED" && (
                           <div
                             style={{
@@ -655,18 +650,46 @@ const styles = {
     alignItems: "center",
     marginBottom: "20px",
   },
+
+  headerBtnGroup: {
+    display: "flex",
+    gap: "10px",
+  },
+
   refreshBtn: {
-    padding: "8px 12px",
+    height: "40px",
+    padding: "0 20px",
+    borderRadius: "12px",
     backgroundColor: "white",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
+    color: COLORS.primary,
+    border: `1px solid ${COLORS.primary}`,
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     gap: "6px",
-    color: "#666",
-    fontSize: "13px",
+    fontWeight: "bold",
+    fontSize: "14px",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+    transition: "background 0.2s",
   },
+
+  excelButton: {
+    height: "40px",
+    padding: "0 20px",
+    borderRadius: "12px",
+    backgroundColor: "#217346", // 초록색
+    color: "#fff",
+    border: "none",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontWeight: "bold",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+    fontSize: "14px",
+    whiteSpace: "nowrap",
+  },
+
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
@@ -714,20 +737,6 @@ const styles = {
     marginLeft: "10px",
     width: "100%",
     fontSize: "13px",
-  },
-  excelButton: {
-    backgroundColor: "#217346",
-    color: "#fff",
-    border: "none",
-    padding: "8px 16px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    fontWeight: "bold",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
-    fontSize: "13px",
-    whiteSpace: "nowrap",
   },
   listHeader: {
     display: "flex",

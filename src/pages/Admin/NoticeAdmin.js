@@ -535,6 +535,7 @@ const NoticeRow = ({ item, onTitleClick, onEdit, onDelete }) => {
           >
             {item.title}
           </span>
+
           {item.id >= 3 && <span style={styles.badgeNew}>N</span>}
         </div>
       </td>
@@ -646,7 +647,9 @@ const styles = {
     borderRadius: "4px",
     fontWeight: "bold",
     border: `1px solid ${COLORS.danger}`,
+    flexShrink: 0,
   },
+
   badgeNew: {
     backgroundColor: COLORS.primary,
     color: "white",
@@ -658,7 +661,9 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     fontWeight: "bold",
+    flexShrink: 0,
   },
+
   pagination: {
     display: "flex",
     justifyContent: "center",
