@@ -1,28 +1,24 @@
-import jwtAxios from "../utils/jwtUtil";
-
-// 🛑 [수정 완료] localhost -> 192.168.0.85 (내 PC IP)로 변경 필수!
-const host = "http://192.168.0.85:8111/api/material";
+import client from "./client";
 
 // ==========================================
-// 1. 신규 API 함수들 (컨트롤러와 1:1 매칭)
+// 1. 기본 API 함수들 (기존 유지)
 // ==========================================
 
 // 입고 등록
 export const inboundMaterial = async (data) => {
-  const res = await jwtAxios.post(`${host}/inbound`, data);
+  const res = await client.post("/material/inbound", data);
   return res.data;
 };
 
 // 출고 등록
 export const outboundMaterial = async (data) => {
-  const res = await jwtAxios.post(`${host}/outbound`, data);
+  const res = await client.post("/material/outbound", data);
   return res.data;
 };
 
-// 내역 조회 (검색어 포함)
+// 내역 조회 (기본)
 export const getRecentHistory = async (keyword = "") => {
-  // host에 이미 IP가 박혀있으므로 핸드폰에서도 PC로 잘 찾아갑니다.
-  const res = await jwtAxios.get(`${host}/find-history`, {
+  const res = await client.get("/material/find-history", {
     params: { keyword: keyword },
   });
   return res.data;
@@ -30,42 +26,60 @@ export const getRecentHistory = async (keyword = "") => {
 
 // 통계 조회
 export const getTodayStats = async () => {
-  const res = await jwtAxios.get(`${host}/today-stats`);
+  const res = await client.get("/material/today-stats");
   return res.data;
 };
 
 // 사원 목록
 export const getEmployeeList = async () => {
-  const res = await jwtAxios.get(`${host}/employees`);
+  const res = await client.get("/material/employees");
   return res.data;
 };
 
 // 바코드 정보 조회
 export const getMaterialInfo = async (lotNumber) => {
-  const res = await jwtAxios.get(`${host}/info/${lotNumber}`);
+  const res = await client.get(`/material/info/${lotNumber}`);
   return res.data;
 };
 
-// ==========================================
-// 2. [에러 해결용] 구버전 함수 이름 호환성 연결
-// ==========================================
-
-export const getMaterialHistory = getRecentHistory;
-
-export const registerMaterialInOut = async (data) => {
-  if (data.type === "IN" || data.type === "INBOUND") {
-    return inboundMaterial({ ...data, type: "INBOUND" });
-  } else {
-    return outboundMaterial({ ...data, type: "PRODUCTION_IN" });
-  }
-};
-
+// 업체 목록 조회
 export const getVendorList = async () => {
   try {
-    const response = await jwtAxios.get(`${host}/companies`);
+    const response = await client.get("/material/companies");
     return response.data;
   } catch (error) {
     console.error("업체 목록 조회 실패:", error);
     return [];
+  }
+};
+
+// ==========================================
+// 2. [모바일 호환성 해결] 주소 자동 감지 함수
+// ==========================================
+
+// 🚀 핵심 수정 부분: 모바일 조회용 함수 재정의
+export const getMaterialHistory = async (keyword) => {
+  // 1. 현재 브라우저의 주소(IP)를 알아냅니다. (예: 192.168.0.85 또는 localhost)
+  const hostname = window.location.hostname;
+  const backendPort = "8111"; // 백엔드 포트 번호
+
+  // 2. client에 설정된 localhost를 무시하고, 현재 접속한 IP로 주소를 새로 만듭니다.
+  const dynamicBaseURL = `http://${hostname}:${backendPort}/api`;
+
+  // 3. baseURL 옵션을 덮어씌워서 요청을 보냅니다.
+  const res = await client.get("/material/find-history", {
+    baseURL: dynamicBaseURL, // 이 옵션이 기존 client 설정을 이깁니다.
+    params: { keyword: keyword },
+  });
+
+  return res.data;
+};
+
+export const registerMaterialInOut = async (data) => {
+  // 위에서 만든 inboundMaterial / outboundMaterial 함수를 재사용합니다.
+  if (data.type === "IN" || data.type === "INBOUND") {
+    return inboundMaterial({ ...data, type: "INBOUND" });
+  } else {
+    return outboundMaterial({ ...data, type: "PRODUCTION_IN" });
   }
 };

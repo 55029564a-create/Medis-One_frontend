@@ -27,7 +27,7 @@ const MobileTracking = () => {
         const data = await getMaterialHistory(id);
 
         if (data && data.length > 0) {
-          // 2. 정확히 일치하는 LOT만 필터링 (유사 검색 방지)
+          // 2. 정확히 일치하는 LOT만 필터링
           const exactData = data.filter((item) => item.lotNum === id);
 
           if (exactData.length === 0) {
@@ -36,7 +36,7 @@ const MobileTracking = () => {
             return;
           }
 
-          // 3. 최신순 정렬 (날짜 내림차순)
+          // 3. 최신순 정렬
           const sortedData = exactData.sort(
             (a, b) =>
               new Date(b.date || b.regDate) - new Date(a.date || a.regDate),
@@ -44,7 +44,7 @@ const MobileTracking = () => {
 
           setHistory(sortedData);
 
-          // 4. 상단 제품 정보 설정 (가장 최신 데이터 기준)
+          // 4. 상단 제품 정보 설정
           const latest = sortedData[0];
           setProductInfo({
             name: latest.matName || "알 수 없음",
@@ -135,7 +135,7 @@ const MobileTracking = () => {
         </div>
       </div>
 
-      {/* 2. 제품 요약 카드 (헤더 위로 겹치게 배치) */}
+      {/* 2. 제품 요약 카드 */}
       <div
         style={{
           margin: "-30px 20px 25px",
@@ -258,7 +258,6 @@ const MobileTracking = () => {
           }}
         >
           {history.map((item, idx) => {
-            // 타입에 따른 라벨 및 색상 결정
             let typeLabel = "기타";
             let isIN = false;
             let isOUT = false;
@@ -278,7 +277,6 @@ const MobileTracking = () => {
                 key={idx}
                 style={{ position: "relative", marginBottom: "30px" }}
               >
-                {/* 타임라인 점 */}
                 <div
                   style={{
                     position: "absolute",
@@ -297,7 +295,6 @@ const MobileTracking = () => {
                   }}
                 />
 
-                {/* 내용 카드 */}
                 <div
                   style={{
                     backgroundColor: "white",
