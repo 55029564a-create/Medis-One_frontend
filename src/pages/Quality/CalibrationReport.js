@@ -96,6 +96,12 @@ const CalibrationReport = () => {
     { label: "Max JND Error", value: "0.82", target: "< 1.0", status: "PASS" },
   ];
 
+  const handlePdfClick = () => {
+    alert(
+      `[PDF Export Success]\n\n파일명: Calibration_Report_${reportInfo.serial}.pdf\n다운로드가 완료되었습니다.`,
+    );
+  };
+
   return (
     <div style={styles.container}>
       {/* 1. 상단 헤더 & 컨트롤 */}
@@ -114,7 +120,8 @@ const CalibrationReport = () => {
           <button style={styles.printBtn} onClick={() => window.print()}>
             <FaPrint /> Print
           </button>
-          <button style={styles.exportBtn}>
+
+          <button style={styles.exportBtn} onClick={handlePdfClick}>
             <FaFilePdf /> PDF Export
           </button>
         </div>

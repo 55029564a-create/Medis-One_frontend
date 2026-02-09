@@ -189,12 +189,16 @@ const ProductionSchedule = () => {
           </div>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
+          {/* ★ [수정됨] 새로고침 버튼에 loading 상태 연동 및 텍스트 변경 기능 추가 */}
           <button
             style={styles.refreshBtn}
             onClick={() => fetchSchedules(true)}
+            disabled={isLoading}
           >
-            <FaSyncAlt /> 새로고침
+            <FaSyncAlt className={isLoading ? "spin" : ""} />{" "}
+            {isLoading ? "갱신 중..." : "새로고침"}
           </button>
+
           <button style={styles.excelButton} onClick={handleDownloadExcel}>
             <FaFileExcel style={{ marginRight: "6px" }} /> 엑셀 다운로드
           </button>
