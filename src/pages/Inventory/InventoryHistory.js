@@ -130,10 +130,10 @@ const InventoryHistory = () => {
       });
     }
 
-    // 2. 유형 필터 (수량이 0보다 크면 입고, 작으면 출고로 판별)
+    // 2. 유형 필터
     if (filterType !== "ALL") {
       result = result.filter((item) => {
-        const isIN = item.changeQty > 0;
+        const isIN = item.type === "입고";
         return filterType === "IN" ? isIN : !isIN;
       });
     }
@@ -292,7 +292,7 @@ const InventoryHistory = () => {
           filteredData.map((row, index) => {
             // (row) => ( 에서 (row, index) => { 로 변경
             // 1. 데이터 가공 (변수 선언은 반드시 { } 안에서 수행)
-            const isIncoming = row.changeQty > 0;
+            const isIncoming = row.type === "입고";
 
             // 날짜 데이터가 없을 경우를 대비한 방어 코드 포함
             const dateParts = row.date ? row.date.split("T") : ["-", "-"];
@@ -349,7 +349,7 @@ const InventoryHistory = () => {
                     color: isIncoming ? COLORS.success : COLORS.danger,
                   }}
                 >
-                  {isIncoming ? "+" : ""}
+                  {isIncoming ? "+" : "-"}
                   {(row.changeQty || 0).toLocaleString()}
                 </div>
 
