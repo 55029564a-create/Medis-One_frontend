@@ -6,6 +6,7 @@ import {
   getRecentHistory,
   getEmployeeList,
   getTodayStats,
+  getVendorList, // ✨ [추가] API 함수 임포트
 } from "../../api/materialApi";
 import {
   FaBox,
@@ -39,14 +40,8 @@ const COLORS = {
   inputBg: "#FFFFFF",
 };
 
-// 🏢 공급업체
-const VENDOR_LIST = [
-  { name: "ZOLL Medical", id: "V-001" },
-  { name: "Samsung SDI", id: "V-002" },
-  { name: "LG Display", id: "V-003" },
-  { name: "Texas Inst.", id: "V-004" },
-  { name: "3M Korea", id: "V-005" },
-];
+// ❌ [삭제] 기존 하드코딩된 VENDOR_LIST 제거
+// const VENDOR_LIST = [ ... ];
 
 const MaterialInout = () => {
   const navigate = useNavigate();
@@ -63,9 +58,7 @@ const MaterialInout = () => {
     manager: "",
   });
 
-  // 사번(String)을 저장
   const [selectedEmpNum, setSelectedEmpNum] = useState(null);
-
   const [recentList, setRecentList] = useState([]);
   const [stats, setStats] = useState({ inbound: 0, outbound: 0 });
 
@@ -80,9 +73,10 @@ const MaterialInout = () => {
   const [selectedProcess, setSelectedProcess] = useState("");
   const [availableProcesses, setAvailableProcesses] = useState([]);
 
-  // 업체 검색
+  // ✨ [수정] 업체 목록 상태 관리 (DB에서 받아옴)
+  const [vendorList, setVendorList] = useState([]); // 전체 목록
+  const [filteredVendors, setFilteredVendors] = useState([]); // 검색 필터된 목록
   const [showVendorList, setShowVendorList] = useState(false);
-  const [filteredVendors, setFilteredVendors] = useState(VENDOR_LIST);
 
   // 초기 로드
   useEffect(() => {
@@ -106,14 +100,26 @@ const MaterialInout = () => {
 
       // 3. 담당자 목록 조회
       const empData = await getEmployeeList();
-      console.log("👉 사원 목록 데이터:", empData);
-
       if (empData && Array.isArray(empData)) {
         setManagerList(empData);
         setFilteredManagers(empData);
       }
 
-      // 4. 공정 데이터 구성
+      // 4. ✨ [추가] 업체 목록 조회 (DB material_lot 테이블에서)
+      const vendorsData = await getVendorList();
+      if (vendorsData && Array.isArray(vendorsData)) {
+        // DB에서 문자열 배열(["Samsung", "LG"])로 온다고 가정하고 객체로 변환
+        // 만약 DB에서 이미 객체({id, name})로 온다면 map 불필요
+        const mappedVendors = vendorsData.map((v, idx) => ({
+          name: typeof v === "string" ? v : v.company, // DB 컬럼명에 맞게 조정
+          id: `V-${idx}`,
+        }));
+
+        setVendorList(mappedVendors);
+        setFilteredVendors(mappedVendors);
+      }
+
+      // 5. 공정 데이터 구성
       organizeProcessData();
     } catch (e) {
       console.error("데이터 로딩 에러", e);
@@ -158,7 +164,6 @@ const MaterialInout = () => {
 
   // --- 이벤트 핸들러 ---
 
-  // [신규] 수동 새로고침 함수
   const handleManualRefresh = () => {
     fetchInitialData();
     alert("최신 데이터로 갱신되었습니다.");
@@ -174,6 +179,8 @@ const MaterialInout = () => {
             ...prev,
             item: target.matName,
             qty: "",
+            // 스캔 시 해당 Lot의 기존 업체 정보가 있다면 자동 입력도 가능
+            vendor: target.company || prev.vendor,
           }));
           document.getElementById("qtyInput")?.focus();
         } else {
@@ -189,8 +196,6 @@ const MaterialInout = () => {
   const handleManagerChange = (e) => {
     const text = e.target.value;
     setInputs({ ...inputs, manager: text });
-
-    // 검색 시에는 사번 초기화 (직접 타이핑 중이므로)
     setSelectedEmpNum(null);
 
     const filtered = managerList.filter(
@@ -204,20 +209,18 @@ const MaterialInout = () => {
   const selectManager = (manager) => {
     const code = manager.employeeNum || "Unknown";
     const label = `${manager.name} (${code})`;
-
     setInputs({ ...inputs, manager: label });
-
-    console.log("선택된 사원 사번:", manager.employeeNum);
     setSelectedEmpNum(manager.employeeNum);
-
     setShowManagerList(false);
   };
 
+  // ✨ [수정] 업체 검색 로직 (state 기반)
   const handleVendorChange = (e) => {
     const text = e.target.value;
     setInputs({ ...inputs, vendor: text });
+
     setFilteredVendors(
-      VENDOR_LIST.filter((v) =>
+      vendorList.filter((v) =>
         v.name.toLowerCase().includes(text.toLowerCase()),
       ),
     );
@@ -246,7 +249,6 @@ const MaterialInout = () => {
     setSelectedProcess(e.target.value);
   };
 
-  // 🚀 [등록]
   const handleRegister = async () => {
     if (!inputs.item || !inputs.qty || !inputs.lot) {
       return alert("자재명, LOT번호, 수량은 필수입니다.");
@@ -273,13 +275,10 @@ const MaterialInout = () => {
         employeeNum: selectedEmpNum,
       };
 
-      console.log("🚀 백엔드로 전송하는 Payload:", payload);
-
       await registerMaterialInOut(payload);
 
       alert("처리 완료!");
 
-      // 초기화
       setInputs((prev) => ({
         ...prev,
         item: "",
@@ -288,16 +287,8 @@ const MaterialInout = () => {
         currentQty: 0,
       }));
 
-      // 목록 갱신
-      const updatedHistory = await getRecentHistory();
-      if (updatedHistory) setRecentList(updatedHistory.slice(0, 5));
-
-      const statData = await getTodayStats();
-      if (statData)
-        setStats({
-          inbound: statData.todayInbound,
-          outbound: statData.todayOutbound,
-        });
+      // 목록 갱신 및 업체 목록 재조회 (신규 업체가 생겼을 수도 있으므로)
+      fetchInitialData();
 
       lotInputRef.current.focus();
     } catch (error) {
@@ -486,7 +477,6 @@ const MaterialInout = () => {
             </h2>
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
-            {/* [추가] 새로고침 버튼 */}
             <button
               onClick={handleManualRefresh}
               style={{
@@ -527,7 +517,6 @@ const MaterialInout = () => {
           </div>
         </div>
 
-        {/* ... (이하 기존 코드와 동일) ... */}
         {/* 통계 카드 */}
         <div style={styles.statsGrid}>
           <StatCard
@@ -725,7 +714,7 @@ const MaterialInout = () => {
                   <FaSearch style={styles.inputIcon} />
                   <input
                     style={styles.commonInput}
-                    placeholder="업체 검색"
+                    placeholder="업체 검색 (DB 조회)"
                     value={inputs.vendor}
                     onChange={handleVendorChange}
                     onFocus={() => setShowVendorList(true)}
@@ -735,15 +724,21 @@ const MaterialInout = () => {
                   />
                   {showVendorList && (
                     <div style={styles.dropdownList}>
-                      {filteredVendors.map((v) => (
-                        <div
-                          key={v.id}
-                          style={styles.dropdownItem}
-                          onClick={() => selectVendor(v)}
-                        >
-                          <strong>{v.name}</strong>
+                      {filteredVendors.length > 0 ? (
+                        filteredVendors.map((v) => (
+                          <div
+                            key={v.id}
+                            style={styles.dropdownItem}
+                            onClick={() => selectVendor(v)}
+                          >
+                            <strong>{v.name}</strong>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ ...styles.dropdownItem, color: "#999" }}>
+                          검색 결과 없음
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </div>

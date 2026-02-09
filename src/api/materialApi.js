@@ -61,3 +61,15 @@ export const registerMaterialInOut = async (data) => {
     return outboundMaterial({ ...data, type: "PRODUCTION_IN" });
   }
 };
+export const getVendorList = async () => {
+  try {
+    // host = "http://localhost:8111/api/material" 이므로
+    // 실제 요청 주소는 "http://localhost:8111/api/material/companies" 가 됩니다.
+    const response = await jwtAxios.get(`${host}/companies`);
+    return response.data;
+  } catch (error) {
+    console.error("업체 목록 조회 실패:", error);
+    // 실패 시 빈 배열 반환 (화면이 깨지지 않게)
+    return [];
+  }
+};
