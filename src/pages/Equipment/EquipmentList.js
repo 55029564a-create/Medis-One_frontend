@@ -380,7 +380,7 @@ const EquipmentList = () => {
               <EquipmentCard
                 key={machine.id}
                 data={machine}
-                onClick={() => navigate(`/equipment/detail/${machine.id}`)}
+                onClick={() => navigate(`/equipment/detail/${machine.eqCode}`)}
               />
             ))
           ) : (

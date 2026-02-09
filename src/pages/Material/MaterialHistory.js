@@ -454,7 +454,7 @@ const MaterialHistory = () => {
                   style={{ width: "5%", textAlign: "center" }}
                 >
                   상세
-                </th>{" "}
+                </th>
                 {/* ✅ "상세" 텍스트 적용 */}
               </tr>
             </thead>
@@ -756,7 +756,7 @@ const MaterialHistory = () => {
                     <FaSyncAlt
                       className="fa-spin"
                       style={{ marginRight: "5px" }}
-                    />{" "}
+                    />
                     조회 중...
                   </div>
                 ) : lotTimeline.length > 0 ? (

@@ -90,6 +90,12 @@ export const getEquipmentList = async () => {
   const response = await client.get("/production/equipment/list");
   return response.data;
 };
+// 설비 상세 정보 조회 (추가)
+export const getEquipmentDetail = async (id) => {
+  // 백엔드 컨트롤러 주소와 맞춰야 합니다.
+  const response = await client.get(`/equipment/detail/${id}`);
+  return response.data;
+};
 
 // ==========================================
 // [신규 추가] 생산 지시서 (ProductionSchedule) 조회
