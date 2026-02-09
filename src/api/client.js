@@ -3,7 +3,7 @@ import axios from "axios";
 // 1. 기본 설정
 const client = axios.create({
   // 🔥 [중요] 포트 번호를 8111로 꼭 맞춰주세요!
-  baseURL: "http://192.168.0.85:8111/api",
+  baseURL: "http://192.168.8.85:8111/api",
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
